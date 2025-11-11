@@ -1,0 +1,6 @@
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+@onchain-id/solidity/=lib/solidity/
+solidity/=lib/solidity/contracts/
+ERC-3643/=lib/ERC-3643/contracts/
+

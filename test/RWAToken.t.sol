@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import {Test} from "forge-std/Test.sol";
-import {Counter} from "../src/Counter.sol";
+import {RWAToken} from "../src/rwa/RWAToken.sol";
 
 contract MockCompliance {
     bool public bindCalled;
@@ -53,8 +53,8 @@ contract MockCompliance {
 
 contract MockIdentityRegistry {}
 
-contract CounterTest is Test {
-    Counter internal counter;
+contract RWATokenTest is Test {
+    RWAToken internal rwaToken;
     MockCompliance internal compliance;
     MockIdentityRegistry internal identityRegistry;
 
@@ -64,13 +64,13 @@ contract CounterTest is Test {
     address private constant ONCHAIN_ID = address(0x123456);
 
     function setUp() public {
-        counter = new Counter();
+        rwaToken = new RWAToken();
         compliance = new MockCompliance();
         identityRegistry = new MockIdentityRegistry();
     }
 
     function testInitSetsState() public {
-        counter.init(
+        rwaToken.init(
             address(identityRegistry),
             address(compliance),
             TOKEN_NAME,
@@ -79,40 +79,40 @@ contract CounterTest is Test {
             ONCHAIN_ID
         );
 
-        assertEq(counter.owner(), address(this));
-        assertEq(counter.paused(), true);
-        assertEq(counter.name(), TOKEN_NAME);
-        assertEq(counter.symbol(), TOKEN_SYMBOL);
-        assertEq(counter.decimals(), TOKEN_DECIMALS);
-        assertEq(counter.onchainID(), ONCHAIN_ID);
-        assertEq(address(counter.identityRegistry()), address(identityRegistry));
-        assertEq(address(counter.compliance()), address(compliance));
+        assertEq(rwaToken.owner(), address(this));
+        assertEq(rwaToken.paused(), true);
+        assertEq(rwaToken.name(), TOKEN_NAME);
+        assertEq(rwaToken.symbol(), TOKEN_SYMBOL);
+        assertEq(rwaToken.decimals(), TOKEN_DECIMALS);
+        assertEq(rwaToken.onchainID(), ONCHAIN_ID);
+        assertEq(address(rwaToken.identityRegistry()), address(identityRegistry));
+        assertEq(address(rwaToken.compliance()), address(compliance));
         assertTrue(compliance.bindCalled());
-        assertEq(compliance.getTokenBound(), address(counter));
+        assertEq(compliance.getTokenBound(), address(rwaToken));
     }
 
     function testInitRevertsWhenZeroAddress() public {
         vm.expectRevert(bytes("invalid argument - zero address"));
-        counter.init(address(0), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID);
+        rwaToken.init(address(0), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID);
     }
 
     function testInitRevertsWhenEmptyName() public {
         vm.expectRevert(bytes("invalid argument - empty string"));
-        counter.init(address(identityRegistry), address(compliance), "", TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID);
+        rwaToken.init(address(identityRegistry), address(compliance), "", TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID);
     }
 
     function testInitRevertsWhenEmptySymbol() public {
         vm.expectRevert(bytes("invalid argument - empty string"));
-        counter.init(address(identityRegistry), address(compliance), TOKEN_NAME, "", TOKEN_DECIMALS, ONCHAIN_ID);
+        rwaToken.init(address(identityRegistry), address(compliance), TOKEN_NAME, "", TOKEN_DECIMALS, ONCHAIN_ID);
     }
 
     function testInitRevertsWhenDecimalsOutOfRange() public {
         vm.expectRevert(bytes("decimals between 0 and 18"));
-        counter.init(address(identityRegistry), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, 19, ONCHAIN_ID);
+        rwaToken.init(address(identityRegistry), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, 19, ONCHAIN_ID);
     }
 
     function testInitCannotBeCalledTwice() public {
-        counter.init(
+        rwaToken.init(
             address(identityRegistry),
             address(compliance),
             TOKEN_NAME,
@@ -122,7 +122,7 @@ contract CounterTest is Test {
         );
 
         vm.expectRevert(bytes("Initializable: contract is already initialized"));
-        counter.init(
+        rwaToken.init(
             address(identityRegistry),
             address(compliance),
             TOKEN_NAME,

@@ -1,0 +1,5 @@
+{
+    "solc": "0.8.23",
+    "filter_paths": "node_modules,mocks,lib"
+  }
+  

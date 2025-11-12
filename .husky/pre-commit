@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+
+if [ -f .git/MERGE_HEAD ]; then
+  exit 0 # Skip checks during merge
+fi
+
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Format staged files
+git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx|json|md|sol)$' | xargs -r npx prettier --write --ignore-path .prettierignore --config .prettierrc.json
+
+# Add only formatted files
+git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx|ts|tsx|json|md|sol)$' | xargs -r git add

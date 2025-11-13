@@ -2,102 +2,12 @@
 pragma solidity 0.8.17;
 
 import {Test} from "forge-std/Test.sol";
-import {TrustedIssuersRegistry} from "ERC-3643/registry/implementation/TrustedIssuersRegistry.sol";
+import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
-import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
-
-// Mock ClaimIssuer contract for testing
-contract MockClaimIssuer is IClaimIssuer {
-    function revokeClaim(bytes32, address) external pure override returns (bool) {
-        return true;
-    }
-
-    function revokeClaimBySignature(bytes calldata) external pure override {}
-
-    function isClaimRevoked(bytes calldata) external pure override returns (bool) {
-        return false;
-    }
-
-    function isClaimValid(
-        IIdentity,
-        uint256,
-        bytes calldata,
-        bytes calldata
-    ) external pure override returns (bool) {
-        return true;
-    }
-
-    // IIdentity interface functions (minimal implementation)
-    function keyHasPurpose(bytes32, uint256) external pure override returns (bool) {
-        return false;
-    }
-
-    function getKey(bytes32) external pure override returns (uint256[] memory, uint256, bytes32) {
-        return (new uint256[](0), 0, bytes32(0));
-    }
-
-    function getKeyPurposes(bytes32) external pure override returns (uint256[] memory) {
-        return new uint256[](0);
-    }
-
-    function getKeysByPurpose(uint256) external pure override returns (bytes32[] memory) {
-        return new bytes32[](0);
-    }
-
-    function addKey(bytes32, uint256, uint256) external pure override returns (bool) {
-        return true;
-    }
-
-    function removeKey(bytes32, uint256) external pure override returns (bool) {
-        return true;
-    }
-
-    function approve(uint256, bool) external pure override returns (bool) {
-        return true;
-    }
-
-    function execute(address, uint256, bytes calldata) external payable override returns (uint256) {
-        return 0;
-    }
-
-    function addClaim(
-        uint256,
-        uint256,
-        address,
-        bytes calldata,
-        bytes calldata,
-        string calldata
-    ) external pure override returns (bytes32) {
-        return bytes32(0);
-    }
-
-    function removeClaim(bytes32) external pure override returns (bool) {
-        return true;
-    }
-
-    function getClaim(bytes32)
-        external
-        pure
-        override
-        returns (
-            uint256,
-            uint256,
-            address,
-            bytes memory,
-            bytes memory,
-            string memory
-        )
-    {
-        return (0, 0, address(0), "", "", "");
-    }
-
-    function getClaimIdsByTopic(uint256) external pure override returns (bytes32[] memory) {
-        return new bytes32[](0);
-    }
-}
+import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";    
 
 contract TrustedIssuersRegistryTest is Test {
-    TrustedIssuersRegistry internal trustedIssuersRegistry;
+    RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     MockClaimIssuer internal issuer1;
     MockClaimIssuer internal issuer2;
     MockClaimIssuer internal issuer3;
@@ -116,7 +26,7 @@ contract TrustedIssuersRegistryTest is Test {
         nonOwner = address(0x1234);
 
         // Deploy TrustedIssuersRegistry
-        trustedIssuersRegistry = new TrustedIssuersRegistry();
+        trustedIssuersRegistry = new RWATrustedIssuersRegistry();
         trustedIssuersRegistry.init();
 
         // Deploy mock claim issuers

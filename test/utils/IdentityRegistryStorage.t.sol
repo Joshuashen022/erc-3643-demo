@@ -4,13 +4,13 @@ pragma solidity 0.8.17;
 import {Test} from "forge-std/Test.sol";
 import {RWAIdentityRegistryStorage} from "../../src/rwa/IdentityRegistry.sol";
 import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
-import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";
+import {MockIdentity} from "../mocks/MockIdentity.sol";
 
 contract IdentityRegistryStorageUtils is Test {
     RWAIdentityRegistryStorage public identityRegistryStorage;
-    MockClaimIssuer internal identity1;
-    MockClaimIssuer internal identity2;
-    MockClaimIssuer internal identity3;
+    MockIdentity internal identity1;
+    MockIdentity internal identity2;
+    MockIdentity internal identity3;
     address internal owner;
     address internal agent;
     address internal nonAgent;
@@ -46,9 +46,9 @@ contract IdentityRegistryStorageUtils is Test {
         identityRegistryStorage.init();
 
         // Deploy mock identities
-        identity1 = new MockClaimIssuer();
-        identity2 = new MockClaimIssuer();
-        identity3 = new MockClaimIssuer();
+        identity1 = new MockIdentity();
+        identity2 = new MockIdentity();
+        identity3 = new MockIdentity();
 
         // Add agent
         identityRegistryStorage.addAgent(agent);
@@ -355,7 +355,7 @@ contract IdentityRegistryStorageUtils is Test {
 
     // ============ linkedIdentityRegistries() tests ============
 
-    function testLinkedIdentityRegistries_ReturnsEmptyArray() public {
+    function testLinkedIdentityRegistries_ReturnsEmptyArray() public view{
         address[] memory registries = identityRegistryStorage.linkedIdentityRegistries();
         assertEq(registries.length, 0);
     }
@@ -370,24 +370,24 @@ contract IdentityRegistryStorageUtils is Test {
 
     // ============ storedIdentity() tests ============
 
-    function testStoredIdentity_ReturnsZeroWhenNotStored() public {
+    function testStoredIdentity_ReturnsZeroWhenNotStored() public view {
         address newUser = address(0x9999);
         assertEq(address(identityRegistryStorage.storedIdentity(newUser)), address(0));
     }
 
-    function testStoredIdentity_ReturnsStoredIdentity() public {
+    function testStoredIdentity_ReturnsStoredIdentity() public view {
         // user1 is already stored in setUp with identity1
         assertEq(address(identityRegistryStorage.storedIdentity(user1)), address(identity1));
     }
 
     // ============ storedInvestorCountry() tests ============
 
-    function testStoredInvestorCountry_ReturnsZeroWhenNotStored() public {
+    function testStoredInvestorCountry_ReturnsZeroWhenNotStored() public view {
         address newUser = address(0x9999);
         assertEq(identityRegistryStorage.storedInvestorCountry(newUser), 0);
     }
 
-    function testStoredInvestorCountry_ReturnsStoredCountry() public {
+    function testStoredInvestorCountry_ReturnsStoredCountry() public view {
         // user1 is already stored in setUp with COUNTRY_US
         assertEq(identityRegistryStorage.storedInvestorCountry(user1), COUNTRY_US);
     }

@@ -4,8 +4,8 @@ pragma solidity 0.8.17;
 import {Test} from "forge-std/Test.sol";
 import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 
-contract ClaimTopicsRegistryTest is Test {
-    RWAClaimTopicsRegistry internal claimTopicsRegistry;
+contract ClaimTopicsRegistryUtils is Test {
+    RWAClaimTopicsRegistry public claimTopicsRegistry;
     address internal owner;
     address internal nonOwner;
 
@@ -25,6 +25,11 @@ contract ClaimTopicsRegistryTest is Test {
         // Deploy ClaimTopicsRegistry
         claimTopicsRegistry = new RWAClaimTopicsRegistry();
         claimTopicsRegistry.init();
+
+        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
+        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
+
     }
 
     // ============ init() tests ============
@@ -45,6 +50,11 @@ contract ClaimTopicsRegistryTest is Test {
     // ============ addClaimTopic() tests ============
 
     function testAddClaimTopic_Success() public {
+        // Remove existing topics first to test from clean state
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
+
         vm.expectEmit(true, false, false, true);
         emit ClaimTopicAdded(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
@@ -54,11 +64,7 @@ contract ClaimTopicsRegistryTest is Test {
         assertEq(topics[0], CLAIM_TOPIC_KYC);
     }
 
-    function testAddClaimTopic_MultipleTopics() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-
+    function testAddClaimTopic_MultipleTopics() public view{
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
         assertEq(topics.length, 3);
         assertTrue(
@@ -72,6 +78,11 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testAddClaimTopic_UpTo15Topics() public {
+        // Remove existing topics first
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
+
         for (uint256 i = 1; i <= 15; i++) {
             claimTopicsRegistry.addClaimTopic(i);
         }
@@ -81,6 +92,11 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testAddClaimTopic_RevertsWhenMoreThan15() public {
+        // Remove existing topics first
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
+
         for (uint256 i = 1; i <= 15; i++) {
             claimTopicsRegistry.addClaimTopic(i);
         }
@@ -90,7 +106,7 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testAddClaimTopic_RevertsWhenDuplicate() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
+        // KYC is already added in setUp, so trying to add it again should revert
         vm.expectRevert(bytes("claimTopic already exists"));
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
     }
@@ -102,6 +118,9 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testAddClaimTopic_EmitsEvent() public {
+        // Remove KYC first, then add it back to test event emission
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
+        
         vm.expectEmit(true, false, false, true);
         emit ClaimTopicAdded(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
@@ -110,23 +129,26 @@ contract ClaimTopicsRegistryTest is Test {
     // ============ removeClaimTopic() tests ============
 
     function testRemoveClaimTopic_Success() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-
+        // KYC and AML are already added in setUp
         vm.expectEmit(true, false, false, true);
         emit ClaimTopicRemoved(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
-        assertEq(topics.length, 1);
-        assertEq(topics[0], CLAIM_TOPIC_AML);
+        assertEq(topics.length, 2);
+        // Should contain AML and COUNTRY, but not KYC
+        bool foundAML = false;
+        bool foundCOUNTRY = false;
+        for (uint256 i = 0; i < topics.length; i++) {
+            if (topics[i] == CLAIM_TOPIC_AML) foundAML = true;
+            if (topics[i] == CLAIM_TOPIC_COUNTRY) foundCOUNTRY = true;
+            assertTrue(topics[i] != CLAIM_TOPIC_KYC);
+        }
+        assertTrue(foundAML && foundCOUNTRY);
     }
 
     function testRemoveClaimTopic_RemovesFirst() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-
+        // All three topics are already added in setUp
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
@@ -143,10 +165,7 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testRemoveClaimTopic_RemovesMiddle() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-
+        // All three topics are already added in setUp
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
@@ -163,9 +182,9 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testRemoveClaimTopic_RemovesLast() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-
+        // Remove COUNTRY first to have only KYC and AML
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
+        
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
@@ -174,10 +193,7 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testRemoveClaimTopic_RemovesAll() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-
+        // All three topics are already added in setUp
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
@@ -187,7 +203,9 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testRemoveClaimTopic_NonExistentTopicDoesNothing() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
+        // Remove AML and COUNTRY first, leaving only KYC
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
         
         // Removing a non-existent topic should not revert, just do nothing
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
@@ -198,26 +216,30 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testRemoveClaimTopic_CanReaddAfterRemoval() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
+        // KYC is already added in setUp
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
-        assertEq(topics.length, 1);
-        assertEq(topics[0], CLAIM_TOPIC_KYC);
+        // Should have KYC, AML, and COUNTRY (3 topics)
+        assertEq(topics.length, 3);
+        // Verify KYC is present
+        bool foundKYC = false;
+        for (uint256 i = 0; i < topics.length; i++) {
+            if (topics[i] == CLAIM_TOPIC_KYC) foundKYC = true;
+        }
+        assertTrue(foundKYC);
     }
 
     function testRemoveClaimTopic_RevertsWhenNotOwner() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-
+        // KYC is already added in setUp
         vm.prank(nonOwner);
         vm.expectRevert();
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
     }
 
     function testRemoveClaimTopic_EmitsEvent() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-
+        // KYC is already added in setUp
         vm.expectEmit(true, false, false, true);
         emit ClaimTopicRemoved(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
@@ -226,24 +248,23 @@ contract ClaimTopicsRegistryTest is Test {
     // ============ getClaimTopics() tests ============
 
     function testGetClaimTopics_ReturnsEmptyArray() public {
+        // Remove all topics first
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
+        
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
         assertEq(topics.length, 0);
     }
 
-    function testGetClaimTopics_ReturnsAllTopics() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-
+    function testGetClaimTopics_ReturnsAllTopics() public view {
+        // All three topics are already added in setUp
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
         assertEq(topics.length, 3);
     }
 
     function testGetClaimTopics_ReturnsUpdatedListAfterRemoval() public {
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-
+        // All three topics are already added in setUp
         uint256[] memory topicsBefore = claimTopicsRegistry.getClaimTopics();
         assertEq(topicsBefore.length, 3);
 
@@ -256,11 +277,7 @@ contract ClaimTopicsRegistryTest is Test {
     // ============ Integration tests ============
 
     function testFullLifecycle() public {
-        // Add topics
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-
+        // All three topics are already added in setUp
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
         assertEq(topics.length, 3);
 
@@ -284,6 +301,11 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testAddRemoveMultipleTimes() public {
+        // Remove existing topics first
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
+        
         // Add and remove multiple times
         for (uint256 i = 0; i < 5; i++) {
             claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
@@ -295,6 +317,11 @@ contract ClaimTopicsRegistryTest is Test {
     }
 
     function testComplexScenario() public {
+        // Remove existing topics first (1, 2, 3 are already added)
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
+        claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
+        
         // Add 10 topics
         for (uint256 i = 1; i <= 10; i++) {
             claimTopicsRegistry.addClaimTopic(i);

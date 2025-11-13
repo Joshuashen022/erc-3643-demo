@@ -6,8 +6,8 @@ import {RWAIdentityRegistryStorage} from "../../src/rwa/IdentityRegistry.sol";
 import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
 import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";
 
-contract IdentityRegistryStorageTest is Test {
-    RWAIdentityRegistryStorage internal identityRegistryStorage;
+contract IdentityRegistryStorageUtils is Test {
+    RWAIdentityRegistryStorage public identityRegistryStorage;
     MockClaimIssuer internal identity1;
     MockClaimIssuer internal identity2;
     MockClaimIssuer internal identity3;
@@ -52,6 +52,12 @@ contract IdentityRegistryStorageTest is Test {
 
         // Add agent
         identityRegistryStorage.addAgent(agent);
+
+        vm.startPrank(agent);
+        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        identityRegistryStorage.addIdentityToStorage(user2, IIdentity(address(identity2)), COUNTRY_UK);
+        identityRegistryStorage.addIdentityToStorage(user3, IIdentity(address(identity3)), COUNTRY_FR);
+        vm.stopPrank();
     }
 
     // ============ init() tests ============
@@ -70,24 +76,7 @@ contract IdentityRegistryStorageTest is Test {
     }
 
     // ============ addIdentityToStorage() tests ============
-
-    function testAddIdentityToStorage_Success() public {
-        vm.prank(agent);
-        vm.expectEmit(true, true, false, true);
-        emit IdentityStored(user1, IIdentity(address(identity1)));
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-
-        assertEq(address(identityRegistryStorage.storedIdentity(user1)), address(identity1));
-        assertEq(identityRegistryStorage.storedInvestorCountry(user1), COUNTRY_US);
-    }
-
-    function testAddIdentityToStorage_MultipleUsers() public {
-        vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-        identityRegistryStorage.addIdentityToStorage(user2, IIdentity(address(identity2)), COUNTRY_UK);
-        identityRegistryStorage.addIdentityToStorage(user3, IIdentity(address(identity3)), COUNTRY_FR);
-        vm.stopPrank();
-
+    function testAddIdentityToStorage_MultipleUsers() public view {
         assertEq(address(identityRegistryStorage.storedIdentity(user1)), address(identity1));
         assertEq(identityRegistryStorage.storedInvestorCountry(user1), COUNTRY_US);
         assertEq(address(identityRegistryStorage.storedIdentity(user2)), address(identity2));
@@ -103,31 +92,32 @@ contract IdentityRegistryStorageTest is Test {
     }
 
     function testAddIdentityToStorage_RevertsWhenZeroIdentity() public {
+        address newUser = address(0x9999);
         vm.prank(agent);
         vm.expectRevert(bytes("invalid argument - zero address"));
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(0)), COUNTRY_US);
+        identityRegistryStorage.addIdentityToStorage(newUser, IIdentity(address(0)), COUNTRY_US);
     }
 
     function testAddIdentityToStorage_RevertsWhenAlreadyStored() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        // user1 is already stored in setUp, so we can directly test the revert
         vm.expectRevert(bytes("address stored already"));
         identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity2)), COUNTRY_UK);
         vm.stopPrank();
     }
 
     function testAddIdentityToStorage_RevertsWhenNotAgent() public {
+        address newUser = address(0x9999);
         vm.prank(nonAgent);
         vm.expectRevert();
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        identityRegistryStorage.addIdentityToStorage(newUser, IIdentity(address(identity1)), COUNTRY_US);
     }
 
     // ============ modifyStoredIdentity() tests ============
 
     function testModifyStoredIdentity_Success() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-        
+        // user1 is already stored in setUp with identity1
         vm.expectEmit(true, true, false, true);
         emit IdentityModified(IIdentity(address(identity1)), IIdentity(address(identity2)));
         identityRegistryStorage.modifyStoredIdentity(user1, IIdentity(address(identity2)));
@@ -139,7 +129,7 @@ contract IdentityRegistryStorageTest is Test {
 
     function testModifyStoredIdentity_RevertsWhenZeroUserAddress() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        // user1 is already stored in setUp
         vm.expectRevert(bytes("invalid argument - zero address"));
         identityRegistryStorage.modifyStoredIdentity(address(0), IIdentity(address(identity2)));
         vm.stopPrank();
@@ -147,23 +137,21 @@ contract IdentityRegistryStorageTest is Test {
 
     function testModifyStoredIdentity_RevertsWhenZeroIdentity() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        // user1 is already stored in setUp
         vm.expectRevert(bytes("invalid argument - zero address"));
         identityRegistryStorage.modifyStoredIdentity(user1, IIdentity(address(0)));
         vm.stopPrank();
     }
 
     function testModifyStoredIdentity_RevertsWhenNotStored() public {
+        address newUser = address(0x9999);
         vm.prank(agent);
         vm.expectRevert(bytes("address not stored yet"));
-        identityRegistryStorage.modifyStoredIdentity(user1, IIdentity(address(identity1)));
+        identityRegistryStorage.modifyStoredIdentity(newUser, IIdentity(address(identity1)));
     }
 
     function testModifyStoredIdentity_RevertsWhenNotAgent() public {
-        vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-        vm.stopPrank();
-
+        // user1 is already stored in setUp
         vm.prank(nonAgent);
         vm.expectRevert();
         identityRegistryStorage.modifyStoredIdentity(user1, IIdentity(address(identity2)));
@@ -173,8 +161,7 @@ contract IdentityRegistryStorageTest is Test {
 
     function testModifyStoredInvestorCountry_Success() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-        
+        // user1 is already stored in setUp with COUNTRY_US
         vm.expectEmit(true, true, false, true);
         emit CountryModified(user1, COUNTRY_UK);
         identityRegistryStorage.modifyStoredInvestorCountry(user1, COUNTRY_UK);
@@ -186,23 +173,21 @@ contract IdentityRegistryStorageTest is Test {
 
     function testModifyStoredInvestorCountry_RevertsWhenZeroUserAddress() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        // user1 is already stored in setUp
         vm.expectRevert(bytes("invalid argument - zero address"));
         identityRegistryStorage.modifyStoredInvestorCountry(address(0), COUNTRY_UK);
         vm.stopPrank();
     }
 
     function testModifyStoredInvestorCountry_RevertsWhenNotStored() public {
+        address newUser = address(0x9999);
         vm.prank(agent);
         vm.expectRevert(bytes("address not stored yet"));
-        identityRegistryStorage.modifyStoredInvestorCountry(user1, COUNTRY_UK);
+        identityRegistryStorage.modifyStoredInvestorCountry(newUser, COUNTRY_UK);
     }
 
     function testModifyStoredInvestorCountry_RevertsWhenNotAgent() public {
-        vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-        vm.stopPrank();
-
+        // user1 is already stored in setUp
         vm.prank(nonAgent);
         vm.expectRevert();
         identityRegistryStorage.modifyStoredInvestorCountry(user1, COUNTRY_UK);
@@ -212,8 +197,7 @@ contract IdentityRegistryStorageTest is Test {
 
     function testRemoveIdentityFromStorage_Success() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-        
+        // user1 is already stored in setUp with identity1
         vm.expectEmit(true, true, false, true);
         emit IdentityUnstored(user1, IIdentity(address(identity1)));
         identityRegistryStorage.removeIdentityFromStorage(user1);
@@ -225,7 +209,7 @@ contract IdentityRegistryStorageTest is Test {
 
     function testRemoveIdentityFromStorage_CanReaddAfterRemoval() public {
         vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        // user1 is already stored in setUp, so we remove it first
         identityRegistryStorage.removeIdentityFromStorage(user1);
         identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity2)), COUNTRY_UK);
         vm.stopPrank();
@@ -241,16 +225,14 @@ contract IdentityRegistryStorageTest is Test {
     }
 
     function testRemoveIdentityFromStorage_RevertsWhenNotStored() public {
+        address newUser = address(0x9999);
         vm.prank(agent);
         vm.expectRevert(bytes("address not stored yet"));
-        identityRegistryStorage.removeIdentityFromStorage(user1);
+        identityRegistryStorage.removeIdentityFromStorage(newUser);
     }
 
     function testRemoveIdentityFromStorage_RevertsWhenNotAgent() public {
-        vm.startPrank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-        vm.stopPrank();
-
+        // user1 is already stored in setUp
         vm.prank(nonAgent);
         vm.expectRevert();
         identityRegistryStorage.removeIdentityFromStorage(user1);
@@ -389,26 +371,24 @@ contract IdentityRegistryStorageTest is Test {
     // ============ storedIdentity() tests ============
 
     function testStoredIdentity_ReturnsZeroWhenNotStored() public {
-        assertEq(address(identityRegistryStorage.storedIdentity(user1)), address(0));
+        address newUser = address(0x9999);
+        assertEq(address(identityRegistryStorage.storedIdentity(newUser)), address(0));
     }
 
     function testStoredIdentity_ReturnsStoredIdentity() public {
-        vm.prank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-
+        // user1 is already stored in setUp with identity1
         assertEq(address(identityRegistryStorage.storedIdentity(user1)), address(identity1));
     }
 
     // ============ storedInvestorCountry() tests ============
 
     function testStoredInvestorCountry_ReturnsZeroWhenNotStored() public {
-        assertEq(identityRegistryStorage.storedInvestorCountry(user1), 0);
+        address newUser = address(0x9999);
+        assertEq(identityRegistryStorage.storedInvestorCountry(newUser), 0);
     }
 
     function testStoredInvestorCountry_ReturnsStoredCountry() public {
-        vm.prank(agent);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
-
+        // user1 is already stored in setUp with COUNTRY_US
         assertEq(identityRegistryStorage.storedInvestorCountry(user1), COUNTRY_US);
     }
 
@@ -416,8 +396,7 @@ contract IdentityRegistryStorageTest is Test {
 
     function testFullLifecycle() public {
         vm.startPrank(agent);
-        // Add identity
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        // user1 is already stored in setUp with identity1 and COUNTRY_US
         assertEq(address(identityRegistryStorage.storedIdentity(user1)), address(identity1));
         assertEq(identityRegistryStorage.storedInvestorCountry(user1), COUNTRY_US);
 
@@ -440,10 +419,11 @@ contract IdentityRegistryStorageTest is Test {
     function testBoundRegistryCanAddIdentity() public {
         identityRegistryStorage.bindIdentityRegistry(identityRegistry1);
         
+        address newUser = address(0x9999);
         vm.prank(identityRegistry1);
-        identityRegistryStorage.addIdentityToStorage(user1, IIdentity(address(identity1)), COUNTRY_US);
+        identityRegistryStorage.addIdentityToStorage(newUser, IIdentity(address(identity1)), COUNTRY_US);
 
-        assertEq(address(identityRegistryStorage.storedIdentity(user1)), address(identity1));
+        assertEq(address(identityRegistryStorage.storedIdentity(newUser)), address(identity1));
     }
 }
 

@@ -6,8 +6,8 @@ import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
 import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";    
 
-contract TrustedIssuersRegistryTest is Test {
-    RWATrustedIssuersRegistry internal trustedIssuersRegistry;
+contract TrustedIssuersRegistryUtils is Test {
+    RWATrustedIssuersRegistry public trustedIssuersRegistry;
     MockClaimIssuer internal issuer1;
     MockClaimIssuer internal issuer2;
     MockClaimIssuer internal issuer3;

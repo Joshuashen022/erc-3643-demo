@@ -15,7 +15,7 @@ contract RWAComplianceTest is Test {
     event ModuleRemoved(address indexed _module);
     event ModuleInteraction(address indexed target, bytes4 selector);
 
-    RWACompliance internal compliance;
+    RWACompliance public compliance;
     MockToken internal token;
     MockModule internal module1;
     MockModule internal module2;

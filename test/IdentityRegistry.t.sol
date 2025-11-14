@@ -51,7 +51,7 @@ contract RWAIdentityRegistryTest is Test {
     event IdentityStorageSet(address indexed identityStorage);
     event TrustedIssuersRegistrySet(address indexed trustedIssuersRegistry);
     
-    RWAIdentityRegistry internal identityRegistry;
+    RWAIdentityRegistry public identityRegistry;
     
     RWAIdentityRegistryStorage internal identityRegistryStorage;
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
@@ -60,7 +60,7 @@ contract RWAIdentityRegistryTest is Test {
     address internal user1;
     address internal user2;
     address internal user3;
-    MockIdentity internal identity1;
+    MockIdentity public identity1;
     MockIdentity internal identity2;
     MockIdentity internal identity3;
     MockClaimIssuer internal claimIssuer1;
@@ -76,7 +76,7 @@ contract RWAIdentityRegistryTest is Test {
     address constant IDENTITY2_CLAIM_ISSUER_ADDRESS = address(0x5555);
     address constant IDENTITY3_CLAIM_ISSUER_ADDRESS = address(0x6666);
 
-    uint16 constant COUNTRY_US = 840;
+    uint16 constant public COUNTRY_US = 840;
     uint16 constant COUNTRY_UK = 826;
     uint16 constant COUNTRY_FR = 250;
 

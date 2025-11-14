@@ -2,9 +2,9 @@
 pragma solidity 0.8.17;
 
 import {Test} from "forge-std/Test.sol";
-import {Identity} from "../src/rwa/identity/Identity.sol";
+import {Identity} from "../../src/rwa/identity/Identity.sol";
 import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
-import {MockClaimIssuer} from "./mocks/MockClaimIssuer.sol";
+import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";
 
 /**
  * @title IdentityTest
@@ -16,7 +16,7 @@ import {MockClaimIssuer} from "./mocks/MockClaimIssuer.sol";
  * - 4 = ENCRYPTION
  */
 contract IdentityTest is Test {
-    Identity internal identity;
+    Identity public identity;
     MockClaimIssuer internal claimIssuer;
     
     address internal managementKey;

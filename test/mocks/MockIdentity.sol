@@ -57,7 +57,7 @@ contract MockIdentity is IIdentity {
     function getClaim(bytes32)
         external
         pure
-        override
+        virtual
         returns (
             uint256,
             uint256,

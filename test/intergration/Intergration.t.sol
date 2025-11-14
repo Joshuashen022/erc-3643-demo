@@ -49,40 +49,19 @@ contract IntegrationTest is Test {
     RWACompliance internal compliance;
     RWAIdentityRegistry internal identityRegistry;
 
-    // Compliance-related variables
-    MockToken internal token;
-    MockModule internal module1;
-    MockModule internal module2;
-    
-    address internal user1 = address(0xAAAA);
-    address internal user2 = address(0xBBBB);
-    address internal nonOwner = address(0xCCCC);
-
     // IdentityRegistry-related variables
     RWAIdentityRegistryStorage internal identityRegistryStorage;
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     RWAClaimTopicsRegistry internal claimTopicsRegistry;
 
-    address internal user3;
     MockIdentity public identity1;
-    MockIdentity internal identity2;
-    MockIdentity internal identity3;
-    MockClaimIssuer internal claimIssuer1;
-    MockClaimIssuer internal claimIssuer2;
-    MockClaimIssuer internal claimIssuer3;
 
     // Predefined addresses for mock identities
     address constant IDENTITY1_ADDRESS = address(0x1111);
-    address constant IDENTITY2_ADDRESS = address(0x2222);
-    address constant IDENTITY3_ADDRESS = address(0x3333);
 
     address constant IDENTITY1_CLAIM_ISSUER_ADDRESS = address(0x4444);
-    address constant IDENTITY2_CLAIM_ISSUER_ADDRESS = address(0x5555);
-    address constant IDENTITY3_CLAIM_ISSUER_ADDRESS = address(0x6666);
 
     uint16 constant public COUNTRY_US = 840;
-    uint16 constant COUNTRY_UK = 826;
-    uint16 constant COUNTRY_FR = 250;
 
     string private constant TOKEN_NAME = "Test Token";
     string private constant TOKEN_SYMBOL = "TT";
@@ -93,9 +72,6 @@ contract IntegrationTest is Test {
         // Set up Compliance
         compliance = new RWACompliance();
         compliance.init();
-        token = new MockToken(address(compliance));
-        module1 = new MockModule();
-        module2 = new MockModule();
 
         // Set up IdentityRegistry components
         trustedIssuersRegistry = new RWATrustedIssuersRegistry();
@@ -118,24 +94,12 @@ contract IntegrationTest is Test {
 
         // Initialize IdentityRegistry
         identityRegistry.init(address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage));
-        
-        // Set up test addresses and identities
-        user3 = address(0xCCCC);
 
         // Deploy mock identities to specified addresses
         deployCodeTo("test/intergration/Intergration.t.sol:MockIdentity2", IDENTITY1_ADDRESS);
-        deployCodeTo("test/intergration/Intergration.t.sol:MockIdentity2", IDENTITY2_ADDRESS);
-        deployCodeTo("test/intergration/Intergration.t.sol:MockIdentity2", IDENTITY3_ADDRESS);
         deployCodeTo("test/intergration/Intergration.t.sol:MockClaimIssuer2", IDENTITY1_CLAIM_ISSUER_ADDRESS);
-        deployCodeTo("test/intergration/Intergration.t.sol:MockClaimIssuer2", IDENTITY2_CLAIM_ISSUER_ADDRESS);
-        deployCodeTo("test/intergration/Intergration.t.sol:MockClaimIssuer2", IDENTITY3_CLAIM_ISSUER_ADDRESS);
 
         identity1 = MockIdentity2(IDENTITY1_ADDRESS);
-        identity2 = MockIdentity2(IDENTITY2_ADDRESS);
-        identity3 = MockIdentity2(IDENTITY3_ADDRESS);
-        claimIssuer1 = MockClaimIssuer2(IDENTITY1_CLAIM_ISSUER_ADDRESS);
-        claimIssuer2 = MockClaimIssuer2(IDENTITY2_CLAIM_ISSUER_ADDRESS);
-        claimIssuer3 = MockClaimIssuer2(IDENTITY3_CLAIM_ISSUER_ADDRESS);
 
         // Add trusted issuers for claim topic 1 (KYC)
         // MockIdentity2 returns claims with issuer address 0x4444, so we need to add that issuer

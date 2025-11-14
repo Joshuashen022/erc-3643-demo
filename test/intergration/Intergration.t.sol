@@ -8,23 +8,24 @@ import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAIdentityRegistryStorage} from "../../src/rwa/IdentityRegistry.sol";
 import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
+import {RWAClaimIssuer} from "../../src/rwa/identity/Identity.sol";
+import {RWAIdentity} from "../../src/rwa/identity/Identity.sol";
+
 import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
-import {MockIdentity} from "../../src/rwa/identity/MockIdentity.sol";
-import {MockClaimIssuer} from "../../src/rwa/identity/MockClaimIssuer.sol";
+
 
 contract IntegrationTest is Test {
     RWAToken internal rwaToken;
     RWACompliance internal compliance;
     RWAIdentityRegistry internal identityRegistry;
+    RWAIdentity public identity;
+    RWAClaimIssuer public claimIssuer;
 
     // IdentityRegistry-related variables
     RWAIdentityRegistryStorage internal identityRegistryStorage;
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     RWAClaimTopicsRegistry internal claimTopicsRegistry;
-
-    MockIdentity public identity;
-    MockClaimIssuer public claimIssuer;
 
     uint16 constant public COUNTRY_US = 840;
     uint256 constant public CLAIM_TOPIC_KYC = 1;
@@ -34,12 +35,49 @@ contract IntegrationTest is Test {
     uint8 private constant TOKEN_DECIMALS = 6;
     address private constant ONCHAIN_ID = address(0x123456);
     
+    uint256 internal claimKeyPrivateKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+    address internal claimKeyAddress;
+    bytes32 internal claimKeyHash;
+    address internal claimKey = address(0x3333);
+
+    uint256 constant PURPOSE_MANAGEMENT = 1;
+    uint256 constant PURPOSE_CLAIM = 3;
+    uint256 constant KEY_TYPE_ECDSA = 1;
+    uint256 constant CLAIM_SCHEME_ECDSA = 1;
     function setUp() public {
+        address managementKey = address(0x1111);
+        claimKeyAddress = vm.addr(claimKeyPrivateKey);
+        claimKeyHash = keccak256(abi.encode(claimKeyAddress));
+
         // Deploy mock identities to specified addresses
         // Deploy claimIssuer first so we can pass it to MockIdentity
-        claimIssuer = new MockClaimIssuer();
+        {
+            claimIssuer = new RWAClaimIssuer(managementKey);
+
+            vm.startPrank(managementKey);
+            claimIssuer.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
+            vm.stopPrank();    
+        }
         // Initialize MockIdentity with claimIssuer address and topic 1 (KYC)
-        identity = new MockIdentity(address(claimIssuer), CLAIM_TOPIC_KYC);
+        {
+            identity = new RWAIdentity(managementKey);
+
+            vm.startPrank(managementKey);
+            identity.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
+            vm.stopPrank();
+            
+            // Create valid signature for the claim
+            IIdentity claimIdentity = IIdentity(address(identity));
+            bytes memory data = "";
+            bytes32 dataHash = keccak256(abi.encode(claimIdentity, CLAIM_TOPIC_KYC, data));
+            bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+            bytes memory sig = abi.encodePacked(r, s, v);
+            
+            vm.prank(claimKeyAddress);
+            identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
+        }
+        
 
         // Set up Compliance
         compliance = new RWACompliance();
@@ -113,7 +151,17 @@ contract IntegrationTest is Test {
     function testSetUpRegisterIdentityWithMoreTopics_Success() public {
         address newUser = address(0x9999);
         uint256 newTopic = 2;
-        identity.addClaim(newTopic, 1, address(claimIssuer), "", "", "");
+        
+        // Create valid signature for the new topic claim
+        IIdentity claimIdentity = IIdentity(address(identity));
+        bytes memory data = "";
+        bytes32 dataHash = keccak256(abi.encode(claimIdentity, newTopic, data));
+        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+        bytes memory sig = abi.encodePacked(r, s, v);
+        
+        vm.prank(claimKeyAddress);
+        identity.addClaim(newTopic, 1, address(claimIssuer), sig, data, "");
         uint256[] memory topics = new uint256[](2);
         topics[0] = CLAIM_TOPIC_KYC;
         topics[1] = newTopic;

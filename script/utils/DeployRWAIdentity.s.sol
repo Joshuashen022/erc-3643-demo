@@ -2,13 +2,13 @@
 pragma solidity 0.8.17;
 
 import {Script, console} from "forge-std/Script.sol";
-import {RWAIdentity} from "../src/rwa/identity/Identity.sol";
+import {RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 
 contract DeployRWAIdentity is Script {
     function run() external returns (RWAIdentity) {
 
-        address managementKey = msg.sender;
-        address claimKeyAddress = msg.sender;
+        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+        address claimKeyAddress = vm.envOr("CLAIM_KEY_ADDRESS", msg.sender);
         
         uint256 purposeClaim = vm.envOr("PURPOSE_CLAIM", uint256(0));
         console.log("Purpose claim:", purposeClaim);
@@ -17,13 +17,16 @@ contract DeployRWAIdentity is Script {
         
         bytes32 claimKeyHash = keccak256(abi.encode(claimKeyAddress));
         
-        vm.startBroadcast();
+        // Use managementKey as the broadcast sender so msg.sender will be managementKey
+        // This ensures addKey() can be called by the management key
+        vm.startBroadcast(managementKey);
         
         // Deploy RWAIdentity with the management key
         // This matches the pattern from RWAIdentity.t.sol: new RWAIdentity(managementKey)
         RWAIdentity identity = new RWAIdentity(managementKey);
 
         // Add the claim key to the identity
+        // msg.sender is already managementKey because of vm.startBroadcast(managementKey)
         identity.addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
 
         vm.stopBroadcast();

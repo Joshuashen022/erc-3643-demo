@@ -46,17 +46,17 @@ contract MockIdentity is IIdentity {
         bytes calldata,
         bytes calldata,
         string calldata
-    ) external pure override returns (bytes32) {
+    ) external virtual override returns (bytes32) {
         return bytes32(0);
     }
 
-    function removeClaim(bytes32) external pure override returns (bool) {
+    function removeClaim(bytes32) external virtual override returns (bool) {
         return true;
     }
 
     function getClaim(bytes32)
         external
-        pure
+        view
         virtual
         returns (
             uint256,
@@ -70,7 +70,7 @@ contract MockIdentity is IIdentity {
         return (0, 0, address(0), "", "", "");
     }
 
-    function getClaimIdsByTopic(uint256) external pure override returns (bytes32[] memory) {
+    function getClaimIdsByTopic(uint256) external view virtual override returns (bytes32[] memory) {
         return new bytes32[](0);
     }
 

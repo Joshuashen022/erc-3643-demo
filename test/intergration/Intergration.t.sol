@@ -10,39 +10,8 @@ import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
-import {MockIdentity} from "../mocks/MockIdentity.sol";
-import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";
-import {MockToken} from "../mocks/MockToken.sol";
-import {MockModule} from "../mocks/MockModule.sol";
-import {TestModule} from "ERC-3643/compliance/modular/modules/TestModule.sol";
-
-contract MockIdentity2 is MockIdentity {
-    function getClaim(bytes32)
-        external
-        pure
-        override
-        returns (
-            uint256,
-            uint256,
-            address,
-            bytes memory,
-            bytes memory,
-            string memory
-        )
-    {
-        return (1, 0, address(0x4444), "", "", "");
-    }
-}
-
-contract MockClaimIssuer2 is MockClaimIssuer {
-    function getClaim(bytes32)
-        external
-        pure
-        override
-        returns (uint256, uint256, address, bytes memory, bytes memory, string memory) {
-        return (0, 0, address(0), "", "", "");
-    }
-}
+import {MockIdentity} from "../../src/rwa/identity/MockIdentity.sol";
+import {MockClaimIssuer} from "../../src/rwa/identity/MockClaimIssuer.sol";
 
 contract IntegrationTest is Test {
     RWAToken internal rwaToken;
@@ -54,14 +23,11 @@ contract IntegrationTest is Test {
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     RWAClaimTopicsRegistry internal claimTopicsRegistry;
 
-    MockIdentity public identity1;
-
-    // Predefined addresses for mock identities
-    address constant IDENTITY1_ADDRESS = address(0x1111);
-
-    address constant IDENTITY1_CLAIM_ISSUER_ADDRESS = address(0x4444);
+    MockIdentity public identity;
+    MockClaimIssuer public claimIssuer;
 
     uint16 constant public COUNTRY_US = 840;
+    uint256 constant public CLAIM_TOPIC_KYC = 1;
 
     string private constant TOKEN_NAME = "Test Token";
     string private constant TOKEN_SYMBOL = "TT";
@@ -69,6 +35,12 @@ contract IntegrationTest is Test {
     address private constant ONCHAIN_ID = address(0x123456);
     
     function setUp() public {
+        // Deploy mock identities to specified addresses
+        // Deploy claimIssuer first so we can pass it to MockIdentity
+        claimIssuer = new MockClaimIssuer();
+        // Initialize MockIdentity with claimIssuer address and topic 1 (KYC)
+        identity = new MockIdentity(address(claimIssuer), CLAIM_TOPIC_KYC);
+
         // Set up Compliance
         compliance = new RWACompliance();
         compliance.init();
@@ -82,7 +54,7 @@ contract IntegrationTest is Test {
 
         claimTopicsRegistry = new RWAClaimTopicsRegistry();
         claimTopicsRegistry.init();
-        claimTopicsRegistry.addClaimTopic(1); // CLAIM_TOPIC_KYC
+        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
 
         // Deploy IdentityRegistry
         identityRegistry = new RWAIdentityRegistry();
@@ -95,17 +67,11 @@ contract IntegrationTest is Test {
         // Initialize IdentityRegistry
         identityRegistry.init(address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage));
 
-        // Deploy mock identities to specified addresses
-        deployCodeTo("test/intergration/Intergration.t.sol:MockIdentity2", IDENTITY1_ADDRESS);
-        deployCodeTo("test/intergration/Intergration.t.sol:MockClaimIssuer2", IDENTITY1_CLAIM_ISSUER_ADDRESS);
-
-        identity1 = MockIdentity2(IDENTITY1_ADDRESS);
-
         // Add trusted issuers for claim topic 1 (KYC)
         // MockIdentity2 returns claims with issuer address 0x4444, so we need to add that issuer
         uint256[] memory kycTopics = new uint256[](1);
-        kycTopics[0] = 1; // CLAIM_TOPIC_KYC
-        trustedIssuersRegistry.addTrustedIssuer(IClaimIssuer(IDENTITY1_CLAIM_ISSUER_ADDRESS), kycTopics);
+        kycTopics[0] = CLAIM_TOPIC_KYC;
+        trustedIssuersRegistry.addTrustedIssuer(IClaimIssuer(address(claimIssuer)), kycTopics);
 
         // Set up Token
         rwaToken = new RWAToken();
@@ -133,13 +99,27 @@ contract IntegrationTest is Test {
     function setUpRegisterIdentity(address newUser) internal {
         address owner = identityRegistry.owner();
         vm.startPrank(owner);
-        identityRegistry.registerIdentity(newUser, IIdentity(address(identity1)), COUNTRY_US);
+        identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), COUNTRY_US);
         vm.stopPrank();
     }
 
     // ============ core tests ============
     function testSetUpRegisterIdentity_Success() public {
         address newUser = address(0x9999);
+        setUpRegisterIdentity(newUser);
+        assertTrue(identityRegistry.isVerified(newUser));
+    }
+
+    function testSetUpRegisterIdentityWithMoreTopics_Success() public {
+        address newUser = address(0x9999);
+        uint256 newTopic = 2;
+        identity.addClaim(newTopic, 1, address(claimIssuer), "", "", "");
+        uint256[] memory topics = new uint256[](2);
+        topics[0] = CLAIM_TOPIC_KYC;
+        topics[1] = newTopic;
+        // this will replace the existing topic with the new topic
+        trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
+
         setUpRegisterIdentity(newUser);
         assertTrue(identityRegistry.isVerified(newUser));
     }

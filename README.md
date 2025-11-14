@@ -64,3 +64,6 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+
+
+forge script script/DeployRWAIdentity.s.sol:DeployRWAIdentity --rpc-url <rpc> --private-key <key> --broadcast

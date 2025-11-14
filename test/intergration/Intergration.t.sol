@@ -65,7 +65,9 @@ contract IntegrationTest is Test {
             vm.startPrank(managementKey);
             identity.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
             vm.stopPrank();
-            
+        }
+        // Add the claim to the identity
+        {
             // Create valid signature for the claim
             IIdentity claimIdentity = IIdentity(address(identity));
             bytes memory data = "";

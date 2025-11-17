@@ -13,9 +13,14 @@ import {RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 
 import {IIdentity} from "@onchain-id/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
-
+import {IToken} from "ERC-3643/token/IToken.sol";
+import {TestModule} from "ERC-3643/compliance/modular/modules/TestModule.sol";
+import {MockModule} from "../mocks/MockModule.sol";
 
 contract IntegrationTest is Test {
+    // Event definition for testing
+    event RecoverySuccess(address indexed _lostWallet, address indexed _newWallet, address indexed _investorOnchainID);
+
     RWAToken internal rwaToken;
     RWACompliance internal compliance;
     RWAIdentityRegistry internal identityRegistry;
@@ -26,6 +31,8 @@ contract IntegrationTest is Test {
     RWAIdentityRegistryStorage internal identityRegistryStorage;
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     RWAClaimTopicsRegistry internal claimTopicsRegistry;
+
+    MockModule internal mockModule;
 
     uint16 constant public COUNTRY_US = 840;
     uint256 constant public CLAIM_TOPIC_KYC = 1;
@@ -84,8 +91,16 @@ contract IntegrationTest is Test {
             rwaToken.unpause();
         }
         
+        // Add token contract as an agent of identity registry for recoveryAddress to work
+        {
+            address owner = identityRegistry.owner();
+            vm.prank(owner);
+            identityRegistry.addAgent(address(rwaToken));
+        }
+        
         setUpIdentity();
         setUpTopics();
+        setUpCompliance();
 
     }
 
@@ -130,6 +145,16 @@ contract IntegrationTest is Test {
         trustedIssuersRegistry.addTrustedIssuer(IClaimIssuer(address(claimIssuer)), kycTopics);
     }
 
+    function setUpCompliance() internal {
+        compliance.bindToken(address(rwaToken));
+        TestModule testModule = new TestModule();
+        testModule.initialize();
+        mockModule = new MockModule();
+        compliance.addModule(address(testModule));
+        compliance.addModule(address(mockModule));
+    }
+
+    // ============ init tests ============
     function testInitIntergrationSetsState() public view {
         assertEq(rwaToken.owner(), address(this));
         assertEq(rwaToken.paused(), false); // Token is unpaused in setUp
@@ -274,7 +299,27 @@ contract IntegrationTest is Test {
         setUpRegisterIdentity(from);
         rwaToken.mint(from, amount);
 
+        // testModule
         // Should revert
+        vm.prank(from);
+        vm.expectRevert(bytes("Transfer not possible"));
+        rwaToken.transfer(to, amount);
+    }
+
+    function testIntergrationTransferRevertsWhenBlocked() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 amount = 1000;
+
+        // Setup
+        setUpRegisterIdentity(from);
+        setUpRegisterIdentity(to);
+        rwaToken.mint(from, amount * 2);
+
+        // set mockModule to block transfers
+        mockModule.setCheckResult(false);
+
+        // Execute transfer
         vm.prank(from);
         vm.expectRevert(bytes("Transfer not possible"));
         rwaToken.transfer(to, amount);
@@ -302,6 +347,20 @@ contract IntegrationTest is Test {
 
         // Should revert because to is not verified
         vm.expectRevert(bytes("Identity is not verified."));
+        rwaToken.mint(to, amount);
+    }
+
+    function testIntergrationMintRevertsWhenBlocked() public {
+        address to = address(0x1111);
+        uint256 amount = 1000;
+
+        // Setup: verify address
+        setUpRegisterIdentity(to);
+        // set mockModule to block transfers
+        mockModule.setCheckResult(false);
+
+        // Execute mint
+        vm.expectRevert(bytes("Compliance not followed"));
         rwaToken.mint(to, amount);
     }
 
@@ -363,4 +422,157 @@ contract IntegrationTest is Test {
         assertEq(rwaToken.balanceOf(user1), mintAmount - transferAmount * 2);
         assertEq(rwaToken.totalSupply(), mintAmount - transferAmount);
     }
+
+    // ============ forcedTransfer tests ============
+    function testIntergrationForcedTransferSuccess() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 amount = 1000;
+
+        // Setup: verify addresses, mint tokens to from
+        setUpRegisterIdentity(from);
+        setUpRegisterIdentity(to);
+        rwaToken.mint(from, amount * 2);
+
+        // Execute forcedTransfer
+        bool result = rwaToken.forcedTransfer(from, to, amount);
+
+        // Assertions
+        assertTrue(result);
+        assertEq(rwaToken.balanceOf(from), amount); // Original balance was amount * 2, transferred amount
+        assertEq(rwaToken.balanceOf(to), amount);
+    }
+
+    function testIntergrationForcedTransferRevertsWhenSenderBalanceTooLow() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 balance = 1000;
+        uint256 amount = 2000;
+
+        // Setup
+        setUpRegisterIdentity(from);
+        setUpRegisterIdentity(to);
+        rwaToken.mint(from, balance); // Mint less than transfer amount
+
+        // Should revert
+        vm.expectRevert(bytes("sender balance too low"));
+        rwaToken.forcedTransfer(from, to, amount);
+    }
+
+    function testIntergrationForcedTransferRevertsWhenToNotVerified() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 amount = 1000;
+
+        // Setup: only verify from address
+        setUpRegisterIdentity(from);
+        rwaToken.mint(from, amount);
+
+        // Should revert because to is not verified
+        vm.expectRevert(bytes("Transfer not possible"));
+        rwaToken.forcedTransfer(from, to, amount);
+    }
+
+    function testIntergrationForcedTransferWithFrozenTokens() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 totalBalance = 1000;
+        uint256 frozenAmount = 600;
+        uint256 transferAmount = 800; // More than free balance (400), should unfreeze 400
+
+        // Setup
+        setUpRegisterIdentity(from);
+        setUpRegisterIdentity(to);
+        rwaToken.mint(from, totalBalance);
+        
+        // Freeze some tokens
+        rwaToken.freezePartialTokens(from, frozenAmount);
+        assertEq(rwaToken.getFrozenTokens(from), frozenAmount);
+
+        // Execute forcedTransfer - should unfreeze tokens automatically
+        bool result = rwaToken.forcedTransfer(from, to, transferAmount);
+
+        // Assertions
+        assertTrue(result);
+        assertEq(rwaToken.balanceOf(from), totalBalance - transferAmount);
+        assertEq(rwaToken.balanceOf(to), transferAmount);
+        // Should have unfrozen 400 tokens (800 transfer - 400 free = 400 unfrozen)
+        // Remaining frozen: 600 - 400 = 200
+        assertEq(rwaToken.getFrozenTokens(from), 200);
+    }
+
+    function testIntergrationForcedTransferRevertsWhenNotAgent() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        address nonAgent = address(0x9999);
+        uint256 amount = 1000;
+
+        // Setup
+        setUpRegisterIdentity(from);
+        setUpRegisterIdentity(to);
+        rwaToken.mint(from, amount);
+
+        // Should revert because nonAgent is not an agent
+        vm.prank(nonAgent);
+        vm.expectRevert();
+        rwaToken.forcedTransfer(from, to, amount);
+    }
+
+    function testIntergrationForcedTransferUnfreezesAllFrozenTokens() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 totalBalance = 1000;
+        uint256 frozenAmount = 500;
+        uint256 transferAmount = 1000; // Transfer all, including all frozen tokens
+
+        // Setup
+        setUpRegisterIdentity(from);
+        setUpRegisterIdentity(to);
+        rwaToken.mint(from, totalBalance);
+        
+        // Freeze some tokens
+        rwaToken.freezePartialTokens(from, frozenAmount);
+        assertEq(rwaToken.getFrozenTokens(from), frozenAmount);
+
+        // Execute forcedTransfer - should unfreeze all frozen tokens
+        bool result = rwaToken.forcedTransfer(from, to, transferAmount);
+
+        // Assertions
+        assertTrue(result);
+        assertEq(rwaToken.balanceOf(from), 0);
+        assertEq(rwaToken.balanceOf(to), transferAmount);
+        // All frozen tokens should be unfrozen
+        assertEq(rwaToken.getFrozenTokens(from), 0);
+    }
+
+    // ============ recoveryAddress tests ============
+    function testIntergrationRecoveryAddressSuccess() public {
+        address lostWallet = address(0x1111);
+        address newWallet = address(0x2222);
+        uint256 amount = 1000;
+
+        // Setup: register lost wallet and mint tokens
+        setUpRegisterIdentity(lostWallet);
+        rwaToken.mint(lostWallet, amount);
+
+        // Add newWallet as a management key to the existing identity (used for lost wallet)
+        address managementKey = address(0x1111); // Same as in setUpIdentity
+        bytes32 newWalletKeyHash = keccak256(abi.encode(newWallet));
+        vm.startPrank(managementKey);
+        identity.addKey(newWalletKeyHash, PURPOSE_MANAGEMENT, KEY_TYPE_ECDSA);
+        vm.stopPrank();
+
+        // Execute recovery
+        vm.expectEmit(true, true, true, true);
+        emit RecoverySuccess(lostWallet, newWallet, address(identity));
+        bool result = rwaToken.recoveryAddress(lostWallet, newWallet, address(identity));
+
+        // Assertions
+        assertTrue(result);
+        assertEq(rwaToken.balanceOf(lostWallet), 0);
+        assertEq(rwaToken.balanceOf(newWallet), amount);
+        assertFalse(identityRegistry.isVerified(lostWallet));
+        assertTrue(identityRegistry.isVerified(newWallet));
+    }
+
 }

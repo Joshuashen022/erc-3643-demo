@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import {Script, console} from "forge-std/Script.sol";
-import {RWATrustedIssuersRegistry} from "../src/rwa/IdentityRegistry.sol";
+import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 
 contract DeployRWATrustedIssuersRegistry is Script {
     function run() external returns (RWATrustedIssuersRegistry) {

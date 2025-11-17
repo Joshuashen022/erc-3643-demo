@@ -3,11 +3,14 @@ pragma solidity 0.8.17;
 
 import {Script, console} from "forge-std/Script.sol";
 import {RWAToken} from "../src/rwa/RWAToken.sol";
+import {DeployRWAIdentityRegistry} from "./DeployRWAIdentityRegistry.s.sol";
+import {DeployRWACompliance} from "./utils/DeployRWACompliance.s.sol";
+import {RWACompliance} from "../src/rwa/Compliance.sol";
+import {RWAIdentityRegistry} from "../src/rwa/IdentityRegistry.sol";
+import {AddClaims} from "./AddClaims.s.sol";
 
 contract DeployRWAToken is Script {
     function run() external returns (RWAToken) {
-        address identityRegistryAddress = vm.envOr("IDENTITY_REGISTRY_ADDRESS", address(0));
-        address complianceAddress = vm.envOr("COMPLIANCE_ADDRESS", address(0));
         string memory tokenName = vm.envOr("TOKEN_NAME", string("Test Token"));
         string memory tokenSymbol = vm.envOr("TOKEN_SYMBOL", string("TT"));
         uint8 tokenDecimals = uint8(vm.envOr("TOKEN_DECIMALS", uint256(6)));
@@ -15,26 +18,31 @@ contract DeployRWAToken is Script {
         bool addAgent = vm.envOr("ADD_AGENT", true);
         bool unpause = vm.envOr("UNPAUSE", true);
         
+        DeployRWAIdentityRegistry deployIdentityRegistry = new DeployRWAIdentityRegistry();
+        RWAIdentityRegistry identityRegistry = deployIdentityRegistry.run();
+        
+        DeployRWACompliance deployCompliance = new DeployRWACompliance();
+        RWACompliance compliance = deployCompliance.run();
+        
+        AddClaims addClaims = new AddClaims();
+        addClaims.run();
+        console.log("KYC claim added to Identity");
+
+
         console.log("=== Deploying RWAToken ===");
-        console.log("IdentityRegistry:", identityRegistryAddress);
-        console.log("Compliance:", complianceAddress);
+        console.log("IdentityRegistry:", address(identityRegistry));
+        console.log("Compliance:", address(compliance));
         console.log("Token Name:", tokenName);
         console.log("Token Symbol:", tokenSymbol);
         console.log("Token Decimals:", tokenDecimals);
         console.log("Onchain ID:", onchainID);
         
-        require(
-            identityRegistryAddress != address(0) &&
-            complianceAddress != address(0),
-            "IdentityRegistry and Compliance addresses must be provided"
-        );
-        
         vm.startBroadcast();
         
         RWAToken rwaToken = new RWAToken();
         rwaToken.init(
-            identityRegistryAddress,
-            complianceAddress,
+            address(identityRegistry),
+            address(compliance),
             tokenName,
             tokenSymbol,
             tokenDecimals,

@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import {Script, console} from "forge-std/Script.sol";
-import {RWAClaimTopicsRegistry} from "../src/rwa/IdentityRegistry.sol";
+import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 
 contract DeployRWAClaimTopicsRegistry is Script {
     uint256 constant CLAIM_TOPIC_KYC = 1;

@@ -5,14 +5,15 @@ import {Script, console} from "forge-std/Script.sol";
 import {RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 
 contract DeployRWAIdentity is Script {
-    function run() external returns (RWAIdentity) {
+    address public managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+    address public claimKeyAddress = vm.envOr("CLAIM_KEY_ADDRESS", msg.sender);
+    uint256 public purposeClaim = vm.envOr("PURPOSE_CLAIM", uint256(0));
+    uint256 public keyTypeEcdsa = vm.envOr("KEY_TYPE_ECDSA", uint256(0));
 
-        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
-        address claimKeyAddress = vm.envOr("CLAIM_KEY_ADDRESS", msg.sender);
-        
-        uint256 purposeClaim = vm.envOr("PURPOSE_CLAIM", uint256(0));
+    function run() external returns (RWAIdentity) {
+        console.log("Management key:", managementKey);
+        console.log("Claim key address:", claimKeyAddress);
         console.log("Purpose claim:", purposeClaim);
-        uint256 keyTypeEcdsa = vm.envOr("KEY_TYPE_ECDSA", uint256(0));
         console.log("Key type ecdsa:", keyTypeEcdsa);
         
         bytes32 claimKeyHash = keccak256(abi.encode(claimKeyAddress));

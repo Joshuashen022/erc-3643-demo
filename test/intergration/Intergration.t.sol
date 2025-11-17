@@ -45,41 +45,6 @@ contract IntegrationTest is Test {
     uint256 constant KEY_TYPE_ECDSA = 1;
     uint256 constant CLAIM_SCHEME_ECDSA = 1;
     function setUp() public {
-        address managementKey = address(0x1111);
-        claimKeyAddress = vm.addr(claimKeyPrivateKey);
-        claimKeyHash = keccak256(abi.encode(claimKeyAddress));
-
-        // Deploy mock identities to specified addresses
-        // Deploy claimIssuer first so we can pass it to MockIdentity
-        {
-            claimIssuer = new RWAClaimIssuer(managementKey);
-
-            vm.startPrank(managementKey);
-            claimIssuer.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
-            vm.stopPrank();    
-        }
-        // Initialize MockIdentity with claimIssuer address and topic 1 (KYC)
-        {
-            identity = new RWAIdentity(managementKey);
-
-            vm.startPrank(managementKey);
-            identity.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
-            vm.stopPrank();
-        }
-        // Add the claim to the identity
-        {
-            // Create valid signature for the claim
-            IIdentity claimIdentity = IIdentity(address(identity));
-            bytes memory data = "";
-            bytes32 dataHash = keccak256(abi.encode(claimIdentity, CLAIM_TOPIC_KYC, data));
-            bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
-            bytes memory sig = abi.encodePacked(r, s, v);
-            
-            vm.prank(claimKeyAddress);
-            identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
-        }
-        
 
         // Set up Compliance
         compliance = new RWACompliance();
@@ -94,34 +59,75 @@ contract IntegrationTest is Test {
 
         claimTopicsRegistry = new RWAClaimTopicsRegistry();
         claimTopicsRegistry.init();
-        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
 
         // Deploy IdentityRegistry
         identityRegistry = new RWAIdentityRegistry();
+        identityRegistry.init(address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage));
+        {
+            // for testing purposes, add the owner as an agent
+            address owner = identityRegistry.owner();
+            vm.prank(owner);
+            identityRegistry.addAgent(owner);
+        }
 
         // Bind IdentityRegistry to IdentityRegistryStorage
         vm.startPrank(identityRegistryStorage.owner());
         identityRegistryStorage.bindIdentityRegistry(address(identityRegistry));
         vm.stopPrank();
 
-        // Initialize IdentityRegistry
-        identityRegistry.init(address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage));
-
-        // Add trusted issuers for claim topic 1 (KYC)
-        // MockIdentity2 returns claims with issuer address 0x4444, so we need to add that issuer
-        uint256[] memory kycTopics = new uint256[](1);
-        kycTopics[0] = CLAIM_TOPIC_KYC;
-        trustedIssuersRegistry.addTrustedIssuer(IClaimIssuer(address(claimIssuer)), kycTopics);
-
         // Set up Token
         rwaToken = new RWAToken();
         rwaToken.init(address(identityRegistry), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID);
+        {        
+            // for testing purposes, add this contract as an agent
+            rwaToken.addAgent(address(this));
+            rwaToken.unpause();
+        }
+        
+        setUpIdentity();
+        setUpTopics();
 
-        rwaToken.addAgent(address(this));
-        rwaToken.unpause();
-        address owner = identityRegistry.owner();
-        vm.prank(owner);
-        identityRegistry.addAgent(owner);
+    }
+
+    // set up identity and claim issuer with CLAIM_TOPIC_KYC
+    function setUpIdentity() internal {
+        address managementKey = address(0x1111);
+        claimKeyAddress = vm.addr(claimKeyPrivateKey);
+        claimKeyHash = keccak256(abi.encode(claimKeyAddress));
+
+        // Deploy claimIssuer and identity
+        claimIssuer = new RWAClaimIssuer(managementKey);
+
+        vm.startPrank(managementKey);
+        claimIssuer.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
+        vm.stopPrank();    
+            
+        identity = new RWAIdentity(managementKey);
+            vm.startPrank(managementKey);
+            identity.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
+            vm.stopPrank();
+
+            // Create valid signature for the claim
+            IIdentity claimIdentity = IIdentity(address(identity));
+            bytes memory data = "";
+            bytes32 dataHash = keccak256(abi.encode(claimIdentity, CLAIM_TOPIC_KYC, data));
+            bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+            bytes memory sig = abi.encodePacked(r, s, v);
+            
+            vm.prank(claimKeyAddress);
+            identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
+    }
+
+    // set up claim topics and trusted issuer for CLAIM_TOPIC_KYC
+    function setUpTopics() internal {
+        
+        claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
+
+        // Add trusted issuer for claim topic 1 (KYC)
+        uint256[] memory kycTopics = new uint256[](1);
+        kycTopics[0] = CLAIM_TOPIC_KYC;
+        trustedIssuersRegistry.addTrustedIssuer(IClaimIssuer(address(claimIssuer)), kycTopics);
     }
 
     function testInitIntergrationSetsState() public view {

@@ -5,10 +5,12 @@ import {Script, console} from "forge-std/Script.sol";
 import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 
 contract DeployRWAClaimTopicsRegistry is Script {
-    uint256 constant CLAIM_TOPIC_KYC = 1;
+    uint256 public claimTopicKyc = vm.envOr("CLAIM_TOPIC_KYC", uint256(1));
+    bool public addKycTopic = vm.envOr("ADD_KYC_TOPIC", true);
 
     function run() external returns (RWAClaimTopicsRegistry) {
-        bool addKycTopic = vm.envOr("ADD_KYC_TOPIC", true);
+        console.log("Claim topic KYC:", claimTopicKyc);
+        console.log("Add KYC topic:", addKycTopic);
         
         console.log("=== Deploying RWAClaimTopicsRegistry ===");
         
@@ -18,7 +20,7 @@ contract DeployRWAClaimTopicsRegistry is Script {
         claimTopicsRegistry.init();
         
         if (addKycTopic) {
-            claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
+            claimTopicsRegistry.addClaimTopic(claimTopicKyc);
             console.log("KYC claim topic added");
         }
         

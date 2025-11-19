@@ -14,7 +14,8 @@ import {ITrustedIssuersRegistry} from "../../lib/ERC-3643/contracts/registry/int
 import {ITREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "../../lib/solidity/contracts/interface/IClaimIssuer.sol";
-import {IdFactory} from "../../lib/solidity/contracts/factory/IdFactory.sol";
+import {RWAIdentityIdFactory} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
+import {RWAClaimIssuerIdFactory} from "../../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
 
 import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
@@ -29,8 +30,8 @@ contract DeployERC3643Test is Test {
     TREXImplementationAuthority public trexImplementationAuthority;
     TREXFactory public trexFactory;
     TREXGateway public trexGateway;
-    IdFactory public identityIdFactory;
-    IdFactory public claimIssuerIdFactory;
+    RWAIdentityIdFactory public identityIdFactory;
+    RWAClaimIssuerIdFactory public claimIssuerIdFactory;
 
     RWAToken internal rwaToken;
     RWACompliance internal compliance;

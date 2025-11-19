@@ -26,6 +26,8 @@ import {RWAClaimTopicsRegistry} from "../src/rwa/IdentityRegistry.sol";
 import {RWATrustedIssuersRegistry} from "../src/rwa/IdentityRegistry.sol";
 import {RWACompliance} from "../src/rwa/RWACompliance.sol";
 import {RWAIdentityRegistryStorage} from "../src/rwa/IdentityRegistry.sol";
+import {RWAIdentityIdFactory, RWAIdentityGateway} from "../src/rwa/proxy/RWAIdentityIdFactory.sol";
+import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
 
 contract DeployERC3643 is Script {
     // TREX factory contracts
@@ -39,10 +41,10 @@ contract DeployERC3643 is Script {
     RWAClaimIssuer public rwaClaimIssuerImpl;
 
     ImplementationAuthority public implementationAuthority;
-    IdFactory public identityidFactory;
-    Gateway public identityGateway;
-    IdFactory public claimIssuerIdFactory;
-    Gateway public claimIssuerGateway;
+    RWAIdentityIdFactory public identityidFactory;
+    RWAIdentityGateway public identityGateway;
+    RWAClaimIssuerIdFactory public claimIssuerIdFactory;
+    RWAClaimIssuerGateway public claimIssuerGateway;
 
 
     ITREXImplementationAuthority.Version public currentVersion;
@@ -117,14 +119,19 @@ contract DeployERC3643 is Script {
     }
    
     function deployRWAIdentity() internal returns (IdFactory) {
-        
+        address[] memory signers = new address[](0);
+
+        vm.startBroadcast();
         rwaIdentityImpl = new RWAIdentity(msg.sender);
         rwaClaimIssuerImpl = new RWAClaimIssuer(msg.sender);
+        implementationAuthority = new ImplementationAuthority(address(rwaIdentityImpl));
 
-        address[] memory signers = new address[](0);
-        (identityidFactory, identityGateway) = _deploy(address(rwaIdentityImpl), signers);
-        (claimIssuerIdFactory, claimIssuerGateway) = _deploy(address(rwaClaimIssuerImpl), signers);
-        
+        identityidFactory = new RWAIdentityIdFactory(address(implementationAuthority));
+        identityGateway = new RWAIdentityGateway(address(identityidFactory), signers);
+        claimIssuerIdFactory = new RWAClaimIssuerIdFactory(address(implementationAuthority));
+        claimIssuerGateway = new RWAClaimIssuerGateway(address(claimIssuerIdFactory), signers);
+
+        vm.stopBroadcast();
         console.log("IdentityIdFactory deployed at:", address(identityidFactory), "rwaIdentityImpl", address(rwaIdentityImpl));
         console.log("IdentityGateway deployed at:", address(identityGateway));
         console.log("ClaimIssuerIdFactory deployed at:", address(claimIssuerIdFactory), "rwaClaimIssuerImpl", address(rwaClaimIssuerImpl));

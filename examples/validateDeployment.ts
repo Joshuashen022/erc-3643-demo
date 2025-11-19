@@ -41,8 +41,15 @@ function getContractABI(contractName: string): any[] {
   // 尝试从 out 目录读取 ABI
   const possiblePaths = [
     path.join(__dirname, `../out/${contractName}.sol/${contractName}.json`),
-    path.join(__dirname, `../out/src/rwa/${contractName}.sol/${contractName}.json`),
   ];
+
+  // fix for different contract names in out directory
+  if (contractName === "RWATrustedIssuersRegistry") {
+    possiblePaths.push(path.join(__dirname, `../out/IdentityRegistry.sol/RWATrustedIssuersRegistry.json`));
+  }
+  if (contractName === "RWAClaimTopicsRegistry") {
+    possiblePaths.push(path.join(__dirname, `../out/IdentityRegistry.sol/RWAClaimTopicsRegistry.json`));
+  }
 
   for (const abiPath of possiblePaths) {
     if (fs.existsSync(abiPath)) {

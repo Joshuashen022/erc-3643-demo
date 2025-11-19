@@ -118,20 +118,20 @@ contract IntegrationTest is Test {
         vm.stopPrank();    
             
         identity = new RWAIdentity(managementKey);
-            vm.startPrank(managementKey);
-            identity.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
-            vm.stopPrank();
+        vm.startPrank(managementKey);
+        identity.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
+        vm.stopPrank();
 
-            // Create valid signature for the claim
-            IIdentity claimIdentity = IIdentity(address(identity));
-            bytes memory data = "";
-            bytes32 dataHash = keccak256(abi.encode(claimIdentity, CLAIM_TOPIC_KYC, data));
-            bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
-            bytes memory sig = abi.encodePacked(r, s, v);
+        // Create valid signature for the claim
+        IIdentity claimIdentity = IIdentity(address(identity));
+        bytes memory data = "";
+        bytes32 dataHash = keccak256(abi.encode(claimIdentity, CLAIM_TOPIC_KYC, data));
+        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+        bytes memory sig = abi.encodePacked(r, s, v);
             
-            vm.prank(claimKeyAddress);
-            identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
+        vm.prank(claimKeyAddress);
+        identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
     }
 
     // set up claim topics and trusted issuer for CLAIM_TOPIC_KYC

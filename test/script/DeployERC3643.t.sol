@@ -14,6 +14,7 @@ import {ITrustedIssuersRegistry} from "../../lib/ERC-3643/contracts/registry/int
 import {ITREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "../../lib/solidity/contracts/interface/IClaimIssuer.sol";
+import {IdFactory} from "../../lib/solidity/contracts/factory/IdFactory.sol";
 
 import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
@@ -28,6 +29,8 @@ contract DeployERC3643Test is Test {
     TREXImplementationAuthority public trexImplementationAuthority;
     TREXFactory public trexFactory;
     TREXGateway public trexGateway;
+    IdFactory public identityIdFactory;
+    IdFactory public claimIssuerIdFactory;
 
     RWAToken internal rwaToken;
     RWACompliance internal compliance;
@@ -50,7 +53,9 @@ contract DeployERC3643Test is Test {
         trexImplementationAuthority = deployScript.trexImplementationAuthority();
         trexFactory = deployScript.trexFactory();
         trexGateway = deployScript.trexGateway();
-        
+        identityIdFactory = deployScript.identityidFactory();
+        claimIssuerIdFactory = deployScript.claimIssuerIdFactory();
+
         string memory salt = deployScript.salt();
         rwaToken = RWAToken(trexFactory.getToken(salt));
         compliance = RWACompliance(address(rwaToken.compliance()));
@@ -79,6 +84,42 @@ contract DeployERC3643Test is Test {
         address newUser = address(0x9999);
         identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), 840);
         assertTrue(identityRegistry.isVerified(newUser));
+    }
+
+    function test_RegisterNewIdentity_Success() public {
+        uint256 purposeClaim = 3;
+        uint256 keyTypeEcdsa = 1;
+        uint256 claimTopicKyc = 1;
+        uint256 claimSchemeEcdsa = 1;
+        uint256 newClaimKeyPrivateKey = uint256(0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef);
+        address newManagementKey = vm.addr(newClaimKeyPrivateKey);
+        bytes32 claimKeyHash = keccak256(abi.encode(newManagementKey));
+
+        // Create new identity
+        vm.prank(identityIdFactory.owner());
+        address newIdentity = identityIdFactory.createIdentity(newManagementKey, "newIdentity");
+
+        // Add claim key to new identity
+        vm.prank(newManagementKey);
+        RWAIdentity(newIdentity).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
+
+        // Add claim key to claimIssuer (required for signature verification)
+        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+        vm.prank(managementKey);
+        RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
+
+        // Add claim to new identity
+        bytes memory data = "";
+        bytes32 dataHash = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
+        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newClaimKeyPrivateKey, prefixedHash);
+        bytes memory sig = abi.encodePacked(r, s, v);
+        vm.prank(newManagementKey);
+        RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
+        
+        // Register new identity
+        identityRegistry.registerIdentity(newManagementKey, IIdentity(address(newIdentity)), 840);
+        assertTrue(identityRegistry.isVerified(newManagementKey));
     }
 
     function test_RegisterIdentityWithMoreTopics_Success() public {

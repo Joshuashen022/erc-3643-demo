@@ -18,7 +18,7 @@ import {IdFactory} from "../../lib/solidity/contracts/factory/IdFactory.sol";
 
 import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
-import {RWACompliance} from "../../src/rwa/Compliance.sol";
+import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
 import {RWAToken} from "../../src/rwa/RWAToken.sol";
 import {RWAIdentityRegistryStorage, RWATrustedIssuersRegistry, RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 

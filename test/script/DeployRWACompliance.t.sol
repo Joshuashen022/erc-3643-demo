@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import {Test} from "forge-std/Test.sol";
 import {DeployRWACompliance} from "../../script/utils/DeployRWACompliance.s.sol";
-import {RWACompliance} from "../../src/rwa/Compliance.sol";
+import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
 
 contract DeployRWAComplianceTest is Test {
     DeployRWACompliance deployScript;

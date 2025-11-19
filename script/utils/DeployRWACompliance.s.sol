@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import {Script, console} from "forge-std/Script.sol";
-import {RWACompliance} from "../../src/rwa/Compliance.sol";
+import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
 
 contract DeployRWACompliance is Script {
     function run() external returns (RWACompliance) {

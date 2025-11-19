@@ -11,5 +11,8 @@ out/
 # Dotenv file
 .env
 
+# Node modules
+node_modules/
+dist/
 
 .idea

@@ -5,7 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {RWAToken} from "../src/rwa/RWAToken.sol";
 import {DeployRWAIdentityRegistry} from "./DeployRWAIdentityRegistry.s.sol";
 import {DeployRWACompliance} from "./utils/DeployRWACompliance.s.sol";
-import {RWACompliance} from "../src/rwa/Compliance.sol";
+import {RWACompliance} from "../src/rwa/RWACompliance.sol";
 import {RWAIdentityRegistry} from "../src/rwa/IdentityRegistry.sol";
 import {AddClaims} from "./AddClaims.s.sol";
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import {Test} from "forge-std/Test.sol";
 import {RWAToken} from "../../src/rwa/RWAToken.sol";
-import {RWACompliance} from "../../src/rwa/Compliance.sol";
+import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAIdentityRegistryStorage} from "../../src/rwa/IdentityRegistry.sol";
 import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";

@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import {Test} from "forge-std/Test.sol";
-import {RWACompliance} from "../src/rwa/Compliance.sol";
+import {RWACompliance} from "../src/rwa/RWACompliance.sol";
 import {TestModule} from "ERC-3643/compliance/modular/modules/TestModule.sol";
 import {MockModule} from "./mocks/MockModule.sol";
 import {MockToken} from "./mocks/MockToken.sol";

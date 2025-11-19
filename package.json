@@ -1,0 +1,31 @@
+{
+  "name": "hello-foundry",
+  "version": "1.0.0",
+  "description": "Foundry project with TypeScript and ethers.js support",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node scripts/interact.ts",
+    "typechain": "typechain --target ethers-v6 --out-dir types 'out/**/*.json'"
+  },
+  "keywords": [
+    "foundry",
+    "ethereum",
+    "solidity",
+    "ethers",
+    "typechain",
+    "dotenv"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  },
+  "dependencies": {
+    "ethers": "^6.9.0",
+    "dotenv": "^16.3.1"
+  }
+}
+

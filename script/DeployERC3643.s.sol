@@ -24,7 +24,7 @@ import {RWAIdentity, RWAClaimIssuer} from "../src/rwa/identity/Identity.sol";
 import {RWAIdentityRegistry} from "../src/rwa/IdentityRegistry.sol";
 import {RWAClaimTopicsRegistry} from "../src/rwa/IdentityRegistry.sol";
 import {RWATrustedIssuersRegistry} from "../src/rwa/IdentityRegistry.sol";
-import {RWACompliance} from "../src/rwa/Compliance.sol";
+import {RWACompliance} from "../src/rwa/RWACompliance.sol";
 import {RWAIdentityRegistryStorage} from "../src/rwa/IdentityRegistry.sol";
 
 contract DeployERC3643 is Script {
@@ -64,24 +64,26 @@ contract DeployERC3643 is Script {
         // For reference contract, trexFactory is set to address(0) initially, will be set after factory deployment
         // iaFactory is set to address(0) initially, will be set after IAFactory deployment
         createTREXImplementationAuthority();
-        
+        vm.stopBroadcast();
         // Step 2: Deploy TREXFactory
         // Requires implementationAuthority and idFactory
         console.log("\n--- Deploying TREXFactory ---");
+        vm.startBroadcast(msg.sender);
         trexFactory = new TREXFactory(
             address(trexImplementationAuthority),
             address(idFactory)
         );
-        console.log("TREXFactory deployed at:", address(trexFactory));
+        vm.stopBroadcast();
         
+        vm.startBroadcast();
         idFactory.transferOwnership(address(trexFactory));
-
         // Step 3: Set TREXFactory in TREXImplementationAuthority
         // This is required for reference contracts
         console.log("\n--- Setting TREXFactory in TREXImplementationAuthority ---");
         trexImplementationAuthority.setTREXFactory(address(trexFactory));
         console.log("TREXFactory set in TREXImplementationAuthority");
-        
+        vm.stopBroadcast();
+
         // Step 4: Deploy TREX Suite using TREXFactory
         // This deploys Token, IdentityRegistry, IdentityRegistryStorage, TrustedIssuersRegistry,
         // ClaimTopicsRegistry, and ModularCompliance in one transaction
@@ -93,6 +95,7 @@ contract DeployERC3643 is Script {
         // Requires factory address and publicDeploymentStatus
         // Based on deployTREXSuite function (lines 339-362), the gateway wraps the factory
         console.log("\n--- Deploying TREXGateway ---");
+        vm.startBroadcast();
         trexGateway = new TREXGateway(
             address(trexFactory),
             true  // publicDeploymentStatus = true (allow public deployments)
@@ -200,6 +203,7 @@ contract DeployERC3643 is Script {
     }
 
     function deployTREXSuite() internal {
+        
         // Note: msg.sender should be the broadcaster address, which is also the factory owner
         // since we deployed the factory within vm.startBroadcast()
         // The factory owner is automatically set to the deployer (msg.sender) in the constructor
@@ -249,7 +253,9 @@ contract DeployERC3643 is Script {
         // Deploy TREX Suite using the factory
         // The salt string determines the CREATE2 deployment address
         // Note: deployTREXSuite requires onlyOwner, so caller must be the factory owner
+        vm.startBroadcast(msg.sender);
         trexFactory.deployTREXSuite(salt, tokenDetails, claimDetails);
+        vm.stopBroadcast();
         
         // // Get the deployed token address
         address tokenAddress = trexFactory.getToken(salt);
@@ -358,8 +364,7 @@ contract DeployERC3643 is Script {
         console.log("Compliance:", address(compliance), "Owner", suiteOwner);
         console.log("Trusted Issuers Registry:", address(trustedIssuersRegistry), "Owner", suiteOwner);
         console.log("Claim Topics Registry:", address(claimTopicsRegistry), "Owner", suiteOwner);
-        console.log("TREX Factory:", address(trexFactory), "Owner", suiteOwner);
-  
+        console.log("TREX Factory:", address(trexFactory), "Owner", suiteOwner);  
     }
 
     function _validateIdentity() internal view {

@@ -204,12 +204,13 @@ contract DeployERC3643 is Script {
 
     function deployTREXSuite() internal {
         
+        vm.startBroadcast(msg.sender);
         // Note: msg.sender should be the broadcaster address, which is also the factory owner
         // since we deployed the factory within vm.startBroadcast()
         // The factory owner is automatically set to the deployer (msg.sender) in the constructor
         suiteOwner = msg.sender;
         console.log("Suite owner (msg.sender):", suiteOwner);
-        
+
         TestModule testModule = new TestModule();
         testModule.initialize();
         address[] memory complianceModules = new address[](1);
@@ -253,15 +254,17 @@ contract DeployERC3643 is Script {
         // Deploy TREX Suite using the factory
         // The salt string determines the CREATE2 deployment address
         // Note: deployTREXSuite requires onlyOwner, so caller must be the factory owner
-        vm.startBroadcast(msg.sender);
+
         trexFactory.deployTREXSuite(salt, tokenDetails, claimDetails);
-        vm.stopBroadcast();
+
         
         // // Get the deployed token address
         address tokenAddress = trexFactory.getToken(salt);
         console.log("TREX Suite deployed successfully");
         console.log("Token deployed at:", tokenAddress);
         console.log("Salt used:", salt);
+
+        vm.stopBroadcast();
     }
 
     function _deploy(address identityImpl, address[] memory signers) internal returns (IdFactory idFactory, Gateway gateway) {
@@ -312,10 +315,10 @@ contract DeployERC3643 is Script {
 
     function unPauseToken() internal {
         address tokenAddress = trexFactory.getToken(salt);
-        // Use vm.prank to call unpause as the token owner (who is an agent)
-        // This works in both forge script and forge test environments
-        vm.prank(suiteOwner);
+
+        vm.startBroadcast(suiteOwner);
         RWAToken(tokenAddress).unpause();
+        vm.stopBroadcast();
     }
 
     function validate() internal view {

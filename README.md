@@ -48,8 +48,19 @@ $ anvil
 ### Deploy
 
 ```shell
+# simulate deployment
 forge script script/DeployERC3643.s.sol:DeployERC3643
 
+# test deployment shell
+forge test ./test/script/DeployERC3643.t.sol
+
+# simulate deployment with real chain data
+FOUNDRY_PROFILE=localhost \
+forge script script/DeployERC3643.s.sol:DeployERC3643 \
+  --rpc-url http://127.0.0.1:8545 \
+  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# simulate and deploy
 FOUNDRY_PROFILE=localhost \
 forge script script/DeployERC3643.s.sol:DeployERC3643 \
   --rpc-url http://127.0.0.1:8545 \

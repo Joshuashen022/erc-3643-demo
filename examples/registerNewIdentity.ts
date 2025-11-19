@@ -72,93 +72,32 @@ function getContractABI(contractName: string): any[] {
 }
 
 /**
- * 主函数：注册新身份
+ * 初始化合约和配置
  */
-async function main() {
+interface ContractSetup {
+  provider: ethers.JsonRpcProvider;
+  wallet: ethers.Wallet;
+  suiteOwner: string;
+  salt: string;
+  tokenAddress: string;
+  token: ethers.Contract;
+  identityRegistryAddress: string;
+  identityRegistry: ethers.Contract;
+  identityIdFactoryAddress: string;
+  identityIdFactory: ethers.Contract;
+  claimIssuerIdFactoryAddress: string;
+  claimIssuerIdFactory: ethers.Contract;
+  managementKey: string;
+  claimIssuerAddress: string;
+  claimIssuer: ethers.Contract;
+  rwaIdentityABI: any[];
+  privateKey: string;
+}
+
+async function initializeContracts(): Promise<ContractSetup> {
   // 连接到本地节点（Anvil）
   const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
   const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-  /**
-   * 辅助函数：延迟
-   */
-  function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * 等待所有待处理的交易确认
-   */
-  async function waitForPendingTransactions(walletAddress: string, maxWaitTime: number = 30000): Promise<void> {
-    const startTime = Date.now();
-    while (Date.now() - startTime < maxWaitTime) {
-      const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
-      const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
-      
-      if (pendingNonce === latestNonce) {
-        // 没有待处理的交易
-        return;
-      }
-      
-      console.log(`等待待处理交易确认... (pending: ${pendingNonce}, latest: ${latestNonce})`);
-      await sleep(1000);
-    }
-    
-    console.warn("等待超时，可能仍有待处理的交易");
-  }
-
-  /**
-   * 带重试机制的交易发送函数
-   * 专门处理 nonce 相关的错误，自动重试
-   */
-  async function sendTransactionWithRetry(
-    txFunction: () => Promise<any>,
-    walletAddress: string,
-    maxRetries: number = 5,
-    retryDelay: number = 2000
-  ): Promise<any> {
-    let lastError: any;
-    let currentDelay = retryDelay;
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        // 执行交易函数（函数内部会获取最新的 nonce）
-        const tx = await txFunction();
-        return tx;
-      } catch (error: any) {
-        lastError = error;
-        const errorMsg = error.message || String(error);
-        
-        // 检查是否是 nonce 相关错误
-        if (errorMsg.includes("nonce") || errorMsg.includes("replacement transaction underpriced")) {
-          console.warn(`\n⚠️  Nonce 错误 (尝试 ${attempt + 1}/${maxRetries}): ${errorMsg}`);
-          
-          if (attempt < maxRetries - 1) {
-            // 获取当前 nonce 状态用于调试
-            const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
-            const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
-            console.log(`   当前 nonce 状态 - pending: ${pendingNonce}, latest: ${latestNonce}`);
-            console.log(`   等待 ${currentDelay}ms 后重试...\n`);
-            
-            await sleep(currentDelay);
-            // 指数退避：每次重试延迟增加
-            currentDelay = Math.min(currentDelay * 1.5, 10000); // 最多等待 10 秒
-            continue;
-          } else {
-            // 最后一次尝试也失败了
-            const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
-            const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
-            throw new Error(`Nonce 错误，已重试 ${maxRetries} 次仍失败: ${errorMsg}. 当前 pending nonce: ${pendingNonce}, latest nonce: ${latestNonce}`);
-          }
-        }
-        
-        // 如果不是 nonce 错误，直接抛出
-        throw error;
-      }
-    }
-    
-    throw lastError || new Error("未知错误");
-  }
 
   console.log(`连接到 RPC: ${rpcUrl}`);
 
@@ -298,6 +237,81 @@ async function main() {
 
   // 获取 RWAIdentity 合约 ABI
   const rwaIdentityABI = getContractABI("RWAIdentity");
+
+  return {
+    provider,
+    wallet,
+    suiteOwner,
+    salt,
+    tokenAddress,
+    token,
+    identityRegistryAddress,
+    identityRegistry,
+    identityIdFactoryAddress,
+    identityIdFactory,
+    claimIssuerIdFactoryAddress,
+    claimIssuerIdFactory,
+    managementKey,
+    claimIssuerAddress,
+    claimIssuer,
+    rwaIdentityABI,
+    privateKey,
+  };
+}
+
+/**
+ * 主函数：注册新身份
+ */
+async function main() {
+  // 初始化合约和配置
+  const {
+    provider,
+    wallet,
+    suiteOwner,
+    salt,
+    tokenAddress,
+    token,
+    identityRegistryAddress,
+    identityRegistry,
+    identityIdFactoryAddress,
+    identityIdFactory,
+    claimIssuerIdFactoryAddress,
+    claimIssuerIdFactory,
+    managementKey,
+    claimIssuerAddress,
+    claimIssuer,
+    rwaIdentityABI,
+    privateKey,
+  } = await initializeContracts();
+
+  /**
+   * 辅助函数：延迟
+   */
+  function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 等待所有待处理的交易确认
+   */
+  async function waitForPendingTransactions(walletAddress: string, maxWaitTime: number = 30000): Promise<void> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitTime) {
+      const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
+      const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
+      
+      if (pendingNonce === latestNonce) {
+        // 没有待处理的交易
+        return;
+      }
+      
+      console.log(`等待待处理交易确认... (pending: ${pendingNonce}, latest: ${latestNonce})`);
+      await sleep(1000);
+    }
+    
+    console.warn("等待超时，可能仍有待处理的交易");
+  }
+
 
   console.log("\n=== 开始注册新身份 ===");
 
@@ -575,7 +589,7 @@ async function main() {
   console.log("\n=== 注册新身份完成 ===");
   console.log(`新管理密钥地址: ${newManagementKey}`);
   console.log(`新身份合约地址: ${newIdentityAddress}`);
-  // console.log(`国家代码: ${countryCode}`);
+  console.log(`国家代码: ${countryCode}`);
 }
 
 // 运行主函数

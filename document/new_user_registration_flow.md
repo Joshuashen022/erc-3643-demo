@@ -193,8 +193,13 @@ sequenceDiagram
     
     Agent->>IR: registerIdentity(user, identity, 840)
     IR->>Storage: addIdentityToStorage(...)
-    Storage->>Storage: 存储关联关系
     
+    activate Storage
+    rect rgb(20, 80, 140)
+    Storage->>Storage: _identities[_userAddress].identityContract = _identity _identities<br/>[_userAddress].investorCountry = _country;
+    end
+    deactivate Storage
+
     Note over IR: isVerified(user)
     IR->>Storage: identity(user)
     IR->>NewIdentity: getClaim(claimId)

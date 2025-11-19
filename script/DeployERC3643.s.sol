@@ -22,7 +22,10 @@ import {TREXGateway} from "../lib/ERC-3643/contracts/factory/TREXGateway.sol";
 import {TestModule} from "../lib/ERC-3643/contracts/compliance/modular/modules/TestModule.sol";
 import {RWAIdentity, RWAClaimIssuer} from "../src/rwa/identity/Identity.sol";
 import {RWAIdentityRegistry} from "../src/rwa/IdentityRegistry.sol";
-
+import {RWAClaimTopicsRegistry} from "../src/rwa/IdentityRegistry.sol";
+import {RWATrustedIssuersRegistry} from "../src/rwa/IdentityRegistry.sol";
+import {RWACompliance} from "../src/rwa/Compliance.sol";
+import {RWAIdentityRegistryStorage} from "../src/rwa/IdentityRegistry.sol";
 
 contract DeployERC3643 is Script {
     // TREX factory contracts
@@ -98,15 +101,16 @@ contract DeployERC3643 is Script {
         
         vm.stopBroadcast();
         
+        // Validate agent initialization
+        console.log("\n=== Validating ===");
+        validate();
+        console.log("Validation passed");
+
         // Unpause the token after deployment
         console.log("\n--- Unpausing Token ---");
         unPauseToken();
         console.log("Token unpaused successfully");
 
-        // Validate agent initialization
-        console.log("\n=== Validating ===");
-        validate();
-        console.log("Validation passed");
     }
    
     function deployRWAIdentity() internal returns (IdFactory) {
@@ -316,8 +320,12 @@ contract DeployERC3643 is Script {
     function _validataRWAModule() internal view {
         address tokenAddress = trexFactory.getToken(salt);
         RWAToken token = RWAToken(tokenAddress);
+        RWACompliance compliance = RWACompliance(address(token.compliance()));
         RWAIdentityRegistry identityRegistry = RWAIdentityRegistry(address(token.identityRegistry()));
-        
+        RWAIdentityRegistryStorage identityRegistryStorage = RWAIdentityRegistryStorage(address(identityRegistry.identityStorage()));
+        RWATrustedIssuersRegistry trustedIssuersRegistry = RWATrustedIssuersRegistry(address(identityRegistry.issuersRegistry()));
+        RWAClaimTopicsRegistry claimTopicsRegistry = RWAClaimTopicsRegistry(address(identityRegistry.topicsRegistry()));
+
         // Check that suiteOwner is set
         require(suiteOwner != address(0), "Suite owner should be set");
         // Check Identity Registry agent
@@ -333,13 +341,24 @@ contract DeployERC3643 is Script {
         );
         // Check that suiteOwner is the owner of Token
         require(token.owner() == suiteOwner, "Token owner should match suite owner");
-
-        // Check that suiteOwner is the owner of Identity Registry
         require(identityRegistry.owner() == suiteOwner, "Identity Registry owner should match suite owner");
-
-        console.log("Token:", tokenAddress, "Suite Owner", suiteOwner);
-        console.log("Identity Registry:", address(token.identityRegistry()), "Suite Owner", suiteOwner);
+        require(compliance.owner() == suiteOwner, "Compliance owner should match suite owner");
+        require(trustedIssuersRegistry.owner() == suiteOwner, "Trusted Issuers Registry owner should match suite owner");
+        require(claimTopicsRegistry.owner() == suiteOwner, "Claim Topics Registry owner should match suite owner");
         
+        // Check that suiteOwner is the owner of TREX Factory
+        require(trexFactory.owner() == suiteOwner, "TREX Factory owner should match suite owner");
+
+
+        console.log("Token:", tokenAddress, "Agent", suiteOwner);
+        console.log("Identity Registry:", address(token.identityRegistry()), "Agent", suiteOwner);
+
+        console.log("Token:", tokenAddress, "Owner", suiteOwner);
+        console.log("Identity Registry:", address(token.identityRegistry()), "Owner", suiteOwner);
+        console.log("Compliance:", address(compliance), "Owner", suiteOwner);
+        console.log("Trusted Issuers Registry:", address(trustedIssuersRegistry), "Owner", suiteOwner);
+        console.log("Claim Topics Registry:", address(claimTopicsRegistry), "Owner", suiteOwner);
+        console.log("TREX Factory:", address(trexFactory), "Owner", suiteOwner);
   
     }
 

@@ -17,3 +17,9 @@ remappings = [
 optimizer = true
 optimizer_runs = 200
 via_ir = true  # optimize compiled size
+
+
+[profile.baseSepolia]
+optimizer = true
+optimizer_runs = 200
+via_ir = true  # optimize compiled size

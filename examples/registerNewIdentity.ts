@@ -9,10 +9,10 @@ dotenv.config();
 /**
  * 从 Foundry 部署日志中读取合约地址
  */
-function getContractAddresses(): Record<string, string> {
+function getContractAddresses(chainId: number): Record<string, string> {
   const broadcastPath = path.join(
     __dirname,
-    "../broadcast/DeployERC3643.s.sol/31337/run-latest.json"
+    `../broadcast/DeployERC3643.s.sol/${chainId}/run-latest.json`
   );
 
   if (!fs.existsSync(broadcastPath)) {
@@ -167,7 +167,7 @@ async function main() {
   console.log(`网络: ${network.name} (Chain ID: ${network.chainId})`);
 
   // 读取合约地址
-  const addresses = getContractAddresses();
+  const addresses = getContractAddresses(Number(network.chainId));
 
   // 获取私钥（用于签名交易）
   const privateKey = process.env.PRIVATE_KEY || process.env.CLAIM_KEY_PRIVATE_KEY;
@@ -324,6 +324,9 @@ async function main() {
   const identitySalt = `newIdentity`;
   let newIdentityAddress: string | undefined;
   
+  // newIdentityAddress = ethers.getAddress(String(await (identityIdFactoryWithOwner as any).getIdentity(newManagementKey)));
+  // console.log(`新身份地址: ${newIdentityAddress}`);
+
   // 首先使用 staticCall 获取将要创建的身份地址（模拟调用）
   try {
       const result = await (identityIdFactoryWithOwner as any).createIdentity.staticCall(newManagementKey, identitySalt);
@@ -331,6 +334,7 @@ async function main() {
       console.log(`预计创建的身份地址: ${newIdentityAddress}`);
   } catch (error: any) {
       console.warn(`无法通过 staticCall 获取身份地址: ${error.message}`);
+      newIdentityAddress = await (identityIdFactoryWithOwner as any).getIdentity(newManagementKey);
   }
   
   try {
@@ -403,20 +407,7 @@ async function main() {
       await waitForPendingTransactions(newClaimKeyWallet.address);
       
       // 使用重试机制发送交易
-      const tx = await sendTransactionWithRetry(
-        async () => {
-          // 每次重试时重新获取最新的 nonce（包含待处理的交易）
-          const nonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
-          console.log(`发送添加 key 交易，使用 nonce: ${nonce} (地址: ${newClaimKeyWallet.address})`);
-          
-          return await (newIdentity as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa, {
-            nonce: nonce
-          });
-        },
-        newClaimKeyWallet.address,
-        5, // 最多重试 5 次
-        2000 // 初始延迟 2 秒
-      );
+      const tx = await (newIdentity as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
       
       console.log(`添加 key 交易哈希: ${tx.hash}`);
       await tx.wait();
@@ -431,18 +422,6 @@ async function main() {
     }
     throw new Error(`添加 claim key 失败: ${error.message}`);
   }
-  
-  sleep(1000);
-  
-
-
-
-
-
-
-
-
-
 
   // 步骤 5: 添加 claim key 到 claimIssuer（用于签名验证）
   console.log("\n--- 添加 claim key 到 ClaimIssuer ---");
@@ -463,20 +442,7 @@ async function main() {
       await waitForPendingTransactions(managementKeyWallet.address);
       
       // 使用重试机制发送交易
-      const tx = await sendTransactionWithRetry(
-        async () => {
-          // 每次重试时重新获取最新的 nonce（包含待处理的交易）
-          const nonce = await provider.getTransactionCount(managementKeyWallet.address, "pending");
-          console.log(`发送交易，使用 nonce: ${nonce} (地址: ${managementKeyWallet.address})`);
-          
-          return await (claimIssuerWithManager as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa, {
-            nonce: nonce
-          });
-        },
-        managementKeyWallet.address,
-        5, // 最多重试 5 次
-        2000 // 初始延迟 2 秒
-      );
+      const tx = await (claimIssuerWithManager as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
       
       console.log(`添加 key 到 ClaimIssuer 交易哈希: ${tx.hash}`);
       await tx.wait();
@@ -491,7 +457,7 @@ async function main() {
     }
     throw new Error(`添加 claim key 到 ClaimIssuer 失败: ${error.message}`);
   }
-  sleep(100);
+  
   // 步骤 6: 创建并签名 claim
   console.log("\n--- 创建并签名 claim ---");
   const claimTopicKyc = 1; // KYC claim topic
@@ -528,7 +494,7 @@ async function main() {
     new Uint8Array([vByte])
   ]);
   console.log(`签名: ${sigBytes} (长度: ${sigBytes.length} 字节)`);
-  sleep(100);
+  
   // 步骤 7: 添加 claim 到新身份
   console.log("\n--- 添加 claim 到新身份 ---");
   try {
@@ -537,27 +503,13 @@ async function main() {
     await waitForPendingTransactions(newClaimKeyWallet.address);
     
     // 使用重试机制发送交易
-    const tx = await sendTransactionWithRetry(
-      async () => {
-        // 每次重试时重新获取最新的 nonce（包含待处理的交易）
-        const nonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
-        console.log(`发送添加 claim 交易，使用 nonce: ${nonce} (地址: ${newClaimKeyWallet.address})`);
-        
-        return await (newIdentity as any).addClaim(
-          claimTopicKyc,
-          claimSchemeEcdsa,
-          claimIssuerAddress,
-          sigBytes,
-          data,
-          "",
-          {
-            nonce: nonce
-          }
-        );
-      },
-      newClaimKeyWallet.address,
-      5, // 最多重试 5 次
-      2000 // 初始延迟 2 秒
+    const tx = await (newIdentity as any).addClaim(
+      claimTopicKyc,
+      claimSchemeEcdsa,
+      claimIssuerAddress,
+      sigBytes,
+      data,
+      "",
     );
     
     console.log(`添加 claim 交易哈希: ${tx.hash}`);
@@ -572,7 +524,7 @@ async function main() {
     }
     throw new Error(`添加 claim 失败: ${error.message}`);
   }
-  sleep(100);
+  
   // 步骤 8: 注册新身份到 Identity Registry
   console.log("\n--- 注册新身份到 Identity Registry ---");
   const countryCode = 840; // US country code
@@ -586,24 +538,10 @@ async function main() {
     await waitForPendingTransactions(identityRegistryWalletAddress);
     
     // 使用重试机制发送交易
-    const tx = await sendTransactionWithRetry(
-      async () => {
-        // 每次重试时重新获取最新的 nonce（包含待处理的交易）
-        const nonce = await provider.getTransactionCount(identityRegistryWalletAddress, "pending");
-        console.log(`发送注册身份交易，使用 nonce: ${nonce} (地址: ${identityRegistryWalletAddress})`);
-        
-        return await identityRegistry.registerIdentity(
-          newManagementKey,
-          newIdentityAddress,
-          countryCode,
-          {
-            nonce: nonce
-          }
-        );
-      },
-      identityRegistryWalletAddress,
-      5, // 最多重试 5 次
-      2000 // 初始延迟 2 秒
+    const tx = await identityRegistry.registerIdentity(
+      newManagementKey,
+      newIdentityAddress,
+      countryCode,
     );
     
     console.log(`注册身份交易哈希: ${tx.hash}`);
@@ -618,7 +556,7 @@ async function main() {
     }
     throw new Error(`注册身份失败: ${error.message}`);
   }
-  sleep(100);
+  
   // 步骤 9: 验证身份是否已注册
   console.log("\n--- 验证身份注册状态 ---");
   try {
@@ -637,7 +575,7 @@ async function main() {
   console.log("\n=== 注册新身份完成 ===");
   console.log(`新管理密钥地址: ${newManagementKey}`);
   console.log(`新身份合约地址: ${newIdentityAddress}`);
-  console.log(`国家代码: ${countryCode}`);
+  // console.log(`国家代码: ${countryCode}`);
 }
 
 // 运行主函数

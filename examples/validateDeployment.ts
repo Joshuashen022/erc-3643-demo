@@ -9,10 +9,10 @@ dotenv.config();
 /**
  * 从 Foundry 部署日志中读取合约地址
  */
-function getContractAddresses(): Record<string, string> {
+function getContractAddresses(chainId: number): Record<string, string> {
   const broadcastPath = path.join(
     __dirname,
-    "../broadcast/DeployERC3643.s.sol/31337/run-latest.json"
+    `../broadcast/DeployERC3643.s.sol/${chainId}/run-latest.json`
   );
 
   if (!fs.existsSync(broadcastPath)) {
@@ -88,7 +88,7 @@ async function main() {
   }
 
   // 读取合约地址
-  const addresses = getContractAddresses();
+  const addresses = getContractAddresses(Number(network.chainId));
   
   // 获取 suiteOwner（部署者地址）
   const suiteOwnerRaw = process.env.SUITE_OWNER || defaultAccount || "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";

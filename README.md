@@ -58,16 +58,27 @@ forge test ./test/script/DeployERC3643.t.sol
 FOUNDRY_PROFILE=localhost \
 forge script script/DeployERC3643.s.sol:DeployERC3643 \
   --rpc-url http://127.0.0.1:8545 \
-  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  --private-key <privateKey>
 
 # simulate and deploy
 FOUNDRY_PROFILE=localhost \
 forge script script/DeployERC3643.s.sol:DeployERC3643 \
   --rpc-url http://127.0.0.1:8545 \
-  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+  --private-key <privateKey> \
   --broadcast
 ```
 
+### Deploy and verify
+```shell
+FOUNDRY_PROFILE=baseSepolia
+forge script script/DeployERC3643.s.sol:DeployERC3643 \
+  --rpc-url https://sepolia.base.org \
+  --private-key <privateKey> \
+  --verify --verifier custom \
+  --etherscan-api-key <apiKey>  \
+  --verifier-url "https://api.etherscan.io/v2/api?chainid=<chainid>&apikey=<apikey>" \
+  --broadcast
+```
 ### Cast
 
 ```shell

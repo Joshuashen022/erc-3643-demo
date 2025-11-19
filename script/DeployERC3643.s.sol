@@ -21,6 +21,7 @@ import {ITREXFactory} from "../lib/ERC-3643/contracts/factory/ITREXFactory.sol";
 import {TREXGateway} from "../lib/ERC-3643/contracts/factory/TREXGateway.sol";
 import {TestModule} from "../lib/ERC-3643/contracts/compliance/modular/modules/TestModule.sol";
 import {RWAIdentity, RWAClaimIssuer} from "../src/rwa/identity/Identity.sol";
+import {RWAIdentityRegistry} from "../src/rwa/IdentityRegistry.sol";
 
 
 contract DeployERC3643 is Script {
@@ -46,6 +47,7 @@ contract DeployERC3643 is Script {
     address public claimIssuer;
     string public salt = "trex-suite-1";
     address public suiteOwner;
+    address public managementKey;
 
     function run() external {
         console.log("=== Deploying RWA Identity Factories ===");
@@ -101,6 +103,10 @@ contract DeployERC3643 is Script {
         unPauseToken();
         console.log("Token unpaused successfully");
 
+        // Validate agent initialization
+        console.log("\n=== Validating ===");
+        validate();
+        console.log("Validation passed");
     }
    
     function deployRWAIdentity() internal returns (IdFactory) {
@@ -259,7 +265,7 @@ contract DeployERC3643 is Script {
     }
 
     function initializeFromEnv() internal {
-        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+        managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
         address claimKeyAddress = managementKey;
         uint256 claimKeyPrivateKey = vm.envOr("CLAIM_KEY_PRIVATE_KEY", uint256(0));
         uint256 purposeClaim = 3;
@@ -302,5 +308,59 @@ contract DeployERC3643 is Script {
         RWAToken(tokenAddress).unpause();
     }
 
+    function validate() internal view {
+        _validataRWAModule();
+        _validateIdentity();
+    }
+
+    function _validataRWAModule() internal view {
+        address tokenAddress = trexFactory.getToken(salt);
+        RWAToken token = RWAToken(tokenAddress);
+        RWAIdentityRegistry identityRegistry = RWAIdentityRegistry(address(token.identityRegistry()));
+        
+        // Check that suiteOwner is set
+        require(suiteOwner != address(0), "Suite owner should be set");
+        // Check Identity Registry agent
+        require(
+            identityRegistry.isAgent(suiteOwner),
+            "Suite owner should be an agent of Identity Registry"
+        );
+
+        // Check Token agent
+        require(
+            token.isAgent(suiteOwner),
+            "Suite owner should be an agent of Token"
+        );
+        // Check that suiteOwner is the owner of Token
+        require(token.owner() == suiteOwner, "Token owner should match suite owner");
+
+        // Check that suiteOwner is the owner of Identity Registry
+        require(identityRegistry.owner() == suiteOwner, "Identity Registry owner should match suite owner");
+
+        console.log("Token:", tokenAddress, "Suite Owner", suiteOwner);
+        console.log("Identity Registry:", address(token.identityRegistry()), "Suite Owner", suiteOwner);
+        
+  
+    }
+
+    function _validateIdentity() internal view {
+        // Check that managementKey is set
+        require(managementKey != address(0), "Management key should be set");
+
+        // Check that managementKey is a management key of Identity (purpose = 1)
+        require(
+            RWAIdentity(identity).keyHasPurpose(keccak256(abi.encode(managementKey)), 1),
+            "Management key should be a management key of Identity"
+        );
+
+        // Check that managementKey is a management key of ClaimIssuer (purpose = 1)
+        require(
+            RWAClaimIssuer(claimIssuer).keyHasPurpose(keccak256(abi.encode(managementKey)), 1),
+            "Management key should be a management key of ClaimIssuer"
+        );
+
+        console.log("Identity:", identity, "Management Key", managementKey);
+        console.log("ClaimIssuer:", claimIssuer, "Management Key", managementKey);
+    }
 }
 

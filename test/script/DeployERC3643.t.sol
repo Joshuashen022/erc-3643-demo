@@ -79,6 +79,32 @@ contract DeployERC3643Test is Test {
         assertNotEq(address(claimIssuer), address(0));
     }
 
+    // ============ Agent Initialization Tests ============
+    function test_AgentInitialization_Success() public view {
+        address suiteOwner = deployScript.suiteOwner();
+        
+        // Check that suiteOwner is set
+        assertNotEq(suiteOwner, address(0), "Suite owner should be set");
+        
+        // Check Identity Registry agent
+        assertTrue(
+            identityRegistry.isAgent(suiteOwner),
+            "Suite owner should be an agent of Identity Registry"
+        );
+        
+        // Check Token agent
+        assertTrue(
+            rwaToken.isAgent(suiteOwner),
+            "Suite owner should be an agent of Token"
+        );
+
+        // Check that suiteOwner is the owner of Token
+        assertEq(rwaToken.owner(), suiteOwner, "Token owner should match suite owner");
+        
+        // Check that suiteOwner is the owner of Identity Registry
+        assertEq(identityRegistry.owner(), suiteOwner, "Identity Registry owner should match suite owner");
+    }
+
     // ============ Register Identity Tests ============
     function test_RegisterIdentity_Success() public {
         address newUser = address(0x9999);

@@ -78,7 +78,7 @@ contract DeployERC3643 is Script {
         vm.stopBroadcast();
         
         vm.startBroadcast();
-        idFactory.transferOwnership(address(trexFactory));
+        idFactory.addTokenFactory(address(trexFactory));
         // Step 3: Set TREXFactory in TREXImplementationAuthority
         // This is required for reference contracts
         console.log("\n--- Setting TREXFactory in TREXImplementationAuthority ---");

@@ -56,8 +56,8 @@ function getContractABI(contractName: string): any[] {
   if (contractName === "RWAClaimIssuer") {
     possiblePaths.push(path.join(__dirname, `../out/Identity.sol/RWAClaimIssuer.json`));
   }
-  if (contractName === "IdFactory") {
-    possiblePaths.push(path.join(__dirname, `../out/IdFactory.sol/IdFactory.json`));
+  if (contractName === "RWAIdentityRegistry") {
+    possiblePaths.push(path.join(__dirname, `../out/IdentityRegistry.sol/RWAIdentityRegistry.json`));
   }
 
   for (const abiPath of possiblePaths) {
@@ -78,6 +78,87 @@ async function main() {
   // 连接到本地节点（Anvil）
   const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
   const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+  /**
+   * 辅助函数：延迟
+   */
+  function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 等待所有待处理的交易确认
+   */
+  async function waitForPendingTransactions(walletAddress: string, maxWaitTime: number = 30000): Promise<void> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitTime) {
+      const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
+      const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
+      
+      if (pendingNonce === latestNonce) {
+        // 没有待处理的交易
+        return;
+      }
+      
+      console.log(`等待待处理交易确认... (pending: ${pendingNonce}, latest: ${latestNonce})`);
+      await sleep(1000);
+    }
+    
+    console.warn("等待超时，可能仍有待处理的交易");
+  }
+
+  /**
+   * 带重试机制的交易发送函数
+   * 专门处理 nonce 相关的错误，自动重试
+   */
+  async function sendTransactionWithRetry(
+    txFunction: () => Promise<any>,
+    walletAddress: string,
+    maxRetries: number = 5,
+    retryDelay: number = 2000
+  ): Promise<any> {
+    let lastError: any;
+    let currentDelay = retryDelay;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // 执行交易函数（函数内部会获取最新的 nonce）
+        const tx = await txFunction();
+        return tx;
+      } catch (error: any) {
+        lastError = error;
+        const errorMsg = error.message || String(error);
+        
+        // 检查是否是 nonce 相关错误
+        if (errorMsg.includes("nonce") || errorMsg.includes("replacement transaction underpriced")) {
+          console.warn(`\n⚠️  Nonce 错误 (尝试 ${attempt + 1}/${maxRetries}): ${errorMsg}`);
+          
+          if (attempt < maxRetries - 1) {
+            // 获取当前 nonce 状态用于调试
+            const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
+            const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
+            console.log(`   当前 nonce 状态 - pending: ${pendingNonce}, latest: ${latestNonce}`);
+            console.log(`   等待 ${currentDelay}ms 后重试...\n`);
+            
+            await sleep(currentDelay);
+            // 指数退避：每次重试延迟增加
+            currentDelay = Math.min(currentDelay * 1.5, 10000); // 最多等待 10 秒
+            continue;
+          } else {
+            // 最后一次尝试也失败了
+            const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
+            const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
+            throw new Error(`Nonce 错误，已重试 ${maxRetries} 次仍失败: ${errorMsg}. 当前 pending nonce: ${pendingNonce}, latest nonce: ${latestNonce}`);
+          }
+        }
+        
+        // 如果不是 nonce 错误，直接抛出
+        throw error;
+      }
+    }
+    
+    throw lastError || new Error("未知错误");
+  }
 
   console.log(`连接到 RPC: ${rpcUrl}`);
 
@@ -163,276 +244,400 @@ async function main() {
     ],
     wallet
   );
-//   === Deploying RWA Identity Factories ===
-//   IdentityIdFactory deployed at: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512 rwaIdentityImpl 0xC7f2Cf4845C6db0e1a1e91ED41Bcd0FcC1b0E141
-//   IdentityGateway deployed at: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-//   ClaimIssuerIdFactory deployed at: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9 rwaClaimIssuerImpl 0xdaE97900D4B184c5D2012dcdB658c008966466DD
-//   ClaimIssuerGateway deployed at: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
-//   IdentityIdFactory owner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   IdentityGateway owner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   ClaimIssuerIdFactory owner: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   ClaimIssuerGateway owner: 0xf39Fd6e51aad88F6F4ce6aB8827
-
-
-//   Token: 0xd97E3Bf3E2952343c3C3C4e47CE2e8Cf63056b41 Agent 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   Identity Registry: 0x5aeD54858E0A1Cf8887D0d0E3E57715bdbDDC91A Agent 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   Token: 0xd97E3Bf3E2952343c3C3C4e47CE2e8Cf63056b41 Owner 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   Identity Registry: 0x5aeD54858E0A1Cf8887D0d0E3E57715bdbDDC91A Owner 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   Compliance: 0xa009Be9fF29d6cEAd158D6249b387390df7C4A25 Owner 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   Trusted Issuers Registry: 0x12917458dCB6559855bc3E4d5e13AaEaeAF14909 Owner 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   Claim Topics Registry: 0x505df16460193709bb1C68Be92245101b1035253 Owner 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   TREX Factory: 0xc6e7DF5E7b4f2A278906862b61205850344D4e7d Owner 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   Identity: 0x95C67c45187569De349146A81fc99a6469d944aD Management Key 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-//   ClaimIssuer: 0x838B4286B7661D0E420A2f2820D09E63D6EBa82d Management Key 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-  // 获取 IdFactory 地址（从部署脚本中获取）
+  
   // 需要从部署日志或环境变量中获取
-  const identityIdFactoryAddress = process.env.IDENTITY_ID_FACTORY || addresses["IdFactory"];
+  const identityIdFactoryAddress = process.env.IDENTITY_ID_FACTORY || addresses["RWAIdentityIdFactory"];
   if (!identityIdFactoryAddress) {
     throw new Error("请设置 IDENTITY_ID_FACTORY 环境变量或确保 IdFactory 在部署日志中");
   }
 
-  console.log(`Identity IdFactory address: ${identityIdFactoryAddress}`);
-
   // 获取 IdFactory 合约
-//   const idFactoryABI = getContractABI("IdFactory");
-//   const identityIdFactory = new ethers.Contract(
-//     ethers.getAddress(identityIdFactoryAddress),
-//     idFactoryABI.length > 0 ? idFactoryABI : [
-//       "function createIdentity(address _managementKey, string memory _salt) external returns (address)",
-//       "function owner() view returns (address)",
-//     ],
-//     wallet
-//   );
+  const idFactoryABI = getContractABI("RWAIdentityIdFactory");
+  const identityIdFactory = new ethers.Contract(
+    ethers.getAddress(identityIdFactoryAddress),
+    idFactoryABI.length > 0 ? idFactoryABI : [
+      "function createIdentity(address _managementKey, string memory _salt) external returns (address)",
+      "function owner() view returns (address)",
+    ],
+    wallet
+  );
+  console.log(`Identity IdFactory address: ${identityIdFactoryAddress} ${await identityIdFactory.owner()}`);
 
-//   // 获取 ClaimIssuer 地址
-//   const claimIssuerAddress = process.env.CLAIM_ISSUER || addresses["RWAClaimIssuer"];
-//   if (!claimIssuerAddress) {
-//     throw new Error("请设置 CLAIM_ISSUER 环境变量或确保 RWAClaimIssuer 在部署日志中");
-//   }
-
-//   console.log(`Claim Issuer address: ${claimIssuerAddress}`);
-
-//   // 获取 ClaimIssuer 合约
-//   const claimIssuerABI = getContractABI("RWAClaimIssuer");
-//   const claimIssuer = new ethers.Contract(
-//     ethers.getAddress(claimIssuerAddress),
-//     claimIssuerABI.length > 0 ? claimIssuerABI : [
-//       "function addKey(bytes32 _key, uint256 _purpose, uint256 _keyType) external",
-//     ],
-//     wallet
-//   );
-
-//   // 获取 RWAIdentity 合约 ABI
-//   const rwaIdentityABI = getContractABI("RWAIdentity");
-
-//   console.log("\n=== 开始注册新身份 ===");
-
-//   // 步骤 1: 生成新的管理密钥
-//   const newClaimKeyPrivateKey = process.env.NEW_CLAIM_KEY_PRIVATE_KEY || 
-//     "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-//   const newClaimKeyWallet = new ethers.Wallet(newClaimKeyPrivateKey, provider);
-//   const newManagementKey = newClaimKeyWallet.address;
-//   console.log(`新管理密钥地址: ${newManagementKey}`);
-
-//   // 步骤 2: 创建新身份
-//   console.log("\n--- 创建新身份 ---");
-//   const identityFactoryOwner = await identityIdFactory.owner();
-//   console.log(`Identity Factory Owner: ${identityFactoryOwner}`);
   
-//   // 需要以 factory owner 的身份创建身份
-//   const factoryOwnerWallet = new ethers.Wallet(
-//     process.env.FACTORY_OWNER_PRIVATE_KEY || privateKey,
-//     provider
-//   );
-//   const identityIdFactoryWithOwner = identityIdFactory.connect(factoryOwnerWallet);
+  const claimIssuerIdFactoryAddress = process.env.CLAIM_ISSUER_ID_FACTORY || addresses["RWAClaimIssuerIdFactory"];
+  if (!claimIssuerIdFactoryAddress) {
+    throw new Error("请设置 CLAIM_ISSUER_ID_FACTORY 环境变量或确保 RWAClaimIssuerIdFactory 在部署日志中");
+  }
+  console.log(`Claim Issuer IdFactory address: ${claimIssuerIdFactoryAddress}`);
+
+  const claimIssuerIdFactoryABI = getContractABI("RWAClaimIssuerIdFactory");
+  const claimIssuerIdFactory = new ethers.Contract(
+    ethers.getAddress(claimIssuerIdFactoryAddress),
+    claimIssuerIdFactoryABI.length > 0 ? claimIssuerIdFactoryABI : [
+      "function createIdentity(address _managementKey, string memory _salt) external returns (address)",
+      "function owner() view returns (address)",
+    ],
+    wallet  
+  );
   
-//   const identitySalt = `newIdentity-${Date.now()}`;
-//   let newIdentityAddress: string | undefined;
-//   try {
-//     // 首先使用 staticCall 获取将要创建的身份地址（模拟调用）
-//     try {
-//       const result = await (identityIdFactoryWithOwner as any).createIdentity.staticCall(newManagementKey, identitySalt);
-//       newIdentityAddress = ethers.getAddress(String(result));
-//       console.log(`预计创建的身份地址: ${newIdentityAddress}`);
-//     } catch (error: any) {
-//       console.warn(`无法通过 staticCall 获取身份地址: ${error.message}`);
-//     }
-    
-//     // 执行实际交易
-//     const tx = await (identityIdFactoryWithOwner as any).createIdentity(newManagementKey, identitySalt);
-//     console.log(`创建身份交易哈希: ${tx.hash}`);
-//     const receipt = await tx.wait();
-//     console.log(`交易确认，区块号: ${receipt?.blockNumber}`);
-    
-//     // 从 WalletLinked 事件中获取新身份地址（验证）
-//     if (receipt?.logs) {
-//       const walletLinkedTopic = ethers.id("WalletLinked(address,address)");
-//       const walletLinkedEvent = receipt.logs.find((log: any) => {
-//         return log.topics[0] === walletLinkedTopic && 
-//                ethers.getAddress(ethers.dataSlice(log.topics[1], 12)).toLowerCase() === newManagementKey.toLowerCase();
-//       });
+  // 获取 ClaimIssuer 地址
+  const managementKey = process.env.MANAGEMENT_KEY || wallet.address;
+  const claimIssuerAddress = await claimIssuerIdFactory.getIdentity(managementKey);
+  console.log(`Claim Issuer address: ${claimIssuerAddress}`);
+
+  // 获取 ClaimIssuer 合约
+  const claimIssuerABI = getContractABI("RWAClaimIssuer");
+  const claimIssuer = new ethers.Contract(
+    ethers.getAddress(claimIssuerAddress),
+    claimIssuerABI.length > 0 ? claimIssuerABI : [
+      "function addKey(bytes32 _key, uint256 _purpose, uint256 _keyType) external",
+      "function keyHasPurpose(bytes32 _key, uint256 _purpose) external view returns (bool)",
+    ],
+    wallet
+  );
+
+  // 获取 RWAIdentity 合约 ABI
+  const rwaIdentityABI = getContractABI("RWAIdentity");
+
+  console.log("\n=== 开始注册新身份 ===");
+
+  // 步骤 1: 生成新的管理密钥
+  const newClaimKeyPrivateKey = process.env.NEW_CLAIM_KEY_PRIVATE_KEY || 
+    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+  const newClaimKeyWallet = new ethers.Wallet(newClaimKeyPrivateKey, provider);
+  const newManagementKey = newClaimKeyWallet.address;
+  console.log(`新管理密钥地址: ${newManagementKey}`);
+
+  // 步骤 2: 创建新身份
+  console.log("\n--- 创建新身份 ---");
+  const identityFactoryOwner = await identityIdFactory.owner();
+  console.log(`Identity Factory Owner: ${identityFactoryOwner} ${identityIdFactory.address}`);
+  console.log(`Identity Factory Owner: ${await identityIdFactory.isTokenFactory("0x59b670e9fA9D0A427751Af201D676719a970857b")}`);
+  // 需要以 factory owner 的身份创建身份
+  const factoryOwnerWallet = new ethers.Wallet(
+    process.env.FACTORY_OWNER_PRIVATE_KEY || privateKey,
+    provider
+  );
+  const identityIdFactoryWithOwner = identityIdFactory.connect(factoryOwnerWallet);
+  // 0x59b670e9fA9D0A427751Af201D676719a970857b
+  // identityIdFactoryWithOwner
+  const identitySalt = `newIdentity`;
+  let newIdentityAddress: string | undefined;
+  
+  // 首先使用 staticCall 获取将要创建的身份地址（模拟调用）
+  try {
+      const result = await (identityIdFactoryWithOwner as any).createIdentity.staticCall(newManagementKey, identitySalt);
+      newIdentityAddress = ethers.getAddress(String(result));
+      console.log(`预计创建的身份地址: ${newIdentityAddress}`);
+  } catch (error: any) {
+      console.warn(`无法通过 staticCall 获取身份地址: ${error.message}`);
+  }
+  
+  try {
+    // 执行实际交易
+    const tx = await (identityIdFactoryWithOwner as any).createIdentity(newManagementKey, identitySalt);
+    console.log(`创建身份交易哈希: ${tx.hash}`);
+    const receipt = await tx.wait();
+    console.log(`交易确认，区块号: ${receipt?.blockNumber}`);
+    // 从 WalletLinked 事件中获取新身份地址（验证）
+    if (receipt?.logs) {
+      const walletLinkedTopic = ethers.id("WalletLinked(address,address)");
+      const walletLinkedEvent = receipt.logs.find((log: any) => {
+        return log.topics[0] === walletLinkedTopic && 
+               ethers.getAddress(ethers.dataSlice(log.topics[1], 12)).toLowerCase() === newManagementKey.toLowerCase();
+      });
       
-//       if (walletLinkedEvent) {
-//         // WalletLinked(address indexed wallet, address indexed identity)
-//         // topics[0] = event signature
-//         // topics[1] = wallet (indexed)
-//         // topics[2] = identity (indexed)
-//         const eventIdentityAddress = ethers.getAddress(ethers.dataSlice(walletLinkedEvent.topics[2], 12));
-//         if (newIdentityAddress && newIdentityAddress.toLowerCase() !== eventIdentityAddress.toLowerCase()) {
-//           console.warn(`警告: staticCall 返回的地址与事件中的地址不匹配`);
-//         }
-//         newIdentityAddress = eventIdentityAddress;
-//         console.log(`从 WalletLinked 事件获取身份地址: ${newIdentityAddress}`);
-//       }
-//     }
+      if (walletLinkedEvent) {
+        // WalletLinked(address indexed wallet, address indexed identity)
+        // topics[0] = event signature
+        // topics[1] = wallet (indexed)
+        // topics[2] = identity (indexed)
+        const eventIdentityAddress = ethers.getAddress(ethers.dataSlice(walletLinkedEvent.topics[2], 12));
+        if (newIdentityAddress && newIdentityAddress.toLowerCase() !== eventIdentityAddress.toLowerCase()) {
+          console.warn(`警告: staticCall 返回的地址与事件中的地址不匹配`);
+        }
+        newIdentityAddress = eventIdentityAddress;
+        console.log(`从 WalletLinked 事件获取身份地址: ${newIdentityAddress}`);
+      }
+    }
     
-//     // 如果仍然无法获取，抛出错误
-//     if (!newIdentityAddress) {
-//       throw new Error("无法从交易中获取新身份地址，请检查 IdFactory 的事件或手动提供地址");
-//     }
-//   } catch (error: any) {
-//     throw new Error(`创建身份失败: ${error.message}`);
-//   }
+    // 如果仍然无法获取，抛出错误
+    if (!newIdentityAddress) {
+      throw new Error("无法从交易中获取新身份地址，请检查 IdFactory 的事件或手动提供地址");
+    }
+  } catch (error: any) {
+    throw new Error(`创建身份失败: ${error.message}`);
+  }
 
-//   if (!newIdentityAddress) {
-//     throw new Error("无法获取新身份地址");
-//   }
+  if (!newIdentityAddress) {
+    throw new Error("无法获取新身份地址");
+  }
 
-//   console.log(`新身份地址: ${newIdentityAddress}`);
+  console.log(`新身份地址: ${newIdentityAddress}`);
+  
+  // 步骤 4: 添加 claim key 到新身份
+  console.log("\n--- 添加 claim key 到新身份 ---");
+  const purposeClaim = 3; // CLAIM purpose
+  const keyTypeEcdsa = 1; // ECDSA key type
+  const claimKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["address"], [newManagementKey]));
+  console.log(`Claim Key Hash: ${claimKeyHash}`);
 
-//   // 步骤 3: 添加 claim key 到新身份
-//   console.log("\n--- 添加 claim key 到新身份 ---");
-//   const purposeClaim = 3; // CLAIM purpose
-//   const keyTypeEcdsa = 1; // ECDSA key type
-//   const claimKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["address"], [newManagementKey]));
-//   console.log(`Claim Key Hash: ${claimKeyHash}`);
+  const newIdentity = new ethers.Contract(
+    newIdentityAddress,
+    rwaIdentityABI.length > 0 ? rwaIdentityABI : [
+      "function addKey(bytes32 _key, uint256 _purpose, uint256 _keyType) external",
+      "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external",
+      "function keyHasPurpose(bytes32 _key, uint256 _purpose) external view returns (bool)",
+    ],
+    newClaimKeyWallet
+  );
 
-//   const newIdentity = new ethers.Contract(
-//     newIdentityAddress,
-//     rwaIdentityABI.length > 0 ? rwaIdentityABI : [
-//       "function addKey(bytes32 _key, uint256 _purpose, uint256 _keyType) external",
-//       "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external",
-//     ],
-//     newClaimKeyWallet
-//   );
+  try {
+    // 检查 key 是否已存在
+    const keyExists = await (newIdentity as any).keyHasPurpose(claimKeyHash, purposeClaim);
+    if (keyExists) {
+      console.log("✓ Claim key 已存在于新身份，跳过添加");
+    } else {
+      // 在发送交易前等待所有待处理的交易确认
+      console.log("检查并等待待处理交易...");
+      await waitForPendingTransactions(newClaimKeyWallet.address);
+      
+      // 使用重试机制发送交易
+      const tx = await sendTransactionWithRetry(
+        async () => {
+          // 每次重试时重新获取最新的 nonce（包含待处理的交易）
+          const nonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
+          console.log(`发送添加 key 交易，使用 nonce: ${nonce} (地址: ${newClaimKeyWallet.address})`);
+          
+          return await (newIdentity as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa, {
+            nonce: nonce
+          });
+        },
+        newClaimKeyWallet.address,
+        5, // 最多重试 5 次
+        2000 // 初始延迟 2 秒
+      );
+      
+      console.log(`添加 key 交易哈希: ${tx.hash}`);
+      await tx.wait();
+      console.log("✓ Claim key 已添加到新身份");
+    }
+  } catch (error: any) {
+    // 如果是 nonce 错误，提供更详细的错误信息
+    if (error.message && error.message.includes("nonce")) {
+      const currentNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
+      const latestNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "latest");
+      throw new Error(`添加 claim key 失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
+    }
+    throw new Error(`添加 claim key 失败: ${error.message}`);
+  }
+  
+  sleep(1000);
+  
 
-//   try {
-//     const tx = await (newIdentity as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-//     console.log(`添加 key 交易哈希: ${tx.hash}`);
-//     await tx.wait();
-//     console.log("✓ Claim key 已添加到新身份");
-//   } catch (error: any) {
-//     throw new Error(`添加 claim key 失败: ${error.message}`);
-//   }
 
-//   // 步骤 4: 添加 claim key 到 claimIssuer（用于签名验证）
-//   console.log("\n--- 添加 claim key 到 ClaimIssuer ---");
-//   const managementKey = process.env.MANAGEMENT_KEY || wallet.address;
-//   const managementKeyWallet = new ethers.Wallet(
-//     process.env.MANAGEMENT_KEY_PRIVATE_KEY || privateKey,
-//     provider
-//   );
-//   const claimIssuerWithManager = claimIssuer.connect(managementKeyWallet);
 
-//   try {
-//     const tx = await (claimIssuerWithManager as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-//     console.log(`添加 key 到 ClaimIssuer 交易哈希: ${tx.hash}`);
-//     await tx.wait();
-//     console.log("✓ Claim key 已添加到 ClaimIssuer");
-//   } catch (error: any) {
-//     throw new Error(`添加 claim key 到 ClaimIssuer 失败: ${error.message}`);
-//   }
 
-//   // 步骤 5: 创建并签名 claim
-//   console.log("\n--- 创建并签名 claim ---");
-//   const claimTopicKyc = 1; // KYC claim topic
-//   const claimSchemeEcdsa = 1; // ECDSA scheme
-//   const data = "0x"; // 空数据
-//   const dataHash = ethers.keccak256(
-//     ethers.AbiCoder.defaultAbiCoder().encode(
-//       ["address", "uint256", "bytes"],
-//       [newIdentityAddress, claimTopicKyc, data]
-//     )
-//   );
-//   console.log(`Data Hash: ${dataHash}`);
 
-//   // 创建 Ethereum 签名消息前缀（与 Solidity 测试一致）
-//   // 注意：Solidity 使用 abi.encodePacked，所以我们需要手动构造
-//   const messagePrefix = "\x19Ethereum Signed Message:\n32";
-//   const prefixedHash = ethers.keccak256(
-//     ethers.concat([
-//       ethers.toUtf8Bytes(messagePrefix),
-//       ethers.getBytes(dataHash)
-//     ])
-//   );
-//   console.log(`Prefixed Hash: ${prefixedHash}`);
 
-//   // 使用新密钥签名 prefixedHash（直接签名哈希，不使用 signMessage）
-//   // 因为合约期望的是对 prefixedHash 的签名
-//   const signature = await newClaimKeyWallet.signingKey.sign(prefixedHash);
-//   // 将签名转换为 bytes 格式 (r, s, v)
-//   // 确保 v 是单个字节 (0-1 或 27-28，合约会处理)
-//   const vByte = signature.v >= 27 ? signature.v - 27 : signature.v;
-//   const sigBytes = ethers.concat([
-//     signature.r,
-//     signature.s,
-//     new Uint8Array([vByte])
-//   ]);
-//   console.log(`签名: ${sigBytes} (长度: ${sigBytes.length} 字节)`);
 
-//   // 步骤 6: 添加 claim 到新身份
-//   console.log("\n--- 添加 claim 到新身份 ---");
-//   try {
-//     const tx = await (newIdentity as any).addClaim(
-//       claimTopicKyc,
-//       claimSchemeEcdsa,
-//       claimIssuerAddress,
-//       sigBytes,
-//       data,
-//       ""
-//     );
-//     console.log(`添加 claim 交易哈希: ${tx.hash}`);
-//     await tx.wait();
-//     console.log("✓ Claim 已添加到新身份");
-//   } catch (error: any) {
-//     throw new Error(`添加 claim 失败: ${error.message}`);
-//   }
 
-//   // 步骤 7: 注册新身份到 Identity Registry
-//   console.log("\n--- 注册新身份到 Identity Registry ---");
-//   const countryCode = 840; // US country code
-//   try {
-//     const tx = await identityRegistry.registerIdentity(
-//       newManagementKey,
-//       newIdentityAddress,
-//       countryCode
-//     );
-//     console.log(`注册身份交易哈希: ${tx.hash}`);
-//     await tx.wait();
-//     console.log("✓ 身份已注册到 Identity Registry");
-//   } catch (error: any) {
-//     throw new Error(`注册身份失败: ${error.message}`);
-//   }
 
-//   // 步骤 8: 验证身份是否已注册
-//   console.log("\n--- 验证身份注册状态 ---");
-//   try {
-//     const isVerified = await identityRegistry.isVerified(newManagementKey);
-//     if (isVerified) {
-//       console.log("✓ 身份验证成功！");
-//       console.log(`用户地址: ${newManagementKey}`);
-//       console.log(`身份合约地址: ${newIdentityAddress}`);
-//     } else {
-//       throw new Error("身份验证失败");
-//     }
-//   } catch (error: any) {
-//     throw new Error(`验证身份失败: ${error.message}`);
-//   }
 
-//   console.log("\n=== 注册新身份完成 ===");
-//   console.log(`新管理密钥地址: ${newManagementKey}`);
-//   console.log(`新身份合约地址: ${newIdentityAddress}`);
-//   console.log(`国家代码: ${countryCode}`);
+  // 步骤 5: 添加 claim key 到 claimIssuer（用于签名验证）
+  console.log("\n--- 添加 claim key 到 ClaimIssuer ---");
+  const managementKeyWallet = new ethers.Wallet(
+    process.env.MANAGEMENT_KEY_PRIVATE_KEY || privateKey,
+    provider
+  );
+  const claimIssuerWithManager = claimIssuer.connect(managementKeyWallet);
+
+  try {
+    // 检查 key 是否已存在，避免重复添加和 nonce 冲突
+    const keyExists = await (claimIssuerWithManager as any).keyHasPurpose(claimKeyHash, purposeClaim);
+    if (keyExists) {
+      console.log("✓ Claim key 已存在于 ClaimIssuer，跳过添加");
+    } else {
+      // 在发送交易前等待所有待处理的交易确认
+      console.log("检查并等待待处理交易...");
+      await waitForPendingTransactions(managementKeyWallet.address);
+      
+      // 使用重试机制发送交易
+      const tx = await sendTransactionWithRetry(
+        async () => {
+          // 每次重试时重新获取最新的 nonce（包含待处理的交易）
+          const nonce = await provider.getTransactionCount(managementKeyWallet.address, "pending");
+          console.log(`发送交易，使用 nonce: ${nonce} (地址: ${managementKeyWallet.address})`);
+          
+          return await (claimIssuerWithManager as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa, {
+            nonce: nonce
+          });
+        },
+        managementKeyWallet.address,
+        5, // 最多重试 5 次
+        2000 // 初始延迟 2 秒
+      );
+      
+      console.log(`添加 key 到 ClaimIssuer 交易哈希: ${tx.hash}`);
+      await tx.wait();
+      console.log("✓ Claim key 已添加到 ClaimIssuer");
+    }
+  } catch (error: any) {
+    // 如果是 nonce 错误，提供更详细的错误信息
+    if (error.message && error.message.includes("nonce")) {
+      const currentNonce = await provider.getTransactionCount(managementKeyWallet.address, "pending");
+      const latestNonce = await provider.getTransactionCount(managementKeyWallet.address, "latest");
+      throw new Error(`添加 claim key 到 ClaimIssuer 失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
+    }
+    throw new Error(`添加 claim key 到 ClaimIssuer 失败: ${error.message}`);
+  }
+  sleep(100);
+  // 步骤 6: 创建并签名 claim
+  console.log("\n--- 创建并签名 claim ---");
+  const claimTopicKyc = 1; // KYC claim topic
+  const claimSchemeEcdsa = 1; // ECDSA scheme
+  const data = "0x"; // 空数据
+  const dataHash = ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ["address", "uint256", "bytes"],
+      [newIdentityAddress, claimTopicKyc, data]
+    )
+  );
+  console.log(`Data Hash: ${dataHash}`);
+
+  // 创建 Ethereum 签名消息前缀（与 Solidity 测试一致）
+  // 注意：Solidity 使用 abi.encodePacked，所以我们需要手动构造
+  const messagePrefix = "\x19Ethereum Signed Message:\n32";
+  const prefixedHash = ethers.keccak256(
+    ethers.concat([
+      ethers.toUtf8Bytes(messagePrefix),
+      ethers.getBytes(dataHash)
+    ])
+  );
+  console.log(`Prefixed Hash: ${prefixedHash}`);
+
+  // 使用新密钥签名 prefixedHash（直接签名哈希，不使用 signMessage）
+  // 因为合约期望的是对 prefixedHash 的签名
+  const signature = await newClaimKeyWallet.signingKey.sign(prefixedHash);
+  // 将签名转换为 bytes 格式 (r, s, v)
+  // 确保 v 是单个字节 (0-1 或 27-28，合约会处理)
+  const vByte = signature.v >= 27 ? signature.v - 27 : signature.v;
+  const sigBytes = ethers.concat([
+    signature.r,
+    signature.s,
+    new Uint8Array([vByte])
+  ]);
+  console.log(`签名: ${sigBytes} (长度: ${sigBytes.length} 字节)`);
+  sleep(100);
+  // 步骤 7: 添加 claim 到新身份
+  console.log("\n--- 添加 claim 到新身份 ---");
+  try {
+    // 在发送交易前等待所有待处理的交易确认
+    console.log("检查并等待待处理交易...");
+    await waitForPendingTransactions(newClaimKeyWallet.address);
+    
+    // 使用重试机制发送交易
+    const tx = await sendTransactionWithRetry(
+      async () => {
+        // 每次重试时重新获取最新的 nonce（包含待处理的交易）
+        const nonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
+        console.log(`发送添加 claim 交易，使用 nonce: ${nonce} (地址: ${newClaimKeyWallet.address})`);
+        
+        return await (newIdentity as any).addClaim(
+          claimTopicKyc,
+          claimSchemeEcdsa,
+          claimIssuerAddress,
+          sigBytes,
+          data,
+          "",
+          {
+            nonce: nonce
+          }
+        );
+      },
+      newClaimKeyWallet.address,
+      5, // 最多重试 5 次
+      2000 // 初始延迟 2 秒
+    );
+    
+    console.log(`添加 claim 交易哈希: ${tx.hash}`);
+    await tx.wait();
+    console.log("✓ Claim 已添加到新身份");
+  } catch (error: any) {
+    // 如果是 nonce 错误，提供更详细的错误信息
+    if (error.message && error.message.includes("nonce")) {
+      const currentNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
+      const latestNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "latest");
+      throw new Error(`添加 claim 失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
+    }
+    throw new Error(`添加 claim 失败: ${error.message}`);
+  }
+  sleep(100);
+  // 步骤 8: 注册新身份到 Identity Registry
+  console.log("\n--- 注册新身份到 Identity Registry ---");
+  const countryCode = 840; // US country code
+  
+  // 获取 identityRegistry 使用的钱包地址
+  const identityRegistryWalletAddress = wallet.address;
+  
+  try {
+    // 在发送交易前等待所有待处理的交易确认
+    console.log("检查并等待待处理交易...");
+    await waitForPendingTransactions(identityRegistryWalletAddress);
+    
+    // 使用重试机制发送交易
+    const tx = await sendTransactionWithRetry(
+      async () => {
+        // 每次重试时重新获取最新的 nonce（包含待处理的交易）
+        const nonce = await provider.getTransactionCount(identityRegistryWalletAddress, "pending");
+        console.log(`发送注册身份交易，使用 nonce: ${nonce} (地址: ${identityRegistryWalletAddress})`);
+        
+        return await identityRegistry.registerIdentity(
+          newManagementKey,
+          newIdentityAddress,
+          countryCode,
+          {
+            nonce: nonce
+          }
+        );
+      },
+      identityRegistryWalletAddress,
+      5, // 最多重试 5 次
+      2000 // 初始延迟 2 秒
+    );
+    
+    console.log(`注册身份交易哈希: ${tx.hash}`);
+    await tx.wait();
+    console.log("✓ 身份已注册到 Identity Registry");
+  } catch (error: any) {
+    // 如果是 nonce 错误，提供更详细的错误信息
+    if (error.message && error.message.includes("nonce")) {
+      const currentNonce = await provider.getTransactionCount(identityRegistryWalletAddress, "pending");
+      const latestNonce = await provider.getTransactionCount(identityRegistryWalletAddress, "latest");
+      throw new Error(`注册身份失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
+    }
+    throw new Error(`注册身份失败: ${error.message}`);
+  }
+  sleep(100);
+  // 步骤 9: 验证身份是否已注册
+  console.log("\n--- 验证身份注册状态 ---");
+  try {
+    const isVerified = await identityRegistry.isVerified(newManagementKey);
+    if (isVerified) {
+      console.log("✓ 身份验证成功！");
+      console.log(`用户地址: ${newManagementKey}`);
+      console.log(`身份合约地址: ${newIdentityAddress}`);
+    } else {
+      throw new Error("身份验证失败");
+    }
+  } catch (error: any) {
+    throw new Error(`验证身份失败: ${error.message}`);
+  }
+
+  console.log("\n=== 注册新身份完成 ===");
+  console.log(`新管理密钥地址: ${newManagementKey}`);
+  console.log(`新身份合约地址: ${newIdentityAddress}`);
+  console.log(`国家代码: ${countryCode}`);
 }
 
 // 运行主函数
@@ -445,4 +650,3 @@ main()
     console.error("错误:", error);
     process.exit(1);
   });
-

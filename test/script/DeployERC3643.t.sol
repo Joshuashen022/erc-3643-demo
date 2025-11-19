@@ -14,8 +14,8 @@ import {ITrustedIssuersRegistry} from "../../lib/ERC-3643/contracts/registry/int
 import {ITREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "../../lib/solidity/contracts/interface/IClaimIssuer.sol";
-import {RWAIdentityIdFactory} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
-import {RWAClaimIssuerIdFactory} from "../../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
+import {RWAIdentityIdFactory, RWAIdentityGateway} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
+import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
 
 import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
@@ -31,7 +31,9 @@ contract DeployERC3643Test is Test {
     TREXFactory public trexFactory;
     TREXGateway public trexGateway;
     RWAIdentityIdFactory public identityIdFactory;
+    RWAIdentityGateway public identityGateway;
     RWAClaimIssuerIdFactory public claimIssuerIdFactory;
+    RWAClaimIssuerGateway public claimIssuerGateway;
 
     RWAToken internal rwaToken;
     RWACompliance internal compliance;
@@ -55,7 +57,9 @@ contract DeployERC3643Test is Test {
         trexFactory = deployScript.trexFactory();
         trexGateway = deployScript.trexGateway();
         identityIdFactory = deployScript.identityidFactory();
+        identityGateway = deployScript.identityGateway();
         claimIssuerIdFactory = deployScript.claimIssuerIdFactory();
+        claimIssuerGateway = deployScript.claimIssuerGateway();
 
         string memory salt = deployScript.salt();
         rwaToken = RWAToken(trexFactory.getToken(salt));
@@ -326,5 +330,49 @@ contract DeployERC3643Test is Test {
         assertFalse(identityRegistry.isVerified(lostWallet));
         assertTrue(identityRegistry.isVerified(newWallet));
     }
+
+    // ============ deployIdentityWithSalt tests ============
+    // function test_DeployIdentityWithSalt_Success() public {
+    //     address newIdentityOwner = address(0xAAAA);
+    //     string memory salt = "test-identity-salt";
+    //     uint256 signatureExpiry = 0;
+    //     uint256 signerPrivateKey = uint256(0x1111111111111111111111111111111111111111111111111111111111111111);
+        
+    //     // Ensure Gateway is the owner of IdFactory
+    //     // if (identityIdFactory.owner() != address(identityGateway)) {
+    //     //     vm.prank(identityIdFactory.owner());
+    //     //     identityIdFactory.transferOwnership(address(identityGateway));
+    //     // }
+        
+    //     // Approve the signer in the Gateway
+    //     vm.prank(identityGateway.owner());
+    //     identityGateway.approveSigner(vm.addr(signerPrivateKey));
+        
+    //     // Create and sign the message
+    //     bytes32 messageHash = keccak256(
+    //         abi.encode("Authorize ONCHAINID deployment", newIdentityOwner, salt, signatureExpiry)
+    //     );
+    //     bytes32 ethSignedMessageHash = keccak256(
+    //         abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
+    //     );
+    //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, ethSignedMessageHash);
+    //     bytes memory signature = abi.encodePacked(r, s, v);
+        
+    //     // Execute deployIdentityWithSalt
+    //     address deployedIdentity = identityGateway.deployIdentityWithSalt(
+    //         newIdentityOwner,
+    //         salt,
+    //         signatureExpiry,
+    //         signature
+    //     );
+        
+    //     // Assertions
+    //     assertNotEq(deployedIdentity, address(0), "Identity should be deployed");
+    //     assertEq(identityIdFactory.getIdentity(newIdentityOwner), deployedIdentity, "Identity should be linked");
+    //     assertTrue(
+    //         RWAIdentity(deployedIdentity).keyHasPurpose(keccak256(abi.encode(newIdentityOwner)), 1),
+    //         "Identity owner should be a management key"
+    //     );
+    // }
 
 }

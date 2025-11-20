@@ -1,66 +1,8 @@
 import { ethers } from "ethers";
-import * as fs from "fs";
-import * as path from "path";
 import * as dotenv from "dotenv";
+import { getContractAddresses, getContractABI } from "./utils/contracts";
 
-// Load environment variables
 dotenv.config();
-
-/**
- * 从 Foundry 部署日志中读取合约地址
- */
-function getContractAddresses(chainId: number): Record<string, string> {
-  const broadcastPath = path.join(
-    __dirname,
-    `../broadcast/DeployERC3643.s.sol/${chainId}/run-latest.json`
-  );
-
-  if (!fs.existsSync(broadcastPath)) {
-    console.error(`部署日志文件不存在: ${broadcastPath}`);
-    console.log("请先运行部署脚本: forge script script/DeployERC3643.s.sol:DeployERC3643 --rpc-url http://127.0.0.1:8545 --private-key <key> --broadcast");
-    process.exit(1);
-  }
-
-  const broadcastData = JSON.parse(fs.readFileSync(broadcastPath, "utf-8"));
-  const addresses: Record<string, string> = {};
-
-  // 从部署事务中提取合约地址
-  for (const tx of broadcastData.transactions || []) {
-    if (tx.contractName && tx.contractAddress) {
-      addresses[tx.contractName] = tx.contractAddress;
-    }
-  }
-
-  return addresses;
-}
-
-/**
- * 从编译输出中读取 ABI
- */
-function getContractABI(contractName: string): any[] {
-  // 尝试从 out 目录读取 ABI
-  const possiblePaths = [
-    path.join(__dirname, `../out/${contractName}.sol/${contractName}.json`),
-  ];
-
-  // fix for different contract names in out directory
-  if (contractName === "RWATrustedIssuersRegistry") {
-    possiblePaths.push(path.join(__dirname, `../out/IdentityRegistry.sol/RWATrustedIssuersRegistry.json`));
-  }
-  if (contractName === "RWAClaimTopicsRegistry") {
-    possiblePaths.push(path.join(__dirname, `../out/IdentityRegistry.sol/RWAClaimTopicsRegistry.json`));
-  }
-
-  for (const abiPath of possiblePaths) {
-    if (fs.existsSync(abiPath)) {
-      const contractData = JSON.parse(fs.readFileSync(abiPath, "utf-8"));
-      return contractData.abi || [];
-    }
-  }
-
-  console.warn(`未找到 ${contractName} 的 ABI，使用空数组`);
-  return [];
-}
 
 /**
  * 主函数：与合约交互
@@ -76,47 +18,20 @@ async function main() {
   const network = await provider.getNetwork();
   console.log(`网络: ${network.name} (Chain ID: ${network.chainId})`);
 
-  // 获取账户余额
   const accounts = await provider.listAccounts();
-  let defaultAccount: string | undefined;
+  const defaultAccount = accounts.length > 0 
+    ? (typeof accounts[0] === "string" ? accounts[0] : accounts[0].address)
+    : "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+  
   if (accounts.length > 0) {
-    // accounts[0] 可能是 Signer 对象，需要提取地址
-    const account = accounts[0];
-    defaultAccount = typeof account === "string" ? account : account.address;
     const balance = await provider.getBalance(defaultAccount);
     console.log(`账户 ${defaultAccount} 余额: ${ethers.formatEther(balance)} ETH`);
   }
 
-  // 读取合约地址
   const addresses = getContractAddresses(Number(network.chainId));
+  const suiteOwner = ethers.getAddress(process.env.SUITE_OWNER || defaultAccount);
   
-  // 获取 suiteOwner（部署者地址）
-  const suiteOwnerRaw = process.env.SUITE_OWNER || defaultAccount || "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-  let suiteOwner: string;
-  
-  // 规范化地址，避免 ENS 解析问题
-  try {
-    // 如果 suiteOwnerRaw 是对象（如 Signer），提取地址属性
-    let addressStr: string;
-    if (typeof suiteOwnerRaw === "string") {
-      addressStr = suiteOwnerRaw;
-    } else if (suiteOwnerRaw && typeof suiteOwnerRaw === "object") {
-      // 处理 Signer 对象或其他有 address 属性的对象
-      const obj = suiteOwnerRaw as { address?: string | any };
-      if (obj.address) {
-        addressStr = typeof obj.address === "string" ? obj.address : String(obj.address);
-      } else {
-        addressStr = String(suiteOwnerRaw);
-      }
-    } else {
-      addressStr = String(suiteOwnerRaw);
-    }
-    suiteOwner = ethers.getAddress(addressStr);
-  } catch (error) {
-    throw new Error(`Invalid suite owner address: ${suiteOwnerRaw}`);
-  }
-  
-  if (!suiteOwner || suiteOwner === "0x0000000000000000000000000000000000000000") {
+  if (suiteOwner === "0x0000000000000000000000000000000000000000") {
     throw new Error("Suite owner should be set");
   }
 
@@ -234,13 +149,10 @@ async function main() {
   }
   console.log(`✓ Token Agent: ${suiteOwner}`);
 
-  // 辅助函数：将地址转换为字符串
   const toAddressString = (addr: any): string => {
-    if (typeof addr === "string") return addr;
-    return String(addr);
+    return typeof addr === "string" ? addr : String(addr);
   };
 
-  // 验证 Token owner
   const tokenOwner = toAddressString(await token.owner());
   if (tokenOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
     throw new Error(`Token owner should match suite owner. Expected: ${suiteOwner}, Got: ${tokenOwner}`);
@@ -320,7 +232,6 @@ async function main() {
   console.log("\n✓ 所有验证通过！");
 }
 
-// 运行主函数
 main()
   .then(() => {
     console.log("\n脚本执行完成");

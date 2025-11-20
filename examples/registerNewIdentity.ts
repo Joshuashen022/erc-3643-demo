@@ -13,9 +13,9 @@ async function main() {
   console.log("\n=== 开始注册新身份 ===");
 
   // 生成新的管理密钥
-  const newClaimKeyPrivateKey = process.env.NEW_CLAIM_KEY_PRIVATE_KEY || 
-    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-  const newClaimKeyWallet = new ethers.Wallet(newClaimKeyPrivateKey, config.provider);
+  // const newClaimKeyPrivateKey = process.env.NEW_CLAIM_KEY_PRIVATE_KEY || 
+  //   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+  const newClaimKeyWallet = ethers.Wallet.createRandom().connect(config.provider);
   const newManagementKey = newClaimKeyWallet.address;
   console.log(`新管理密钥地址: ${newManagementKey}`);
 
@@ -26,14 +26,21 @@ async function main() {
     config.provider
   );
   const identityIdFactoryWithOwner = config.identityIdFactory.connect(factoryOwnerWallet) as ethers.Contract;
-  const identitySalt = `newIdentity`;
+  const identitySalt = `newIdentity-${Date.now()}`;
   
+  const tx = await factoryOwnerWallet.sendTransaction({
+    to: newClaimKeyWallet.address,
+    value: ethers.parseEther("0.0001"),
+  });
+  await tx.wait();
+  console.log(`Factory owner sent 0.0001 ETH to new claim key wallet: ${newClaimKeyWallet.address}`);
+
   let newIdentityAddress: string | undefined;
   
   try {
     const result = await (identityIdFactoryWithOwner as any).createIdentity.staticCall(newManagementKey, identitySalt);
     newIdentityAddress = ethers.getAddress(String(result));
-    console.log(`预计创建的身份地址: ${newIdentityAddress}`);
+    console.log(`预计创建的身份地址: ${newIdentityAddress} with salt: ${identitySalt}, management key: ${newManagementKey}`);
   } catch (error: any) {
     console.warn(`无法通过 staticCall 获取身份地址: ${error.message}`);
     newIdentityAddress = await (identityIdFactoryWithOwner as any).getIdentity(newManagementKey);

@@ -94,7 +94,7 @@ interface ContractSetup {
   privateKey: string;
 }
 
-async function initializeContracts(): Promise<ContractSetup> {
+async function initializeContracts(): Promise<ContractSetup & { rpcUrl: string }> {
   // 连接到本地节点（Anvil）
   const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
   const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -256,6 +256,7 @@ async function initializeContracts(): Promise<ContractSetup> {
     claimIssuer,
     rwaIdentityABI,
     privateKey,
+    rpcUrl,
   };
 }
 
@@ -282,34 +283,33 @@ async function main() {
     claimIssuer,
     rwaIdentityABI,
     privateKey,
+    rpcUrl,
   } = await initializeContracts();
 
   /**
-   * 辅助函数：延迟
+   * 发送交易并处理错误
    */
-  function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * 等待所有待处理的交易确认
-   */
-  async function waitForPendingTransactions(walletAddress: string, maxWaitTime: number = 30000): Promise<void> {
-    const startTime = Date.now();
-    while (Date.now() - startTime < maxWaitTime) {
-      const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
-      const latestNonce = await provider.getTransactionCount(walletAddress, "latest");
-      
-      if (pendingNonce === latestNonce) {
-        // 没有待处理的交易
-        return;
+  async function sendTransaction(
+    contract: any,
+    methodName: string,
+    args: any[],
+    operationName: string
+  ): Promise<ethers.ContractTransactionReceipt> {
+    try {
+      // 执行交易
+      const tx = await contract[methodName](...args);
+      console.log(`${operationName} 交易哈希: ${tx.hash}`);
+      if (rpcUrl === "http://127.0.0.1:8545") {
+        await provider.send("evm_mine", []);
+        await provider.send("evm_mine", []);
       }
+      const receipt = await tx.wait(2);
+      console.log(`交易确认，区块号: ${receipt?.blockNumber}`);
       
-      console.log(`等待待处理交易确认... (pending: ${pendingNonce}, latest: ${latestNonce})`);
-      await sleep(1000);
+      return receipt!;
+    } catch (error: any) {
+      throw new Error(`${operationName} 操作失败: ${error.message}`);
     }
-    
-    console.warn("等待超时，可能仍有待处理的交易");
   }
 
 
@@ -353,10 +353,13 @@ async function main() {
   
   try {
     // 执行实际交易
-    const tx = await (identityIdFactoryWithOwner as any).createIdentity(newManagementKey, identitySalt);
-    console.log(`创建身份交易哈希: ${tx.hash}`);
-    const receipt = await tx.wait();
-    console.log(`交易确认，区块号: ${receipt?.blockNumber}`);
+    const receipt = await sendTransaction(
+      identityIdFactoryWithOwner,
+      "createIdentity",
+      [newManagementKey, identitySalt],
+      "创建身份"
+    );
+    
     // 从 WalletLinked 事件中获取新身份地址（验证）
     if (receipt?.logs) {
       const walletLinkedTopic = ethers.id("WalletLinked(address,address)");
@@ -416,24 +419,15 @@ async function main() {
     if (keyExists) {
       console.log("✓ Claim key 已存在于新身份，跳过添加");
     } else {
-      // 在发送交易前等待所有待处理的交易确认
-      console.log("检查并等待待处理交易...");
-      await waitForPendingTransactions(newClaimKeyWallet.address);
-      
-      // 使用重试机制发送交易
-      const tx = await (newIdentity as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-      
-      console.log(`添加 key 交易哈希: ${tx.hash}`);
-      await tx.wait();
+      await sendTransaction(
+        newIdentity,
+        "addKey",
+        [claimKeyHash, purposeClaim, keyTypeEcdsa],
+        "添加 key"
+      );
       console.log("✓ Claim key 已添加到新身份");
     }
   } catch (error: any) {
-    // 如果是 nonce 错误，提供更详细的错误信息
-    if (error.message && error.message.includes("nonce")) {
-      const currentNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
-      const latestNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "latest");
-      throw new Error(`添加 claim key 失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
-    }
     throw new Error(`添加 claim key 失败: ${error.message}`);
   }
 
@@ -451,24 +445,15 @@ async function main() {
     if (keyExists) {
       console.log("✓ Claim key 已存在于 ClaimIssuer，跳过添加");
     } else {
-      // 在发送交易前等待所有待处理的交易确认
-      console.log("检查并等待待处理交易...");
-      await waitForPendingTransactions(managementKeyWallet.address);
-      
-      // 使用重试机制发送交易
-      const tx = await (claimIssuerWithManager as any).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-      
-      console.log(`添加 key 到 ClaimIssuer 交易哈希: ${tx.hash}`);
-      await tx.wait();
+      await sendTransaction(
+        claimIssuerWithManager,
+        "addKey",
+        [claimKeyHash, purposeClaim, keyTypeEcdsa],
+        "添加 key 到 ClaimIssuer"
+      );
       console.log("✓ Claim key 已添加到 ClaimIssuer");
     }
   } catch (error: any) {
-    // 如果是 nonce 错误，提供更详细的错误信息
-    if (error.message && error.message.includes("nonce")) {
-      const currentNonce = await provider.getTransactionCount(managementKeyWallet.address, "pending");
-      const latestNonce = await provider.getTransactionCount(managementKeyWallet.address, "latest");
-      throw new Error(`添加 claim key 到 ClaimIssuer 失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
-    }
     throw new Error(`添加 claim key 到 ClaimIssuer 失败: ${error.message}`);
   }
   
@@ -512,30 +497,14 @@ async function main() {
   // 步骤 7: 添加 claim 到新身份
   console.log("\n--- 添加 claim 到新身份 ---");
   try {
-    // 在发送交易前等待所有待处理的交易确认
-    console.log("检查并等待待处理交易...");
-    await waitForPendingTransactions(newClaimKeyWallet.address);
-    
-    // 使用重试机制发送交易
-    const tx = await (newIdentity as any).addClaim(
-      claimTopicKyc,
-      claimSchemeEcdsa,
-      claimIssuerAddress,
-      sigBytes,
-      data,
-      "",
+    await sendTransaction(
+      newIdentity,
+      "addClaim",
+      [claimTopicKyc, claimSchemeEcdsa, claimIssuerAddress, sigBytes, data, ""],
+      "添加 claim"
     );
-    
-    console.log(`添加 claim 交易哈希: ${tx.hash}`);
-    await tx.wait();
     console.log("✓ Claim 已添加到新身份");
   } catch (error: any) {
-    // 如果是 nonce 错误，提供更详细的错误信息
-    if (error.message && error.message.includes("nonce")) {
-      const currentNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "pending");
-      const latestNonce = await provider.getTransactionCount(newClaimKeyWallet.address, "latest");
-      throw new Error(`添加 claim 失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
-    }
     throw new Error(`添加 claim 失败: ${error.message}`);
   }
   
@@ -543,31 +512,15 @@ async function main() {
   console.log("\n--- 注册新身份到 Identity Registry ---");
   const countryCode = 840; // US country code
   
-  // 获取 identityRegistry 使用的钱包地址
-  const identityRegistryWalletAddress = wallet.address;
-  
   try {
-    // 在发送交易前等待所有待处理的交易确认
-    console.log("检查并等待待处理交易...");
-    await waitForPendingTransactions(identityRegistryWalletAddress);
-    
-    // 使用重试机制发送交易
-    const tx = await identityRegistry.registerIdentity(
-      newManagementKey,
-      newIdentityAddress,
-      countryCode,
+    await sendTransaction(
+      identityRegistry,
+      "registerIdentity",
+      [newManagementKey, newIdentityAddress, countryCode],
+      "注册身份"
     );
-    
-    console.log(`注册身份交易哈希: ${tx.hash}`);
-    await tx.wait();
     console.log("✓ 身份已注册到 Identity Registry");
   } catch (error: any) {
-    // 如果是 nonce 错误，提供更详细的错误信息
-    if (error.message && error.message.includes("nonce")) {
-      const currentNonce = await provider.getTransactionCount(identityRegistryWalletAddress, "pending");
-      const latestNonce = await provider.getTransactionCount(identityRegistryWalletAddress, "latest");
-      throw new Error(`注册身份失败 (nonce 错误): ${error.message}. 当前 pending nonce: ${currentNonce}, latest nonce: ${latestNonce}`);
-    }
     throw new Error(`注册身份失败: ${error.message}`);
   }
   

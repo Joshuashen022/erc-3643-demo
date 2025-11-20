@@ -30,15 +30,42 @@ node dist/scripts/interact.js
 
 ## 脚本说明
 
-### interact.ts
+### validateDeployment.ts
 
-这是一个示例脚本，展示了如何使用 ethers.js 与部署的合约进行交互：
+验证部署后的合约配置和权限设置：
 
 - 连接到本地节点（Anvil）
 - 从 Foundry 部署日志中读取合约地址
-- 读取合约 ABI
-- 调用合约的只读方法
-- 发送交易的示例（需要私钥）
+- 验证所有合约的 owner 和 agent 设置
+- 确认部署配置正确
+
+### registerNewIdentity.ts
+
+注册新的身份到 Identity Registry：
+
+- 创建新的 Identity 合约
+- 配置 claim key 和 claim
+- 注册到 Identity Registry
+- 完整的新用户注册流程
+
+### mintTokens.ts
+
+执行 mint 操作，向指定地址铸造代币：
+
+- 检查并注册地址到 Identity Registry（如需要）
+- 执行 mint 操作
+- 验证余额和总供应量
+
+使用方法：
+```bash
+# 设置环境变量
+export PRIVATE_KEY=<your_private_key>
+export MINT_TO_ADDRESS=0x1111111111111111111111111111111111111111  # 可选，默认为 0x1111...
+export MINT_AMOUNT=1000  # 可选，默认为 1000
+
+# 运行脚本
+npx ts-node examples/mintTokens.ts
+```
 
 ## 使用示例
 

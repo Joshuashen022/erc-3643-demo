@@ -20,16 +20,31 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
   const [trustedIssuer, setTrustedIssuer] = useState("");
   const [claimTopics, setClaimTopics] = useState("");
   const [trustedIssuerToRemove, setTrustedIssuerToRemove] = useState("");
+  const [trustedIssuerToUpdate, setTrustedIssuerToUpdate] = useState("");
+  const [claimTopicsToUpdate, setClaimTopicsToUpdate] = useState("");
 
   // ModularCompliance 状态
   const [moduleAddress, setModuleAddress] = useState("");
   const [moduleAddressToRemove, setModuleAddressToRemove] = useState("");
   const [moduleAddressForCall, setModuleAddressForCall] = useState("");
   const [callData, setCallData] = useState("");
+  const [tokenToBind, setTokenToBind] = useState("");
+  const [tokenToUnbind, setTokenToUnbind] = useState("");
 
   // Token 状态
   const [identityRegistry, setIdentityRegistry] = useState("");
   const [compliance, setCompliance] = useState("");
+
+  // IdentityRegistry 状态
+  const [identityRegistryStorage, setIdentityRegistryStorage] = useState("");
+  const [claimTopicsRegistryForIR, setClaimTopicsRegistryForIR] = useState("");
+  const [trustedIssuersRegistryForIR, setTrustedIssuersRegistryForIR] = useState("");
+  const [agentToAdd, setAgentToAdd] = useState("");
+  const [agentToRemove, setAgentToRemove] = useState("");
+
+  // IdentityRegistryStorage 状态
+  const [identityRegistryToBind, setIdentityRegistryToBind] = useState("");
+  const [identityRegistryToUnbind, setIdentityRegistryToUnbind] = useState("");
 
   const showResult = (key: string, message: string) => {
     setResults((prev) => ({ ...prev, [key]: message }));
@@ -191,6 +206,34 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
     }
   };
 
+  const handleUpdateIssuerClaimTopics = async () => {
+    if (!trustedIssuerToUpdate || !claimTopicsToUpdate || !CONTRACT_ADDRESSES.trustedIssuersRegistry) {
+      showResult("updateIssuerClaimTopics", "请填写所有字段并配置合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const topicsArray = claimTopicsToUpdate.split(",").map((t) => t.trim());
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.trustedIssuersRegistry,
+        [
+          "function updateIssuerClaimTopics(address _trustedIssuer, uint256[] _claimTopics) external",
+        ],
+        wallet
+      );
+      const tx = await contract.updateIssuerClaimTopics(trustedIssuerToUpdate, topicsArray);
+      await tx.wait();
+      showResult("updateIssuerClaimTopics", `成功更新发行者声明主题，交易哈希: ${tx.hash}`);
+      setTrustedIssuerToUpdate("");
+      setClaimTopicsToUpdate("");
+    } catch (error: any) {
+      showResult("updateIssuerClaimTopics", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ModularCompliance 操作
   const handleAddModule = async () => {
     if (!moduleAddress || !CONTRACT_ADDRESSES.modularCompliance) {
@@ -295,6 +338,58 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
     }
   };
 
+  const handleBindToken = async () => {
+    if (!tokenToBind || !CONTRACT_ADDRESSES.modularCompliance) {
+      showResult("bindToken", "请填写代币地址并配置合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.modularCompliance,
+        [
+          "function bindToken(address _token) external",
+        ],
+        wallet
+      );
+      const tx = await contract.bindToken(tokenToBind);
+      await tx.wait();
+      showResult("bindToken", `成功绑定代币，交易哈希: ${tx.hash}`);
+      setTokenToBind("");
+    } catch (error: any) {
+      showResult("bindToken", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnbindToken = async () => {
+    if (!tokenToUnbind || !CONTRACT_ADDRESSES.modularCompliance) {
+      showResult("unbindToken", "请填写代币地址并配置合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.modularCompliance,
+        [
+          "function unbindToken(address _token) external",
+        ],
+        wallet
+      );
+      const tx = await contract.unbindToken(tokenToUnbind);
+      await tx.wait();
+      showResult("unbindToken", `成功解绑代币，交易哈希: ${tx.hash}`);
+      setTokenToUnbind("");
+    } catch (error: any) {
+      showResult("unbindToken", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Token 操作
   const handleSetIdentityRegistry = async () => {
     if (!identityRegistry || !CONTRACT_ADDRESSES.token) {
@@ -348,6 +443,190 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
     }
   };
 
+  // IdentityRegistry 操作
+  const handleSetIdentityRegistryStorage = async () => {
+    if (!identityRegistryStorage || !CONTRACT_ADDRESSES.identityRegistry) {
+      showResult("setIdentityRegistryStorage", "请填写身份注册表存储地址并配置 IdentityRegistry 合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.identityRegistry,
+        [
+          "function setIdentityRegistryStorage(address _identityRegistryStorage) external",
+        ],
+        wallet
+      );
+      const tx = await contract.setIdentityRegistryStorage(identityRegistryStorage);
+      await tx.wait();
+      showResult("setIdentityRegistryStorage", `成功设置身份注册表存储，交易哈希: ${tx.hash}`);
+      setIdentityRegistryStorage("");
+    } catch (error: any) {
+      showResult("setIdentityRegistryStorage", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetClaimTopicsRegistry = async () => {
+    if (!claimTopicsRegistryForIR || !CONTRACT_ADDRESSES.identityRegistry) {
+      showResult("setClaimTopicsRegistry", "请填写声明主题注册表地址并配置 IdentityRegistry 合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.identityRegistry,
+        [
+          "function setClaimTopicsRegistry(address _claimTopicsRegistry) external",
+        ],
+        wallet
+      );
+      const tx = await contract.setClaimTopicsRegistry(claimTopicsRegistryForIR);
+      await tx.wait();
+      showResult("setClaimTopicsRegistry", `成功设置声明主题注册表，交易哈希: ${tx.hash}`);
+      setClaimTopicsRegistryForIR("");
+    } catch (error: any) {
+      showResult("setClaimTopicsRegistry", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetTrustedIssuersRegistry = async () => {
+    if (!trustedIssuersRegistryForIR || !CONTRACT_ADDRESSES.identityRegistry) {
+      showResult("setTrustedIssuersRegistry", "请填写可信发行者注册表地址并配置 IdentityRegistry 合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.identityRegistry,
+        [
+          "function setTrustedIssuersRegistry(address _trustedIssuersRegistry) external",
+        ],
+        wallet
+      );
+      const tx = await contract.setTrustedIssuersRegistry(trustedIssuersRegistryForIR);
+      await tx.wait();
+      showResult("setTrustedIssuersRegistry", `成功设置可信发行者注册表，交易哈希: ${tx.hash}`);
+      setTrustedIssuersRegistryForIR("");
+    } catch (error: any) {
+      showResult("setTrustedIssuersRegistry", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddAgent = async () => {
+    if (!agentToAdd || !CONTRACT_ADDRESSES.identityRegistry) {
+      showResult("addAgent", "请填写 Agent 地址并配置 IdentityRegistry 合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.identityRegistry,
+        [
+          "function addAgent(address _agent) external",
+        ],
+        wallet
+      );
+      const tx = await contract.addAgent(agentToAdd);
+      await tx.wait();
+      showResult("addAgent", `成功添加 Agent，交易哈希: ${tx.hash}`);
+      setAgentToAdd("");
+    } catch (error: any) {
+      showResult("addAgent", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveAgent = async () => {
+    if (!agentToRemove || !CONTRACT_ADDRESSES.identityRegistry) {
+      showResult("removeAgent", "请填写 Agent 地址并配置 IdentityRegistry 合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.identityRegistry,
+        [
+          "function removeAgent(address _agent) external",
+        ],
+        wallet
+      );
+      const tx = await contract.removeAgent(agentToRemove);
+      await tx.wait();
+      showResult("removeAgent", `成功移除 Agent，交易哈希: ${tx.hash}`);
+      setAgentToRemove("");
+    } catch (error: any) {
+      showResult("removeAgent", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // IdentityRegistryStorage 操作
+  const handleBindIdentityRegistry = async () => {
+    if (!identityRegistryToBind || !CONTRACT_ADDRESSES.identityRegistryStorage) {
+      showResult("bindIdentityRegistry", "请填写身份注册表地址并配置 IdentityRegistryStorage 合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.identityRegistryStorage,
+        [
+          "function bindIdentityRegistry(address _identityRegistry) external",
+        ],
+        wallet
+      );
+      const tx = await contract.bindIdentityRegistry(identityRegistryToBind);
+      await tx.wait();
+      showResult("bindIdentityRegistry", `成功绑定身份注册表，交易哈希: ${tx.hash}`);
+      setIdentityRegistryToBind("");
+    } catch (error: any) {
+      showResult("bindIdentityRegistry", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnbindIdentityRegistry = async () => {
+    if (!identityRegistryToUnbind || !CONTRACT_ADDRESSES.identityRegistryStorage) {
+      showResult("unbindIdentityRegistry", "请填写身份注册表地址并配置 IdentityRegistryStorage 合约地址");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESSES.identityRegistryStorage,
+        [
+          "function unbindIdentityRegistry(address _identityRegistry) external",
+        ],
+        wallet
+      );
+      const tx = await contract.unbindIdentityRegistry(identityRegistryToUnbind);
+      await tx.wait();
+      showResult("unbindIdentityRegistry", `成功解绑身份注册表，交易哈希: ${tx.hash}`);
+      setIdentityRegistryToUnbind("");
+    } catch (error: any) {
+      showResult("unbindIdentityRegistry", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="panel">
       <h2>Owner 管理面板</h2>
@@ -358,7 +637,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
         
         {/* 添加声明主题 */}
         <div className="subsection">
-          <h4>添加声明主题</h4>
+          <h4>添加声明主题 addClaimTopic(uint256 _claimTopic)</h4>
           <div className="form-group">
             <label>声明主题 ID</label>
             <input
@@ -382,7 +661,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
         {/* 移除声明主题 */}
         <div className="subsection">
-          <h4>移除声明主题</h4>
+          <h4>移除声明主题 removeClaimTopic(uint256 _claimTopic)</h4>
           <div className="form-group">
             <label>声明主题 ID</label>
             <input
@@ -406,7 +685,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
         {/* 查询所有主题 */}
         <div className="subsection">
-          <h4>查询所有主题</h4>
+          <h4>查询所有主题 getClaimTopics()</h4>
           <div className="button-group">
             <button onClick={handleGetClaimTopics} disabled={loading} className="btn-secondary">
               查询所有主题
@@ -433,7 +712,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
         
         {/* 添加可信发行者 */}
         <div className="subsection">
-          <h4>添加可信发行者</h4>
+          <h4>添加可信发行者 addTrustedIssuer(address _trustedIssuer, uint256[] _claimTopics)</h4>
           <div className="form-group">
             <label>发行者地址</label>
             <input
@@ -466,7 +745,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
         {/* 移除可信发行者 */}
         <div className="subsection">
-          <h4>移除可信发行者</h4>
+          <h4>移除可信发行者 removeTrustedIssuer(address _trustedIssuer)</h4>
           <div className="form-group">
             <label>发行者地址</label>
             <input
@@ -488,9 +767,42 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
           )}
         </div>
 
+        {/* 更新发行者声明主题 */}
+        <div className="subsection">
+          <h4>更新发行者声明主题 updateIssuerClaimTopics(address _trustedIssuer, uint256[] calldata _claimTopics)</h4>
+          <div className="form-group">
+            <label>发行者地址</label>
+            <input
+              type="text"
+              value={trustedIssuerToUpdate}
+              onChange={(e) => setTrustedIssuerToUpdate(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="form-group">
+            <label>声明主题列表（逗号分隔）</label>
+            <input
+              type="text"
+              value={claimTopicsToUpdate}
+              onChange={(e) => setClaimTopicsToUpdate(e.target.value)}
+              placeholder="例如: 1, 2, 3"
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleUpdateIssuerClaimTopics} disabled={loading} className="btn-success">
+              更新发行者声明主题
+            </button>
+          </div>
+          {results.updateIssuerClaimTopics && (
+            <div className={`result ${results.updateIssuerClaimTopics.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.updateIssuerClaimTopics}</pre>
+            </div>
+          )}
+        </div>
+
         {/* 查询所有发行者 */}
         <div className="subsection">
-          <h4>查询所有发行者</h4>
+          <h4>查询所有发行者 getTrustedIssuers()</h4>
           <div className="button-group">
             <button onClick={handleGetTrustedIssuers} disabled={loading} className="btn-secondary">
               查询所有发行者
@@ -517,7 +829,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
         
         {/* 添加模块 */}
         <div className="subsection">
-          <h4>添加模块</h4>
+          <h4>添加模块 addModule(address _module)</h4>
           <div className="form-group">
             <label>模块地址</label>
             <input
@@ -541,7 +853,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
         {/* 移除模块 */}
         <div className="subsection">
-          <h4>移除模块</h4>
+          <h4>移除模块 removeModule(address _module)</h4>
           <div className="form-group">
             <label>模块地址</label>
             <input
@@ -565,7 +877,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
         {/* 调用模块函数 */}
         <div className="subsection">
-          <h4>调用模块函数</h4>
+          <h4>调用模块函数 callModuleFunction(bytes calldata callData, address _module)</h4>
           <div className="form-group">
             <label>模块地址</label>
             <input
@@ -598,7 +910,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
         {/* 查询所有模块 */}
         <div className="subsection">
-          <h4>查询所有模块</h4>
+          <h4>查询所有模块 getModules()</h4>
           <div className="button-group">
             <button onClick={handleGetModules} disabled={loading} className="btn-secondary">
               查询所有模块
@@ -607,6 +919,54 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
           {results.getModules && (
             <div className={`result ${results.getModules.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
               <pre>{results.getModules}</pre>
+            </div>
+          )}
+        </div>
+
+        {/* 绑定代币 */}
+        <div className="subsection">
+          <h4>绑定代币 bindToken(address _token)</h4>
+          <div className="form-group">
+            <label>代币地址</label>
+            <input
+              type="text"
+              value={tokenToBind}
+              onChange={(e) => setTokenToBind(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleBindToken} disabled={loading} className="btn-primary">
+              绑定代币
+            </button>
+          </div>
+          {results.bindToken && (
+            <div className={`result ${results.bindToken.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.bindToken}</pre>
+            </div>
+          )}
+        </div>
+
+        {/* 解绑代币 */}
+        <div className="subsection">
+          <h4>解绑代币 unbindToken(address _token)</h4>
+          <div className="form-group">
+            <label>代币地址</label>
+            <input
+              type="text"
+              value={tokenToUnbind}
+              onChange={(e) => setTokenToUnbind(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleUnbindToken} disabled={loading} className="btn-danger">
+              解绑代币
+            </button>
+          </div>
+          {results.unbindToken && (
+            <div className={`result ${results.unbindToken.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.unbindToken}</pre>
             </div>
           )}
         </div>
@@ -619,13 +979,205 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
         </div>
       </div>
 
+      {/* IdentityRegistry */}
+      <div className="section">
+        <h3>身份注册表管理 (IdentityRegistry)</h3>
+        
+        {/* 设置身份注册表存储 */}
+        <div className="subsection">
+          <h4>设置身份注册表存储 setIdentityRegistryStorage(address _identityRegistryStorage)</h4>
+          <div className="form-group">
+            <label>身份注册表存储地址</label>
+            <input
+              type="text"
+              value={identityRegistryStorage}
+              onChange={(e) => setIdentityRegistryStorage(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleSetIdentityRegistryStorage} disabled={loading} className="btn-primary">
+              设置身份注册表存储
+            </button>
+          </div>
+          {results.setIdentityRegistryStorage && (
+            <div className={`result ${results.setIdentityRegistryStorage.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.setIdentityRegistryStorage}</pre>
+            </div>
+          )}
+        </div>
+
+        {/* 设置声明主题注册表 */}
+        <div className="subsection">
+          <h4>设置声明主题注册表 setClaimTopicsRegistry(address _claimTopicsRegistry)</h4>
+          <div className="form-group">
+            <label>声明主题注册表地址</label>
+            <input
+              type="text"
+              value={claimTopicsRegistryForIR}
+              onChange={(e) => setClaimTopicsRegistryForIR(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleSetClaimTopicsRegistry} disabled={loading} className="btn-primary">
+              设置声明主题注册表
+            </button>
+          </div>
+          {results.setClaimTopicsRegistry && (
+            <div className={`result ${results.setClaimTopicsRegistry.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.setClaimTopicsRegistry}</pre>
+            </div>
+          )}
+        </div>
+
+        {/* 设置可信发行者注册表 */}
+        <div className="subsection">
+          <h4>设置可信发行者注册表 setTrustedIssuersRegistry(address _trustedIssuersRegistry)</h4>
+          <div className="form-group">
+            <label>可信发行者注册表地址</label>
+            <input
+              type="text"
+              value={trustedIssuersRegistryForIR}
+              onChange={(e) => setTrustedIssuersRegistryForIR(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleSetTrustedIssuersRegistry} disabled={loading} className="btn-primary">
+              设置可信发行者注册表
+            </button>
+          </div>
+          {results.setTrustedIssuersRegistry && (
+            <div className={`result ${results.setTrustedIssuersRegistry.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.setTrustedIssuersRegistry}</pre>
+            </div>
+          )}
+        </div>
+
+        {/* 添加 Agent */}
+        <div className="subsection">
+          <h4>添加 Agent addAgent(address _agent)</h4>
+          <div className="form-group">
+            <label>Agent 地址</label>
+            <input
+              type="text"
+              value={agentToAdd}
+              onChange={(e) => setAgentToAdd(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleAddAgent} disabled={loading} className="btn-primary">
+              添加 Agent
+            </button>
+          </div>
+          {results.addAgent && (
+            <div className={`result ${results.addAgent.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.addAgent}</pre>
+            </div>
+          )}
+        </div>
+
+        {/* 移除 Agent */}
+        <div className="subsection">
+          <h4>移除 Agent removeAgent(address _agent)</h4>
+          <div className="form-group">
+            <label>Agent 地址</label>
+            <input
+              type="text"
+              value={agentToRemove}
+              onChange={(e) => setAgentToRemove(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleRemoveAgent} disabled={loading} className="btn-danger">
+              移除 Agent
+            </button>
+          </div>
+          {results.removeAgent && (
+            <div className={`result ${results.removeAgent.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.removeAgent}</pre>
+            </div>
+          )}
+        </div>
+        <div style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#666" }}>
+          合约地址: {CONTRACT_ADDRESSES.identityRegistry ? (
+            <span style={{ fontFamily: "monospace" }}>{CONTRACT_ADDRESSES.identityRegistry}</span>
+          ) : (
+            <span style={{ color: "#999" }}>未配置</span>
+          )}
+        </div>
+      </div>
+
+      {/* IdentityRegistryStorage */}
+      <div className="section">
+        <h3>身份注册表存储管理 (IdentityRegistryStorage)</h3>
+        
+        {/* 绑定身份注册表 */}
+        <div className="subsection">
+          <h4>绑定身份注册表 bindIdentityRegistry(address _identityRegistry)</h4>
+          <div className="form-group">
+            <label>身份注册表地址</label>
+            <input
+              type="text"
+              value={identityRegistryToBind}
+              onChange={(e) => setIdentityRegistryToBind(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleBindIdentityRegistry} disabled={loading} className="btn-primary">
+              绑定身份注册表
+            </button>
+          </div>
+          {results.bindIdentityRegistry && (
+            <div className={`result ${results.bindIdentityRegistry.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.bindIdentityRegistry}</pre>
+            </div>
+          )}
+        </div>
+
+        {/* 解绑身份注册表 */}
+        <div className="subsection">
+          <h4>解绑身份注册表 unbindIdentityRegistry(address _identityRegistry)</h4>
+          <div className="form-group">
+            <label>身份注册表地址</label>
+            <input
+              type="text"
+              value={identityRegistryToUnbind}
+              onChange={(e) => setIdentityRegistryToUnbind(e.target.value)}
+              placeholder="0x..."
+            />
+          </div>
+          <div className="button-group">
+            <button onClick={handleUnbindIdentityRegistry} disabled={loading} className="btn-danger">
+              解绑身份注册表
+            </button>
+          </div>
+          {results.unbindIdentityRegistry && (
+            <div className={`result ${results.unbindIdentityRegistry.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
+              <pre>{results.unbindIdentityRegistry}</pre>
+            </div>
+          )}
+        </div>
+        <div style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#666" }}>
+          合约地址: {CONTRACT_ADDRESSES.identityRegistryStorage ? (
+            <span style={{ fontFamily: "monospace" }}>{CONTRACT_ADDRESSES.identityRegistryStorage}</span>
+          ) : (
+            <span style={{ color: "#999" }}>未配置</span>
+          )}
+        </div>
+      </div>
+
       {/* Token */}
       <div className="section">
         <h3>代币管理 (Token)</h3>
         
         {/* 设置身份注册表 */}
         <div className="subsection">
-          <h4>设置身份注册表</h4>
+          <h4>设置身份注册表 setIdentityRegistry(address _identityRegistry)</h4>
           <div className="form-group">
             <label>身份注册表地址</label>
             <input
@@ -649,7 +1201,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
         {/* 设置合规合约 */}
         <div className="subsection">
-          <h4>设置合规合约</h4>
+          <h4>设置合规合约 setCompliance(address _compliance)</h4>
           <div className="form-group">
             <label>合规合约地址</label>
             <input

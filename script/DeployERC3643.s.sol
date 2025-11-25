@@ -28,6 +28,7 @@ import {RWACompliance} from "../src/rwa/RWACompliance.sol";
 import {RWAIdentityRegistryStorage} from "../src/rwa/IdentityRegistry.sol";
 import {RWAIdentityIdFactory, RWAIdentityGateway} from "../src/rwa/proxy/RWAIdentityIdFactory.sol";
 import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
+import {IIdentity} from "../lib/solidity/contracts/interface/IIdentity.sol";
 
 contract DeployERC3643 is Script {
     // TREX factory contracts
@@ -41,22 +42,36 @@ contract DeployERC3643 is Script {
     RWAClaimIssuer public rwaClaimIssuerImpl;
 
     ImplementationAuthority public implementationAuthority;
+    ImplementationAuthority public claimIssuerImplementationAuthority;
     RWAIdentityIdFactory public identityidFactory;
     RWAIdentityGateway public identityGateway;
     RWAClaimIssuerIdFactory public claimIssuerIdFactory;
     RWAClaimIssuerGateway public claimIssuerGateway;
 
+    RWAToken public token;
+    RWACompliance public compliance;
+    RWAIdentityRegistry public identityRegistry;
+    RWAIdentityRegistryStorage public identityRegistryStorage;
+    RWATrustedIssuersRegistry public trustedIssuersRegistry;
+    RWAClaimTopicsRegistry public claimTopicsRegistry;
 
     ITREXImplementationAuthority.Version public currentVersion;
     address public identity;
     address public claimIssuer;
     string public salt = "trex-suite-1";
     address public suiteOwner;
-    address public managementKey;
+    address public managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+    address public claimKeyAddress = vm.envOr("CLAIM_KEY_ADDRESS", msg.sender);
+    uint256 claimKeyPrivateKey = vm.envOr("CLAIM_KEY_PRIVATE_KEY", uint256(0));
+    uint256 claimTopicKyc = vm.envOr("CLAIM_TOPIC_KYC", uint256(1));
+    uint256 country = vm.envOr("COUNTRY_CODE", uint256(840));
+    uint256 claimSchemeEcdsa = 1;
+    uint256 purposeClaim = 3;
+    uint256 keyTypeEcdsa = 1;
 
     function run() external {
         console.log("=== Deploying RWA Identity Factories ===");
-        IdFactory idFactory = deployRWAIdentity();
+        IdFactory idFactory = deployAllIdentityContracts();
         
         console.log("\n=== Deploying ERC3643 and Related Contracts ===");
         
@@ -106,6 +121,9 @@ contract DeployERC3643 is Script {
         
         vm.stopBroadcast();
         
+        console.log("\n=== Initializing an identity ===");
+        initializeIdentity();
+        
         // Validate agent initialization
         console.log("\n=== Validating ===");
         validate();
@@ -118,17 +136,18 @@ contract DeployERC3643 is Script {
 
     }
    
-    function deployRWAIdentity() internal returns (IdFactory) {
+    function deployAllIdentityContracts() internal returns (IdFactory) {
         address[] memory signers = new address[](0);
 
         vm.startBroadcast();
         rwaIdentityImpl = new RWAIdentity(msg.sender);
         rwaClaimIssuerImpl = new RWAClaimIssuer(msg.sender);
         implementationAuthority = new ImplementationAuthority(address(rwaIdentityImpl));
+        claimIssuerImplementationAuthority = new ImplementationAuthority(address(rwaClaimIssuerImpl));
 
         identityidFactory = new RWAIdentityIdFactory(address(implementationAuthority));
         identityGateway = new RWAIdentityGateway(address(identityidFactory), signers);
-        claimIssuerIdFactory = new RWAClaimIssuerIdFactory(address(implementationAuthority));
+        claimIssuerIdFactory = new RWAClaimIssuerIdFactory(address(claimIssuerImplementationAuthority));
         claimIssuerGateway = new RWAClaimIssuerGateway(address(claimIssuerIdFactory), signers);
 
         vm.stopBroadcast();
@@ -141,9 +160,8 @@ contract DeployERC3643 is Script {
         console.log("IdentityGateway owner:", identityGateway.owner());
         console.log("ClaimIssuerIdFactory owner:", claimIssuerIdFactory.owner());
         console.log("ClaimIssuerGateway owner:", claimIssuerGateway.owner());
-        
-        initializeFromEnv();
-        
+    
+        _initializeClaimIssuer();
         return identityidFactory;
     }
 
@@ -223,7 +241,7 @@ contract DeployERC3643 is Script {
         address[] memory complianceModules = new address[](1);
         complianceModules[0] = address(testModule);
         
-         address[] memory irAgents = new address[](1);
+        address[] memory irAgents = new address[](1);
         irAgents[0] = suiteOwner;
         address[] memory tokenAgents = new address[](1);
         tokenAgents[0] = suiteOwner;
@@ -272,6 +290,14 @@ contract DeployERC3643 is Script {
         console.log("Salt used:", salt);
 
         vm.stopBroadcast();
+
+        token = RWAToken(tokenAddress);
+        compliance = RWACompliance(address(token.compliance()));
+        identityRegistry = RWAIdentityRegistry(address(token.identityRegistry()));
+        identityRegistryStorage = RWAIdentityRegistryStorage(address(identityRegistry.identityStorage()));
+        trustedIssuersRegistry = RWATrustedIssuersRegistry(address(identityRegistry.issuersRegistry()));
+        claimTopicsRegistry = RWAClaimTopicsRegistry(address(identityRegistry.topicsRegistry()));
+
     }
 
     function _deploy(address identityImpl, address[] memory signers) internal returns (IdFactory idFactory, Gateway gateway) {
@@ -284,14 +310,7 @@ contract DeployERC3643 is Script {
         vm.stopBroadcast();
     }
 
-    function initializeFromEnv() internal {
-        managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
-        address claimKeyAddress = managementKey;
-        uint256 claimKeyPrivateKey = vm.envOr("CLAIM_KEY_PRIVATE_KEY", uint256(0));
-        uint256 purposeClaim = 3;
-        uint256 keyTypeEcdsa = 1;
-        uint256 claimTopicKyc = 1;
-        uint256 claimSchemeEcdsa = 1;
+    function initializeIdentity() internal {
 
         if (claimKeyPrivateKey == uint256(0)) {
             revert("CLAIM_KEY_PRIVATE_KEY is required");
@@ -299,13 +318,12 @@ contract DeployERC3643 is Script {
 
         vm.startBroadcast();
         identity = identityidFactory.createIdentity(managementKey, "identity1");
-        claimIssuer = claimIssuerIdFactory.createIdentity(managementKey, "claimissuer1");
         vm.stopBroadcast();
+
         bytes32 claimKeyHash = keccak256(abi.encode(claimKeyAddress));
 
         vm.startBroadcast(managementKey);
         RWAIdentity(identity).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-        RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
         
         bytes memory data = "";
         bytes32 dataHash = keccak256(abi.encode(identity, claimTopicKyc, data));
@@ -316,8 +334,13 @@ contract DeployERC3643 is Script {
         
         RWAIdentity(identity).addClaim(claimTopicKyc, claimSchemeEcdsa, claimIssuer, sig, data, "");
         console.log("KYC claim added to Identity");
+
         vm.stopBroadcast();
- 
+        
+        vm.startBroadcast(msg.sender);
+        //msg.sender is the owner of identityRegistry
+        identityRegistry.registerIdentity(managementKey, IIdentity(address(identity)), uint16(country));
+        vm.stopBroadcast();
     }
 
     function unPauseToken() internal {
@@ -333,15 +356,23 @@ contract DeployERC3643 is Script {
         _validateIdentity();
     }
 
-    function _validataRWAModule() internal view {
-        address tokenAddress = trexFactory.getToken(salt);
-        RWAToken token = RWAToken(tokenAddress);
-        RWACompliance compliance = RWACompliance(address(token.compliance()));
-        RWAIdentityRegistry identityRegistry = RWAIdentityRegistry(address(token.identityRegistry()));
-        RWAIdentityRegistryStorage identityRegistryStorage = RWAIdentityRegistryStorage(address(identityRegistry.identityStorage()));
-        RWATrustedIssuersRegistry trustedIssuersRegistry = RWATrustedIssuersRegistry(address(identityRegistry.issuersRegistry()));
-        RWAClaimTopicsRegistry claimTopicsRegistry = RWAClaimTopicsRegistry(address(identityRegistry.topicsRegistry()));
 
+    function _initializeClaimIssuer() internal {
+
+        vm.startBroadcast();
+        claimIssuer = claimIssuerIdFactory.createIdentity(managementKey, "claimissuer1");
+        vm.stopBroadcast();
+        bytes32 claimKeyHash = keccak256(abi.encode(claimKeyAddress));
+
+        vm.startBroadcast(managementKey);
+        RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
+        
+        console.log("ClaimIssuer initialized successfully", claimIssuer);
+
+        vm.stopBroadcast();
+    }
+
+    function _validataRWAModule() internal view {
         // Check that suiteOwner is set
         require(suiteOwner != address(0), "Suite owner should be set");
         // Check Identity Registry agent
@@ -366,10 +397,10 @@ contract DeployERC3643 is Script {
         require(trexFactory.owner() == suiteOwner, "TREX Factory owner should match suite owner");
 
 
-        console.log("Token:", tokenAddress, "Agent", suiteOwner);
+        console.log("Token:", address(token), "Agent", suiteOwner);
         console.log("Identity Registry:", address(token.identityRegistry()), "Agent", suiteOwner);
 
-        console.log("Token:", tokenAddress, "Owner", suiteOwner);
+        console.log("Token:", address(token), "Owner", suiteOwner);
         console.log("Identity Registry:", address(token.identityRegistry()), "Owner", suiteOwner);
         console.log("Compliance:", address(compliance), "Owner", suiteOwner);
         console.log("Trusted Issuers Registry:", address(trustedIssuersRegistry), "Owner", suiteOwner);

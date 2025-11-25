@@ -82,6 +82,8 @@ contract DeployERC3643Test is Test {
         assertNotEq(address(identityRegistry), address(0));
         assertNotEq(address(identity), address(0));
         assertNotEq(address(claimIssuer), address(0));
+        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+        assertTrue(identityRegistry.isVerified(managementKey));
     }
 
     // ============ Agent Initialization Tests ============
@@ -111,12 +113,23 @@ contract DeployERC3643Test is Test {
     }
 
     // ============ Register Identity Tests ============
+    // scenario: register a new identity to existing identity registry(OnChainID)
     function test_RegisterIdentity_Success() public {
         address newUser = address(0x9999);
         identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), 840);
         assertTrue(identityRegistry.isVerified(newUser));
     }
 
+    // scenario: delete an existing OnChainID from identity registry
+    function test_DeleteIdentity_Success() public {
+        address newUser = address(0x9999);
+        identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), 840);
+        assertTrue(identityRegistry.isVerified(newUser));
+        identityRegistry.deleteIdentity(newUser);
+        assertFalse(identityRegistry.isVerified(newUser));
+    }
+
+    // scenario: create a new OnChainID and register it to identity registry
     function test_RegisterNewIdentity_Success() public {
         uint256 purposeClaim = 3;
         uint256 keyTypeEcdsa = 1;
@@ -172,6 +185,7 @@ contract DeployERC3643Test is Test {
         uint256[] memory topics = new uint256[](2);
         topics[0] = 1;
         topics[1] = newTopic;
+
         // this will replace the existing topic with the new topic
         trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
 

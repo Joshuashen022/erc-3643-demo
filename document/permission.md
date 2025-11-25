@@ -1,12 +1,14 @@
 # ERC-3643 合约权限管理文档
 
-本文档整理了以下六个核心合约的权限管理：
+本文档整理了以下十个核心合约的权限管理：
 - `ClaimTopicsRegistry.sol`
 - `IdentityRegistry.sol`
 - `IdentityRegistryStorage.sol`
 - `TrustedIssuersRegistry.sol`
 - `Token.sol`
 - `ModularCompliance.sol`
+- `RWAIdentityIdFactory.sol` & `RWAIdentityGateway.sol`
+- `RWAClaimIssuerIdFactory.sol` & `RWAClaimIssuerGateway.sol`
 
 ---
 
@@ -619,6 +621,352 @@ graph TB
 
 ---
 
+## 7. RWAIdentityIdFactory.sol & RWAIdentityGateway.sol
+
+**继承关系：** 
+- `RWAIdentityIdFactory` 继承自 `IdFactory` (继承自 `Ownable`)
+- `RWAIdentityGateway` 继承自 `Gateway` (继承自 `Ownable`)
+
+### RWAIdentityIdFactory - Owner 可以做的操作
+
+1. **`addTokenFactory(address _factory)`** (继承自 `IdFactory`)
+   - 添加代币工厂地址
+   - 限制：地址不能为零地址，不能重复添加
+
+2. **`removeTokenFactory(address _factory)`** (继承自 `IdFactory`)
+   - 移除代币工厂地址
+   - 限制：地址必须已注册为代币工厂
+
+3. **`createIdentity(address _wallet, string memory _salt)`** (继承自 `IdFactory`)
+   - 创建用户身份合约
+   - 限制：钱包地址不能为零地址，salt 不能为空，salt 未被使用，钱包未链接到其他身份
+
+4. **`createIdentityWithManagementKeys(address _wallet, string memory _salt, bytes32[] _managementKeys)`** (继承自 `IdFactory`)
+   - 创建带管理密钥的用户身份合约
+   - 限制：钱包地址不能为零地址，salt 不能为空，salt 未被使用，钱包未链接到其他身份，管理密钥列表不能为空，钱包地址不能出现在管理密钥中
+
+5. **`transferOwnership(address newOwner)`** (继承自 `Ownable`)
+   - 转移合约所有权
+
+### RWAIdentityIdFactory - Token Factory 或 Owner 可以做的操作
+
+1. **`createTokenIdentity(address _token, address _tokenOwner, string memory _salt)`** (继承自 `IdFactory`)
+   - 创建代币身份合约
+   - 限制：代币地址和代币所有者不能为零地址，salt 不能为空，salt 未被使用，代币未链接到其他身份
+
+### RWAIdentityIdFactory - 其他角色/公开操作
+
+1. **`linkWallet(address _newWallet)`** (继承自 `IdFactory`)
+   - 将新钱包链接到现有身份
+   - 限制：新钱包地址不能为零地址，调用者钱包必须已链接到身份，新钱包未链接，新钱包不是代币地址，每个身份最多链接100个钱包
+
+2. **`unlinkWallet(address _oldWallet)`** (继承自 `IdFactory`)
+   - 取消钱包与身份的链接
+   - 限制：旧钱包地址不能为零地址，不能取消调用者自己的链接，调用者必须与旧钱包链接到同一身份
+
+以下为 view 函数，任何人都可以调用：
+
+3. **`getIdentity(address _wallet)`** (view, 继承自 `IdFactory`)
+   - 获取钱包对应的身份合约地址
+
+4. **`isSaltTaken(string calldata _salt)`** (view, 继承自 `IdFactory`)
+   - 检查 salt 是否已被使用
+
+5. **`getWallets(address _identity)`** (view, 继承自 `IdFactory`)
+   - 获取身份合约关联的所有钱包地址列表
+
+6. **`getToken(address _identity)`** (view, 继承自 `IdFactory`)
+   - 获取身份合约关联的代币地址
+
+7. **`isTokenFactory(address _factory)`** (view, 继承自 `IdFactory`)
+   - 检查地址是否为代币工厂
+
+8. **`implementationAuthority()`** (view, 继承自 `IdFactory`)
+   - 获取实现授权合约地址
+
+9. **`owner()`** (view, 继承自 `Ownable`)
+   - 获取合约所有者地址
+
+### RWAIdentityGateway - Owner 可以做的操作
+
+1. **`approveSigner(address signer)`** (继承自 `Gateway`)
+   - 批准签名者，允许其签名身份部署请求
+   - 限制：签名者地址不能为零地址，不能重复批准
+
+2. **`revokeSigner(address signer)`** (继承自 `Gateway`)
+   - 撤销签名者权限
+   - 限制：签名者地址不能为零地址，签名者必须已被批准
+
+3. **`revokeSignature(bytes calldata signature)`** (继承自 `Gateway`)
+   - 撤销签名，使该签名无法用于部署身份
+   - 限制：签名必须未被撤销
+
+4. **`approveSignature(bytes calldata signature)`** (继承自 `Gateway`)
+   - 批准已撤销的签名，恢复其有效性
+   - 限制：签名必须已被撤销
+
+5. **`transferFactoryOwnership(address newOwner)`** (继承自 `Gateway`)
+   - 转移工厂合约的所有权
+
+6. **`callFactory(bytes memory data)`** (继承自 `Gateway`)
+   - 调用工厂合约的任意函数
+   - 限制：调用必须成功
+
+7. **`transferOwnership(address newOwner)`** (继承自 `Ownable`)
+   - 转移网关合约的所有权
+
+### RWAIdentityGateway - 其他角色/公开操作
+
+1. **`deployIdentityWithSalt(address identityOwner, string memory salt, uint256 signatureExpiry, bytes calldata signature)`** (继承自 `Gateway`)
+   - 使用签名和自定义 salt 部署身份合约
+   - 限制：身份所有者地址不能为零地址，签名未过期（如果设置了过期时间），签名来自已批准的签名者，签名未被撤销
+
+2. **`deployIdentityWithSaltAndManagementKeys(address identityOwner, string memory salt, bytes32[] calldata managementKeys, uint256 signatureExpiry, bytes calldata signature)`** (继承自 `Gateway`)
+   - 使用签名、自定义 salt 和管理密钥部署身份合约
+   - 限制：身份所有者地址不能为零地址，签名未过期（如果设置了过期时间），签名来自已批准的签名者，签名未被撤销
+
+3. **`deployIdentityForWallet(address identityOwner)`** (继承自 `Gateway`)
+   - 为钱包部署身份合约（使用钱包地址作为 salt）
+   - 限制：身份所有者地址不能为零地址
+
+以下为 view 函数，任何人都可以调用：
+
+4. **`idFactory()`** (view, 继承自 `Gateway`)
+   - 获取关联的身份工厂合约地址
+
+5. **`approvedSigners(address signer)`** (view, 继承自 `Gateway`)
+   - 检查签名者是否已被批准
+
+6. **`revokedSignatures(bytes signature)`** (view, 继承自 `Gateway`)
+   - 检查签名是否已被撤销
+
+7. **`owner()`** (view, 继承自 `Ownable`)
+   - 获取合约所有者地址
+
+### 权限结构图
+
+```mermaid
+graph TB
+    subgraph "RWAIdentityIdFactory"
+        IF_Owner[Owner]
+        IF_TokenFactory[Token Factory]
+        IF_Public[Public]
+        
+        IF_Owner -->|addTokenFactory/removeTokenFactory| IF_F1[管理代币工厂]
+        IF_Owner -->|createIdentity| IF_F2[创建身份]
+        IF_Owner -->|createIdentityWithManagementKeys| IF_F3[创建带密钥的身份]
+        IF_Owner -->|transferOwnership| IF_F4[转移所有权]
+        
+        IF_TokenFactory -->|createTokenIdentity| IF_F5[创建代币身份]
+        IF_Owner -->|createTokenIdentity| IF_F5
+        
+        IF_Public -->|linkWallet/unlinkWallet| IF_F6[管理钱包链接]
+        IF_Public -->|getIdentity| IF_F7[查询身份]
+        IF_Public -->|isSaltTaken| IF_F8[查询Salt]
+        IF_Public -->|getWallets| IF_F9[查询钱包列表]
+    end
+    
+    subgraph "RWAIdentityGateway"
+        IG_Owner[Owner]
+        IG_Public[Public]
+        
+        IG_Owner -->|approveSigner/revokeSigner| IG_F1[管理签名者]
+        IG_Owner -->|revokeSignature/approveSignature| IG_F2[管理签名]
+        IG_Owner -->|transferFactoryOwnership| IG_F3[转移工厂所有权]
+        IG_Owner -->|callFactory| IG_F4[调用工厂函数]
+        IG_Owner -->|transferOwnership| IG_F5[转移网关所有权]
+        
+        IG_Public -->|deployIdentityWithSalt| IG_F6[部署身份-带Salt]
+        IG_Public -->|deployIdentityWithSaltAndManagementKeys| IG_F7[部署身份-带密钥]
+        IG_Public -->|deployIdentityForWallet| IG_F8[部署身份-钱包]
+        IG_Public -->|approvedSigners| IG_F9[查询签名者]
+        IG_Public -->|revokedSignatures| IG_F10[查询签名状态]
+    end
+    
+    classDef ownerStyle fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px,color:#fff
+    classDef publicStyle fill:#95e1d3,stroke:#20c997,stroke-width:2px,color:#000
+    classDef tokenFactoryStyle fill:#a29bfe,stroke:#6c5ce7,stroke-width:2px,color:#fff
+    
+    class IF_Owner,IG_Owner ownerStyle
+    class IF_Public,IG_Public publicStyle
+    class IF_TokenFactory tokenFactoryStyle
+```
+
+---
+
+## 8. RWAClaimIssuerIdFactory.sol & RWAClaimIssuerGateway.sol
+
+**继承关系：** 
+- `RWAClaimIssuerIdFactory` 继承自 `IdFactory` (继承自 `Ownable`)
+- `RWAClaimIssuerGateway` 继承自 `Gateway` (继承自 `Ownable`)
+
+### RWAClaimIssuerIdFactory - Owner 可以做的操作
+
+1. **`addTokenFactory(address _factory)`** (继承自 `IdFactory`)
+   - 添加代币工厂地址
+   - 限制：地址不能为零地址，不能重复添加
+
+2. **`removeTokenFactory(address _factory)`** (继承自 `IdFactory`)
+   - 移除代币工厂地址
+   - 限制：地址必须已注册为代币工厂
+
+3. **`createIdentity(address _wallet, string memory _salt)`** (继承自 `IdFactory`)
+   - 创建声明发行者身份合约
+   - 限制：钱包地址不能为零地址，salt 不能为空，salt 未被使用，钱包未链接到其他身份
+
+4. **`createIdentityWithManagementKeys(address _wallet, string memory _salt, bytes32[] _managementKeys)`** (继承自 `IdFactory`)
+   - 创建带管理密钥的声明发行者身份合约
+   - 限制：钱包地址不能为零地址，salt 不能为空，salt 未被使用，钱包未链接到其他身份，管理密钥列表不能为空，钱包地址不能出现在管理密钥中
+
+5. **`transferOwnership(address newOwner)`** (继承自 `Ownable`)
+   - 转移合约所有权
+
+### RWAClaimIssuerIdFactory - Token Factory 或 Owner 可以做的操作
+
+1. **`createTokenIdentity(address _token, address _tokenOwner, string memory _salt)`** (继承自 `IdFactory`)
+   - 创建代币身份合约
+   - 限制：代币地址和代币所有者不能为零地址，salt 不能为空，salt 未被使用，代币未链接到其他身份
+
+### RWAClaimIssuerIdFactory - 其他角色/公开操作
+
+1. **`linkWallet(address _newWallet)`** (继承自 `IdFactory`)
+   - 将新钱包链接到现有身份
+   - 限制：新钱包地址不能为零地址，调用者钱包必须已链接到身份，新钱包未链接，新钱包不是代币地址，每个身份最多链接100个钱包
+
+2. **`unlinkWallet(address _oldWallet)`** (继承自 `IdFactory`)
+   - 取消钱包与身份的链接
+   - 限制：旧钱包地址不能为零地址，不能取消调用者自己的链接，调用者必须与旧钱包链接到同一身份
+
+以下为 view 函数，任何人都可以调用：
+
+3. **`getIdentity(address _wallet)`** (view, 继承自 `IdFactory`)
+   - 获取钱包对应的身份合约地址
+
+4. **`isSaltTaken(string calldata _salt)`** (view, 继承自 `IdFactory`)
+   - 检查 salt 是否已被使用
+
+5. **`getWallets(address _identity)`** (view, 继承自 `IdFactory`)
+   - 获取身份合约关联的所有钱包地址列表
+
+6. **`getToken(address _identity)`** (view, 继承自 `IdFactory`)
+   - 获取身份合约关联的代币地址
+
+7. **`isTokenFactory(address _factory)`** (view, 继承自 `IdFactory`)
+   - 检查地址是否为代币工厂
+
+8. **`implementationAuthority()`** (view, 继承自 `IdFactory`)
+   - 获取实现授权合约地址
+
+9. **`owner()`** (view, 继承自 `Ownable`)
+   - 获取合约所有者地址
+
+### RWAClaimIssuerGateway - Owner 可以做的操作
+
+1. **`approveSigner(address signer)`** (继承自 `Gateway`)
+   - 批准签名者，允许其签名身份部署请求
+   - 限制：签名者地址不能为零地址，不能重复批准
+
+2. **`revokeSigner(address signer)`** (继承自 `Gateway`)
+   - 撤销签名者权限
+   - 限制：签名者地址不能为零地址，签名者必须已被批准
+
+3. **`revokeSignature(bytes calldata signature)`** (继承自 `Gateway`)
+   - 撤销签名，使该签名无法用于部署身份
+   - 限制：签名必须未被撤销
+
+4. **`approveSignature(bytes calldata signature)`** (继承自 `Gateway`)
+   - 批准已撤销的签名，恢复其有效性
+   - 限制：签名必须已被撤销
+
+5. **`transferFactoryOwnership(address newOwner)`** (继承自 `Gateway`)
+   - 转移工厂合约的所有权
+
+6. **`callFactory(bytes memory data)`** (继承自 `Gateway`)
+   - 调用工厂合约的任意函数
+   - 限制：调用必须成功
+
+7. **`transferOwnership(address newOwner)`** (继承自 `Ownable`)
+   - 转移网关合约的所有权
+
+### RWAClaimIssuerGateway - 其他角色/公开操作
+
+1. **`deployIdentityWithSalt(address identityOwner, string memory salt, uint256 signatureExpiry, bytes calldata signature)`** (继承自 `Gateway`)
+   - 使用签名和自定义 salt 部署声明发行者身份合约
+   - 限制：身份所有者地址不能为零地址，签名未过期（如果设置了过期时间），签名来自已批准的签名者，签名未被撤销
+
+2. **`deployIdentityWithSaltAndManagementKeys(address identityOwner, string memory salt, bytes32[] calldata managementKeys, uint256 signatureExpiry, bytes calldata signature)`** (继承自 `Gateway`)
+   - 使用签名、自定义 salt 和管理密钥部署声明发行者身份合约
+   - 限制：身份所有者地址不能为零地址，签名未过期（如果设置了过期时间），签名来自已批准的签名者，签名未被撤销
+
+3. **`deployIdentityForWallet(address identityOwner)`** (继承自 `Gateway`)
+   - 为钱包部署声明发行者身份合约（使用钱包地址作为 salt）
+   - 限制：身份所有者地址不能为零地址
+
+以下为 view 函数，任何人都可以调用：
+
+4. **`idFactory()`** (view, 继承自 `Gateway`)
+   - 获取关联的身份工厂合约地址
+
+5. **`approvedSigners(address signer)`** (view, 继承自 `Gateway`)
+   - 检查签名者是否已被批准
+
+6. **`revokedSignatures(bytes signature)`** (view, 继承自 `Gateway`)
+   - 检查签名是否已被撤销
+
+7. **`owner()`** (view, 继承自 `Ownable`)
+   - 获取合约所有者地址
+
+### 权限结构图
+
+```mermaid
+graph TB
+    subgraph "RWAClaimIssuerIdFactory"
+        CIF_Owner[Owner]
+        CIF_TokenFactory[Token Factory]
+        CIF_Public[Public]
+        
+        CIF_Owner -->|addTokenFactory/removeTokenFactory| CIF_F1[管理代币工厂]
+        CIF_Owner -->|createIdentity| CIF_F2[创建身份]
+        CIF_Owner -->|createIdentityWithManagementKeys| CIF_F3[创建带密钥的身份]
+        CIF_Owner -->|transferOwnership| CIF_F4[转移所有权]
+        
+        CIF_TokenFactory -->|createTokenIdentity| CIF_F5[创建代币身份]
+        CIF_Owner -->|createTokenIdentity| CIF_F5
+        
+        CIF_Public -->|linkWallet/unlinkWallet| CIF_F6[管理钱包链接]
+        CIF_Public -->|getIdentity| CIF_F7[查询身份]
+        CIF_Public -->|isSaltTaken| CIF_F8[查询Salt]
+        CIF_Public -->|getWallets| CIF_F9[查询钱包列表]
+    end
+    
+    subgraph "RWAClaimIssuerGateway"
+        CIG_Owner[Owner]
+        CIG_Public[Public]
+        
+        CIG_Owner -->|approveSigner/revokeSigner| CIG_F1[管理签名者]
+        CIG_Owner -->|revokeSignature/approveSignature| CIG_F2[管理签名]
+        CIG_Owner -->|transferFactoryOwnership| CIG_F3[转移工厂所有权]
+        CIG_Owner -->|callFactory| CIG_F4[调用工厂函数]
+        CIG_Owner -->|transferOwnership| CIG_F5[转移网关所有权]
+        
+        CIG_Public -->|deployIdentityWithSalt| CIG_F6[部署身份-带Salt]
+        CIG_Public -->|deployIdentityWithSaltAndManagementKeys| CIG_F7[部署身份-带密钥]
+        CIG_Public -->|deployIdentityForWallet| CIG_F8[部署身份-钱包]
+        CIG_Public -->|approvedSigners| CIG_F9[查询签名者]
+        CIG_Public -->|revokedSignatures| CIG_F10[查询签名状态]
+    end
+    
+    classDef ownerStyle fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px,color:#fff
+    classDef publicStyle fill:#95e1d3,stroke:#20c997,stroke-width:2px,color:#000
+    classDef tokenFactoryStyle fill:#a29bfe,stroke:#6c5ce7,stroke-width:2px,color:#fff
+    
+    class CIF_Owner,CIG_Owner ownerStyle
+    class CIF_Public,CIG_Public publicStyle
+    class CIF_TokenFactory tokenFactoryStyle
+```
+
+---
+
 ## 权限关系总结
 
 ### 角色层级
@@ -627,15 +975,22 @@ graph TB
 Owner (最高权限)
   ├── 管理合约配置
   ├── 管理 Agent 角色
-  └── 管理注册表核心设置
+  ├── 管理注册表核心设置
+  ├── 管理身份工厂和网关
+  └── 管理签名者和签名
 
 Agent (操作权限)
   ├── 管理用户身份注册
   ├── 管理身份信息更新
   └── 管理身份存储操作
 
-Public (只读权限)
-  └── 查询合约状态和信息
+Token Factory (代币工厂权限)
+  └── 创建代币身份合约
+
+Public (公开权限)
+  ├── 查询合约状态和信息
+  ├── 部署身份合约（需有效签名）
+  └── 管理钱包与身份的链接
 ```
 
 ### 关键权限说明
@@ -646,6 +1001,9 @@ Public (只读权限)
    - 注册表之间的关联设置
    - 代币基本信息和关联合约配置
    - 合规模块的添加、移除和配置
+   - 身份工厂的代币工厂管理
+   - 身份工厂的身份创建
+   - 网关的签名者管理和签名管理
 
 2. **Agent 权限范围：**
    - 用户身份的日常管理操作
@@ -657,10 +1015,16 @@ Public (只读权限)
    - 调用合规合约的转账、铸造、销毁回调
    - 用于触发合规模块的状态更新
 
-4. **公开权限：**
+4. **Token Factory 权限（仅限已注册的代币工厂）：**
+   - 创建代币身份合约
+   - 用于将代币与身份合约关联
+
+5. **公开权限：**
    - 所有 view 函数均可公开访问
    - ERC-20 标准的转账和授权操作
-   - 用于查询和验证，不影响状态（转账除外）
+   - 身份工厂的钱包链接/取消链接操作
+   - 网关的身份部署操作（需要有效签名）
+   - 用于查询和验证，不影响状态（转账和部署除外）
 
 ### 权限矩阵图
 
@@ -670,6 +1034,7 @@ graph LR
         Owner[Owner<br/>所有者]
         Agent[Agent<br/>代理]
         Public[Public<br/>公开]
+        TokenFactory[Token Factory<br/>代币工厂]
     end
     
     subgraph "合约功能"
@@ -679,6 +1044,10 @@ graph LR
         TIR[TrustedIssuersRegistry]
         Token[Token]
         MC[ModularCompliance]
+        IF[IdentityIdFactory]
+        IG[IdentityGateway]
+        CIF[ClaimIssuerIdFactory]
+        CIG[ClaimIssuerGateway]
     end
     
     Owner -->|配置管理| CTR
@@ -687,6 +1056,10 @@ graph LR
     Owner -->|发行者管理| TIR
     Owner -->|代币配置<br/>Agent管理| Token
     Owner -->|模块管理<br/>代币绑定| MC
+    Owner -->|身份工厂管理| IF
+    Owner -->|签名者管理| IG
+    Owner -->|声明发行者工厂管理| CIF
+    Owner -->|签名者管理| CIG
     
     Agent -.->|无权限| CTR
     Agent -->|身份管理| IR
@@ -694,6 +1067,10 @@ graph LR
     Agent -.->|无权限| TIR
     Agent -->|代币操作<br/>冻结管理| Token
     Agent -.->|无权限| MC
+    Agent -.->|无权限| IF
+    Agent -.->|无权限| IG
+    Agent -.->|无权限| CIF
+    Agent -.->|无权限| CIG
     
     Public -->|查询| CTR
     Public -->|查询| IR
@@ -701,6 +1078,13 @@ graph LR
     Public -->|查询| TIR
     Public -->|转账<br/>查询| Token
     Public -->|查询| MC
+    Public -->|部署身份<br/>查询| IF
+    Public -->|部署身份<br/>查询| IG
+    Public -->|部署身份<br/>查询| CIF
+    Public -->|部署身份<br/>查询| CIG
+    
+    TokenFactory -->|创建代币身份| IF
+    TokenFactory -->|创建代币身份| CIF
     
     Token -.->|回调| MC
     
@@ -709,11 +1093,13 @@ graph LR
     classDef publicStyle fill:#95e1d3,stroke:#20c997,stroke-width:3px,color:#000
     classDef contractStyle fill:#ffeaa7,stroke:#fdcb6e,stroke-width:2px,color:#000
     classDef tokenStyle fill:#a29bfe,stroke:#6c5ce7,stroke-width:2px,color:#fff
+    classDef tokenFactoryStyle fill:#fd79a8,stroke:#e84393,stroke-width:2px,color:#fff
     
     class Owner ownerStyle
     class Agent agentStyle
     class Public publicStyle
-    class CTR,IR,IRS,TIR,Token,MC contractStyle
+    class TokenFactory tokenFactoryStyle
+    class CTR,IR,IRS,TIR,Token,MC,IF,IG,CIF,CIG contractStyle
 ```
 
 ### 注意事项
@@ -736,4 +1122,12 @@ graph LR
    - 通过合规检查（`canTransfer`）
 
 7. `Token` 合约的 `mint` 函数需要接收地址已验证且通过合规检查（`canTransfer` 从零地址到接收地址）。
+
+8. `IdFactory` 合约的 `createTokenIdentity` 函数可以由 Owner 或已注册的 Token Factory 调用，用于创建代币身份合约。
+
+9. `Gateway` 合约的 `deployIdentityWithSalt` 和 `deployIdentityWithSaltAndManagementKeys` 函数需要有效的签名，签名必须来自已批准的签名者且未被撤销。如果设置了过期时间，签名必须在有效期内。
+
+10. `Gateway` 合约在构造函数中最多可以批准10个签名者，后续可以通过 `approveSigner` 添加更多签名者。
+
+11. `IdFactory` 合约中，每个身份最多可以链接100个钱包地址，通过 `linkWallet` 和 `unlinkWallet` 进行管理。
 

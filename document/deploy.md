@@ -1,12 +1,12 @@
 # TREX 合约部署逻辑与关系
 
-本文档基于 `DeployIdFactory.s.sol` 和 `DeployERC3643.s.sol` 两个部署脚本，描述合约之间的部署顺序和关系。
+本文档基于`DeployERC3643.s.sol` 部署脚本，描述合约之间的部署顺序和关系。
 
 ## 合约依赖关系图
 
 ```mermaid
 graph LR
-    subgraph "Identity 相关合约"
+    subgraph "IdentityId 相关合约"
         IdentityImpl[Identity Implementation<br/>身份实现合约]
         IA[ImplementationAuthority<br/>实现授权中心]
         IdFactory[IdFactory<br/>身份工厂]
@@ -17,6 +17,17 @@ graph LR
         Gateway -.->|拥有所有权| IdFactory
     end
     
+    subgraph "ClaimIssuerId 相关合约"
+        ClaimIssuerImpl[ClaimIssuer Implementation<br/>身份实现合约]
+        CIA[claimIssuerImplementationAuthority<br/>实现授权中心]
+        ClaimIssuerIdFactory[ClaimIssuerIdFactory<br/>身份工厂]
+        ClaimIssuerGateway[ClaimIssuerGateway<br/>网关合约]
+        
+        ClaimIssuerImpl -.->|存储引用| CIA
+        CIA -.->|存储引用| ClaimIssuerIdFactory
+        ClaimIssuerGateway -.->|拥有所有权| ClaimIssuerIdFactory
+    end
+
     subgraph "TREX 实现合约"
         TokenImpl[Token Implementation]
         CTRImpl[ClaimTopicsRegistry Implementation]
@@ -63,7 +74,7 @@ graph LR
    
 ## 部署顺序详解
 
-### 第一阶段: Identity Factory 部署 (`DeployIdFactory.s.sol`)
+### 第一阶段: Identity Factory 部署 (`DeployERC3643.s.sol`)
 
 1. **部署 Identity Implementation**
    - 合约: `Identity`
@@ -89,6 +100,34 @@ graph LR
 5. **转移所有权**
    - 将 `IdFactory` 的所有权转移给 `Gateway`
    - 这样 Gateway 可以控制 IdFactory 的操作
+
+### 第一阶段（续）: ClaimIssuerId Factory 部署 (`DeployERC3643.s.sol`)
+
+1. **部署 ClaimIssuer Implementation**
+   - 合约: `RWAClaimIssuer`
+   - 参数: `msg.sender` (部署者)
+   - 作用: ClaimIssuer 身份的实现合约
+
+2. **部署 claimIssuerImplementationAuthority**
+   - 合约: `ImplementationAuthority`
+   - 参数: `address(rwaClaimIssuerImpl)` - ClaimIssuer 实现合约地址
+   - 作用: 管理 ClaimIssuer 合约的实现地址
+
+3. **部署 ClaimIssuerIdFactory**
+   - 合约: `RWAClaimIssuerIdFactory`
+   - 参数: `address(claimIssuerImplementationAuthority)` - claimIssuerImplementationAuthority 地址
+   - 作用: 用于创建和管理 ClaimIssuer 身份合约
+
+4. **部署 ClaimIssuerGateway**
+   - 合约: `RWAClaimIssuerGateway`
+   - 参数: 
+     - `address(claimIssuerIdFactory)` - ClaimIssuerIdFactory 地址
+     - `signers` - 签名者数组（部署脚本中为空数组）
+   - 作用: 包装 ClaimIssuerIdFactory，提供访问控制
+
+5. **转移所有权**
+   - 将 `ClaimIssuerIdFactory` 的所有权转移给 `ClaimIssuerGateway`
+   - 这样 ClaimIssuerGateway 可以控制 ClaimIssuerIdFactory 的操作
 
 ### 第二阶段: TREX 核心合约部署 (`DeployERC3643.s.sol`)
 

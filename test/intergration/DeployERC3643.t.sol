@@ -56,7 +56,7 @@ contract DeployERC3643Test is Test {
         trexImplementationAuthority = deployScript.trexImplementationAuthority();
         trexFactory = deployScript.trexFactory();
         trexGateway = deployScript.trexGateway();
-        identityIdFactory = deployScript.identityidFactory();
+        identityIdFactory = deployScript.identityIdFactory();
         identityGateway = deployScript.identityGateway();
         claimIssuerIdFactory = deployScript.claimIssuerIdFactory();
         claimIssuerGateway = deployScript.claimIssuerGateway();

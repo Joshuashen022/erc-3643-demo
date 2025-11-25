@@ -68,7 +68,7 @@ contract DownToERC20Test is Test {
         trexImplementationAuthority = deployScript.trexImplementationAuthority();
         trexFactory = deployScript.trexFactory();
         trexGateway = deployScript.trexGateway();
-        identityIdFactory = deployScript.identityidFactory();
+        identityIdFactory = deployScript.identityIdFactory();
 
         string memory salt = deployScript.salt();
         rwaToken = RWAToken(trexFactory.getToken(salt));

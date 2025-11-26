@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import {console} from "forge-std/console.sol";
 import {Vm} from "forge-std/Vm.sol";
-import {RWAIdentity} from "../../src/rwa/identity/Identity.sol";
+import {RWAIdentity, RWAClaimIssuer} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityIdFactory} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
@@ -13,8 +13,8 @@ library IdentityInitializationLib {
         Vm vm,
         RWAIdentityIdFactory identityIdFactory,
         RWAIdentityRegistry identityRegistry,
-        address managementKey,
-        address claimKeyAddress,
+        address identityManagementKey,
+        address claimIssuerManagementKey,
         uint256 claimKeyPrivateKey,
         uint256 claimTopicKyc,
         uint256 claimSchemeEcdsa,
@@ -27,18 +27,18 @@ library IdentityInitializationLib {
         if (claimKeyPrivateKey == uint256(0)) {
             revert("CLAIM_KEY_PRIVATE_KEY is required");
         }
-
+        
         // Create identity
         vm.startBroadcast();
-        identity = identityIdFactory.createIdentity(managementKey, "identity1");
+        identity = identityIdFactory.createIdentity(identityManagementKey, "identity1");
         vm.stopBroadcast();
-
+        
         // Add key and claim
         _addKeyAndClaim(
             vm,
             identity,
-            managementKey,
-            claimKeyAddress,
+            identityManagementKey,
+            claimIssuerManagementKey,
             claimKeyPrivateKey,
             claimTopicKyc,
             claimSchemeEcdsa,
@@ -49,30 +49,36 @@ library IdentityInitializationLib {
         
         // Register identity
         vm.startBroadcast(deployer);
-        identityRegistry.registerIdentity(managementKey, IIdentity(address(identity)), uint16(country));
+        identityRegistry.registerIdentity(identityManagementKey, IIdentity(address(identity)), uint16(country));
         vm.stopBroadcast();
     }
 
     function _addKeyAndClaim(
         Vm vm,
         address identity,
-        address managementKey,
-        address claimKeyAddress,
-        uint256 claimKeyPrivateKey,
+        address identityKey,
+        address claimIssuerManagementKey,
+        uint256 claimIssuerPrivateKey,
         uint256 claimTopicKyc,
         uint256 claimSchemeEcdsa,
         uint256 purposeClaim,
         uint256 keyTypeEcdsa,
         address claimIssuer
     ) private {
-        vm.startBroadcast(managementKey);
+        bytes32 claimKeyHash = keccak256(abi.encode(identityKey));
+        // console.log("Adding ClaimIssuer key to ClaimIssuer");
+        // vm.startBroadcast(claimIssuerManagementKey);
+        // RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
+        // console.log("ClaimIssuer key added successfully");
+        // vm.stopBroadcast();
         
         // Add key
-        bytes32 claimKeyHash = keccak256(abi.encode(claimKeyAddress));
+        vm.startBroadcast(identityKey);
+        console.log("Adding Identity key to Identity");
         RWAIdentity(identity).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-        
+        console.log("Identity key added successfully");
         // Generate signature
-        bytes memory sig = _generateSignature(vm, identity, claimTopicKyc, claimKeyPrivateKey);
+        bytes memory sig = _generateSignature(vm, identity, claimTopicKyc, claimIssuerPrivateKey);
         
         // Add claim
         bytes memory data = "";
@@ -86,13 +92,13 @@ library IdentityInitializationLib {
         Vm vm,
         address identity,
         uint256 claimTopicKyc,
-        uint256 claimKeyPrivateKey
+        uint256 claimIssuerPrivateKey
     ) private returns (bytes memory) {
         bytes memory data = "";
         bytes32 dataHash = keccak256(abi.encode(identity, claimTopicKyc, data));
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
         
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimIssuerPrivateKey, prefixedHash);
         return abi.encodePacked(r, s, v);
     }
 }

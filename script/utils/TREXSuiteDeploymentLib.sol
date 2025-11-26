@@ -29,13 +29,13 @@ library TREXSuiteDeploymentLib {
         TREXFactory trexFactory,
         string memory salt,
         address claimIssuer,
-        address deployer
+        address deployer,
+        address suiteOwner
     ) internal returns (TREXSuiteResult memory result) {
-        result.suiteOwner = deployer;
-        console.log("Suite owner (msg.sender):", result.suiteOwner);
+        console.log("Suite owner (msg.sender):", suiteOwner);
 
         // Prepare deployment details
-        ITREXFactory.TokenDetails memory tokenDetails = _prepareTokenDetails(result.suiteOwner);
+        ITREXFactory.TokenDetails memory tokenDetails = _prepareTokenDetails(suiteOwner);
         ITREXFactory.ClaimDetails memory claimDetails = _prepareClaimDetails(claimIssuer);
         
         // Deploy TREX Suite using the factory

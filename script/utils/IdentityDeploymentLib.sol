@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import {console} from "forge-std/console.sol";
-import {Vm} from "forge-std/Vm.sol";
+import {Vm, VmSafe} from "forge-std/Vm.sol";
 import {ImplementationAuthority} from "../../lib/solidity/contracts/proxy/ImplementationAuthority.sol";
 import {IdFactory} from "../../lib/solidity/contracts/factory/IdFactory.sol";
 import {RWAIdentity, RWAClaimIssuer} from "../../src/rwa/identity/Identity.sol";
@@ -58,21 +58,21 @@ library IdentityDeploymentLib {
     function initializeClaimIssuer(
         Vm vm,
         RWAClaimIssuerIdFactory claimIssuerIdFactory,
-        address managementKey,
-        address claimKeyAddress,
+        address claimIssuerManagementKey,
+        address identityKey,
         uint256 purposeClaim,
         uint256 keyTypeEcdsa
     ) internal returns (address claimIssuer) {
         vm.startBroadcast();
-        claimIssuer = claimIssuerIdFactory.createIdentity(managementKey, "claimissuer1");
+        claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerManagementKey, "claimissuer1");
         vm.stopBroadcast();
         
-        bytes32 claimKeyHash = keccak256(abi.encode(claimKeyAddress));
+        bytes32 claimKeyHash = keccak256(abi.encode(claimIssuerManagementKey));
 
-        vm.startBroadcast(managementKey);
+        vm.startBroadcast(claimIssuerManagementKey);
         RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
         
-        console.log("ClaimIssuer initialized successfully", claimIssuer);
+        // console.log("ClaimIssuer initialized successfully", claimIssuer);
 
         vm.stopBroadcast();
     }

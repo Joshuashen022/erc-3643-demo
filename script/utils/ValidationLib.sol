@@ -57,27 +57,34 @@ library ValidationLib {
     }
 
     function validateIdentity(
+        RWAIdentityRegistry identityRegistry,
+        address identityManagementKey,
+        address claimIssuerManagementKey,
         address identity,
-        address claimIssuer,
-        address managementKey
+        address claimIssuer
     ) internal view {
-        // Check that managementKey is set
-        require(managementKey != address(0), "Management key should be set");
+        // Check that identityManagementKey is set
+        require(identityManagementKey != address(0), "Identity management key should be set");
+        // Check that claimIssuerManagementKey is set
+        require(claimIssuerManagementKey != address(0), "ClaimIssuer management key should be set");
 
         // Check that managementKey is a management key of Identity (purpose = 1)
         require(
-            RWAIdentity(identity).keyHasPurpose(keccak256(abi.encode(managementKey)), 1),
+            RWAIdentity(identity).keyHasPurpose(keccak256(abi.encode(identityManagementKey)), 1),
             "Management key should be a management key of Identity"
         );
 
         // Check that managementKey is a management key of ClaimIssuer (purpose = 1)
         require(
-            RWAClaimIssuer(claimIssuer).keyHasPurpose(keccak256(abi.encode(managementKey)), 1),
+            RWAClaimIssuer(claimIssuer).keyHasPurpose(keccak256(abi.encode(claimIssuerManagementKey)), 1),
             "Management key should be a management key of ClaimIssuer"
         );
 
-        console.log("Identity:", identity, "Management Key", managementKey);
-        console.log("ClaimIssuer:", claimIssuer, "Management Key", managementKey);
+        console.log("Identity:", identity, "Management Key", identityManagementKey);
+        console.log("ClaimIssuer:", claimIssuer, "Management Key", claimIssuerManagementKey);
+
+        require(identityRegistry.isVerified(identityManagementKey), "Identity is not verified");
+        console.log("Identity is verified", identityManagementKey);
     }
 }
 

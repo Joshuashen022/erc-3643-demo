@@ -13,8 +13,19 @@ import {IdentityInitializationLib} from "./utils/IdentityInitializationLib.sol";
 import {ValidationLib} from "./utils/ValidationLib.sol";
 import {RWAIdentityIdFactory, RWAIdentityGateway} from "../src/rwa/proxy/RWAIdentityIdFactory.sol";
 import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 
 contract DeployERC3643 is Script {
+    string public salt = "trex-suite-1";
+    address public suiteOwner = vm.envOr("SUITE_OWNER", msg.sender);
+    uint256 public claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
+    uint256 public identityPrivateKey = vm.envOr("IDENTITY_PRIVATE_KEY", uint256(0));
+    uint256 claimTopicKyc = vm.envOr("CLAIM_TOPIC_KYC", uint256(1));
+    uint256 country = vm.envOr("COUNTRY_CODE", uint256(840));
+    uint256 claimSchemeEcdsa = 1;
+    uint256 purposeClaim = 3;
+    uint256 keyTypeEcdsa = 1;
+
     // TREX factory contracts
     TREXImplementationAuthority public trexImplementationAuthority;
     TREXFactory public trexFactory;
@@ -29,27 +40,19 @@ contract DeployERC3643 is Script {
     ITREXImplementationAuthority.Version public currentVersion;
     address public identity;
     address public claimIssuer;
-    string public salt = "trex-suite-1";
-    address public suiteOwner;
-    address public managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
-    address public claimKeyAddress = vm.envOr("CLAIM_KEY_ADDRESS", msg.sender);
-    uint256 claimKeyPrivateKey = vm.envOr("CLAIM_KEY_PRIVATE_KEY", uint256(0));
-    uint256 claimTopicKyc = vm.envOr("CLAIM_TOPIC_KYC", uint256(1));
-    uint256 country = vm.envOr("COUNTRY_CODE", uint256(840));
-    uint256 claimSchemeEcdsa = 1;
-    uint256 purposeClaim = 3;
-    uint256 keyTypeEcdsa = 1;
 
     function run() external {
         console.log("=== Deploying RWA Identity Factories ===");
         identityDeployment = IdentityDeploymentLib.deployAllIdentityContracts(vm, msg.sender);
         
+        VmSafe.Wallet memory claimIssuerWallet = vm.createWallet(claimIssuerPrivateKey);
+        VmSafe.Wallet memory identityWallet = vm.createWallet(identityPrivateKey);
         // Initialize ClaimIssuer
         claimIssuer = IdentityDeploymentLib.initializeClaimIssuer(
             vm,
             identityDeployment.claimIssuerIdFactory,
-            managementKey,
-            claimKeyAddress,
+            claimIssuerWallet.addr,
+            identityWallet.addr,
             purposeClaim,
             keyTypeEcdsa
         );
@@ -79,9 +82,10 @@ contract DeployERC3643 is Script {
             trexFactory,
             salt,
             claimIssuer,
-            msg.sender
+            msg.sender,
+            // todo::test if suiteOwner is not deployer, how to handle the case?
+            suiteOwner
         );
-        suiteOwner = suiteResult.suiteOwner;
         
         // Step 4: Deploy TREXGateway
         // Requires factory address and publicDeploymentStatus
@@ -93,9 +97,9 @@ contract DeployERC3643 is Script {
             vm,
             identityDeployment.identityIdFactory,
             suiteResult.identityRegistry,
-            managementKey,
-            claimKeyAddress,
-            claimKeyPrivateKey,
+            identityWallet.addr,
+            claimIssuerWallet.addr,
+            claimIssuerWallet.privateKey,
             claimTopicKyc,
             claimSchemeEcdsa,
             purposeClaim,
@@ -107,7 +111,10 @@ contract DeployERC3643 is Script {
         
         // Validate agent initialization
         console.log("\n=== Validating ===");
-        validate();
+        validate(
+            claimIssuerWallet.addr,
+            identityWallet.addr
+        );
         console.log("Validation passed");
 
         // Unpause the token after deployment
@@ -115,7 +122,10 @@ contract DeployERC3643 is Script {
         TREXSuiteDeploymentLib.unPauseToken(vm, trexFactory, salt, suiteOwner);
         console.log("Token unpaused successfully");
     }
-    function validate() internal view {
+    function validate(
+        address claimIssuerManagementKey,
+        address identityManagementKey
+    ) internal view {
         ValidationLib.validateRWAModule(
             suiteOwner,
             suiteResult.token,
@@ -125,7 +135,8 @@ contract DeployERC3643 is Script {
             suiteResult.claimTopicsRegistry,
             trexFactory
         );
-        ValidationLib.validateIdentity(identity, claimIssuer, managementKey);
+        ValidationLib.validateIdentity(suiteResult.identityRegistry, identityManagementKey, claimIssuerManagementKey, identity, claimIssuer);
+        require(suiteResult.identityRegistry.isVerified(identityManagementKey), "Identity is not verified");
     }
 
     function identityIdFactory() external view returns (RWAIdentityIdFactory) {

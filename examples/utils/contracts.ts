@@ -103,9 +103,9 @@ export async function initializeContracts(
 
   const addresses = getContractAddresses(Number(network.chainId));
 
-  const pk = privateKey || process.env.PRIVATE_KEY || process.env.CLAIM_KEY_PRIVATE_KEY;
+  const pk = privateKey || process.env.PRIVATE_KEY;
   if (!pk) {
-    throw new Error("请设置 PRIVATE_KEY 或 CLAIM_KEY_PRIVATE_KEY 环境变量");
+    throw new Error("请设置 PRIVATE_KEY 环境变量");
   }
   const wallet = new ethers.Wallet(pk, provider);
   console.log(`使用钱包地址: ${wallet.address}`);

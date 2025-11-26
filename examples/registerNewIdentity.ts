@@ -13,10 +13,8 @@ async function main() {
   console.log("\n=== 开始注册新身份 ===");
 
   // 生成新的管理密钥
-  // const newClaimKeyPrivateKey = process.env.NEW_CLAIM_KEY_PRIVATE_KEY || 
-  //   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-  const newClaimKeyWallet = ethers.Wallet.createRandom().connect(config.provider);
-  const newManagementKey = newClaimKeyWallet.address;
+  const newManagementKeyWallet = ethers.Wallet.createRandom().connect(config.provider);
+  const newManagementKey = newManagementKeyWallet.address;
   console.log(`新管理密钥地址: ${newManagementKey}`);
 
   // 创建新身份
@@ -29,11 +27,11 @@ async function main() {
   const identitySalt = `newIdentity-${Date.now()}`;
   
   const tx = await factoryOwnerWallet.sendTransaction({
-    to: newClaimKeyWallet.address,
+    to: newManagementKey,
     value: ethers.parseEther("0.0001"),
   });
   await tx.wait();
-  console.log(`Factory owner sent 0.0001 ETH to new claim key wallet: ${newClaimKeyWallet.address}`);
+  console.log(`Factory owner sent 0.0001 ETH to new management key wallet: ${newManagementKey}`);
 
   let newIdentityAddress: string | undefined;
   
@@ -83,50 +81,15 @@ async function main() {
 
   console.log(`新身份地址: ${newIdentityAddress}`);
   
-  // 添加 claim key 到新身份
-  console.log("\n--- 添加 claim key 到新身份 ---");
-  const purposeClaim = 3;
-  const keyTypeEcdsa = 1;
-  const claimKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["address"], [newManagementKey]));
-  console.log(`Claim Key Hash: ${claimKeyHash}`);
-
-  const rwaIdentityABI = getContractABI("RWAIdentity");
-  const newIdentity = new ethers.Contract(
-    newIdentityAddress,
-    rwaIdentityABI.length > 0 ? rwaIdentityABI : [
-      "function addKey(bytes32 _key, uint256 _purpose, uint256 _keyType) external",
-      "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external",
-      "function keyHasPurpose(bytes32 _key, uint256 _purpose) external view returns (bool)",
-    ],
-    newClaimKeyWallet
-  );
-
-  try {
-    const keyExists = await (newIdentity as any).keyHasPurpose(claimKeyHash, purposeClaim);
-    if (keyExists) {
-      console.log("✓ Claim key 已存在于新身份，跳过添加");
-    } else {
-      await sendTransaction(
-        newIdentity,
-        "addKey",
-        [claimKeyHash, purposeClaim, keyTypeEcdsa],
-        "添加 key",
-        config.provider,
-        rpcUrl
-      );
-      console.log("✓ Claim key 已添加到新身份");
-    }
-  } catch (error: any) {
-    throw new Error(`添加 claim key 失败: ${error.message}`);
+  // 获取 claimIssuer 地址和私钥
+  console.log("\n--- 获取 ClaimIssuer 信息 ---");
+  const claimIssuerPrivateKey = process.env.CLAIM_ISSUER_PRIVATE_KEY;
+  if (!claimIssuerPrivateKey) {
+    throw new Error("请设置 CLAIM_ISSUER_PRIVATE_KEY 环境变量");
   }
+  const claimIssuerWallet = new ethers.Wallet(claimIssuerPrivateKey, config.provider);
+  console.log(`ClaimIssuer 钱包地址: ${claimIssuerWallet.address}`);
 
-  // 添加 claim key 到 claimIssuer
-  console.log("\n--- 添加 claim key 到 ClaimIssuer ---");
-  const managementKeyWallet = new ethers.Wallet(
-    process.env.MANAGEMENT_KEY_PRIVATE_KEY || config.privateKey,
-    config.provider
-  );
-  
   const network = await config.provider.getNetwork();
   const addresses = getContractAddresses(Number(network.chainId));
   const claimIssuerIdFactoryAddress = process.env.CLAIM_ISSUER_ID_FACTORY || addresses["RWAClaimIssuerIdFactory"];
@@ -144,37 +107,22 @@ async function main() {
     config.provider
   );
   
-  const claimIssuerAddress = await claimIssuerIdFactory.getIdentity(config.managementKey);
-  const claimIssuerABI = getContractABI("RWAClaimIssuer");
-  const claimIssuer = new ethers.Contract(
-    ethers.getAddress(claimIssuerAddress),
-    claimIssuerABI.length > 0 ? claimIssuerABI : [
-      "function addKey(bytes32 _key, uint256 _purpose, uint256 _keyType) external",
-      "function keyHasPurpose(bytes32 _key, uint256 _purpose) external view returns (bool)",
-    ],
-    managementKeyWallet
-  );
-
-  try {
-    const keyExists = await (claimIssuer as any).keyHasPurpose(claimKeyHash, purposeClaim);
-    if (keyExists) {
-      console.log("✓ Claim key 已存在于 ClaimIssuer，跳过添加");
-    } else {
-      await sendTransaction(
-        claimIssuer,
-        "addKey",
-        [claimKeyHash, purposeClaim, keyTypeEcdsa],
-        "添加 key 到 ClaimIssuer",
-        config.provider,
-        rpcUrl
-      );
-      console.log("✓ Claim key 已添加到 ClaimIssuer");
-    }
-  } catch (error: any) {
-    throw new Error(`添加 claim key 到 ClaimIssuer 失败: ${error.message}`);
+  const claimIssuerAddress = await claimIssuerIdFactory.getIdentity(claimIssuerWallet.address);
+  if (!claimIssuerAddress || claimIssuerAddress === "0x0000000000000000000000000000000000000000") {
+    throw new Error("无法获取 ClaimIssuer 地址");
   }
+  console.log(`ClaimIssuer 地址: ${claimIssuerAddress}`);
+
+  const rwaIdentityABI = getContractABI("RWAIdentity");
+  const newIdentity = new ethers.Contract(
+    newIdentityAddress,
+    rwaIdentityABI.length > 0 ? rwaIdentityABI : [
+      "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external"
+    ],
+    newManagementKeyWallet
+  );
   
-  // 创建并签名 claim
+  // 创建并签名 claim（使用 claimIssuer 的私钥）
   console.log("\n--- 创建并签名 claim ---");
   const claimTopicKyc = 1;
   const claimSchemeEcdsa = 1;
@@ -196,7 +144,8 @@ async function main() {
   );
   console.log(`Prefixed Hash: ${prefixedHash}`);
 
-  const signature = await newClaimKeyWallet.signingKey.sign(prefixedHash);
+  // 使用 claimIssuer 的私钥签名（而不是新创建的 management key）
+  const signature = await claimIssuerWallet.signingKey.sign(prefixedHash);
   const vByte = signature.v >= 27 ? signature.v - 27 : signature.v;
   const sigBytes = ethers.concat([
     signature.r,
@@ -205,7 +154,7 @@ async function main() {
   ]);
   console.log(`签名: ${sigBytes} (长度: ${sigBytes.length} 字节)`);
   
-  // 添加 claim 到新身份
+  // 添加 claim 到新身份（使用 newManagementKey 的 wallet）
   console.log("\n--- 添加 claim 到新身份 ---");
   try {
     await sendTransaction(

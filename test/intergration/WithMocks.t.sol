@@ -113,29 +113,16 @@ contract IntegrationTest is Test {
 
         // Deploy claimIssuer and identity
         claimIssuer = new RWAClaimIssuer(claimIssuerKeyAddress);
-
-        // vm.startPrank(managementKey);
-        // claimIssuer.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
-        // vm.stopPrank();    
-            
         identity = new RWAIdentity(identityKey);
-        
-        // Add claimIssuerKeyAddress as a CLAIM key (purpose 3) to the identity
-        // This is required because addClaim requires the sender to have a CLAIM key
-        bytes32 claimIssuerKeyHash = keccak256(abi.encode(claimIssuerKeyAddress));
-        vm.startPrank(identityKey);
-        identity.addKey(claimIssuerKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
-        vm.stopPrank();
 
         // Create valid signature for the claim
-        // IIdentity claimIdentity = IIdentity(address(identity));
         bytes memory data = "";
         bytes32 dataHash = keccak256(abi.encode(identity, CLAIM_TOPIC_KYC, data));
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimIssuerKeyPrivateKey, prefixedHash);
         bytes memory sig = abi.encodePacked(r, s, v);
             
-        vm.prank(claimIssuerKeyAddress);
+        vm.prank(identityKey);
         identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
     }
 

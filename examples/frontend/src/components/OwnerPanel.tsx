@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
 
@@ -11,6 +11,16 @@ interface OwnerPanelProps {
 export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
+  
+  // Owner 检查状态
+  const [ownerStatus, setOwnerStatus] = useState<Record<string, { isOwner: boolean | null; checking: boolean }>>({
+    claimTopicsRegistry: { isOwner: null, checking: false },
+    trustedIssuersRegistry: { isOwner: null, checking: false },
+    modularCompliance: { isOwner: null, checking: false },
+    token: { isOwner: null, checking: false },
+    identityRegistry: { isOwner: null, checking: false },
+    identityRegistryStorage: { isOwner: null, checking: false },
+  });
 
   // ClaimTopicsRegistry 状态
   const [claimTopic, setClaimTopic] = useState("");
@@ -49,6 +59,51 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
   const showResult = (key: string, message: string) => {
     setResults((prev) => ({ ...prev, [key]: message }));
   };
+
+  // 检查 owner 角色
+  useEffect(() => {
+    const checkOwnerRole = async (contractName: string, contractAddress: string | undefined) => {
+      if (!account || !contractAddress) {
+        setOwnerStatus((prev) => ({
+          ...prev,
+          [contractName]: { isOwner: null, checking: false },
+        }));
+        return;
+      }
+
+      setOwnerStatus((prev) => ({
+        ...prev,
+        [contractName]: { isOwner: null, checking: true },
+      }));
+
+      try {
+        const contract = new ethers.Contract(
+          contractAddress,
+          ["function owner() external view returns (address)"],
+          provider
+        );
+        const ownerAddress = await contract.owner();
+        const isOwner = ownerAddress.toLowerCase() === account.toLowerCase();
+        setOwnerStatus((prev) => ({
+          ...prev,
+          [contractName]: { isOwner, checking: false },
+        }));
+      } catch (error: any) {
+        console.error(`检查 ${contractName} owner 角色失败:`, error);
+        setOwnerStatus((prev) => ({
+          ...prev,
+          [contractName]: { isOwner: null, checking: false },
+        }));
+      }
+    };
+
+    checkOwnerRole("claimTopicsRegistry", CONTRACT_ADDRESSES.claimTopicsRegistry);
+    checkOwnerRole("trustedIssuersRegistry", CONTRACT_ADDRESSES.trustedIssuersRegistry);
+    checkOwnerRole("modularCompliance", CONTRACT_ADDRESSES.modularCompliance);
+    checkOwnerRole("token", CONTRACT_ADDRESSES.token);
+    checkOwnerRole("identityRegistry", CONTRACT_ADDRESSES.identityRegistry);
+    checkOwnerRole("identityRegistryStorage", CONTRACT_ADDRESSES.identityRegistryStorage);
+  }, [account, provider]);
 
   // ClaimTopicsRegistry 操作
   const handleAddClaimTopic = async () => {
@@ -634,6 +689,21 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       {/* ClaimTopicsRegistry */}
       <div className="section">
         <h3>声明主题管理 (ClaimTopicsRegistry)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {ownerStatus.claimTopicsRegistry.checking ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 owner 角色...</div>
+          ) : ownerStatus.claimTopicsRegistry.isOwner === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 owner 角色（请确保已配置合约地址）</div>
+          ) : ownerStatus.claimTopicsRegistry.isOwner ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Owner 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Owner 角色
+            </div>
+          )}
+        </div>
         
         {/* 添加声明主题 */}
         <div className="subsection">
@@ -709,6 +779,21 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       {/* TrustedIssuersRegistry */}
       <div className="section">
         <h3>可信发行者管理 (TrustedIssuersRegistry)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {ownerStatus.trustedIssuersRegistry.checking ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 owner 角色...</div>
+          ) : ownerStatus.trustedIssuersRegistry.isOwner === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 owner 角色（请确保已配置合约地址）</div>
+          ) : ownerStatus.trustedIssuersRegistry.isOwner ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Owner 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Owner 角色
+            </div>
+          )}
+        </div>
         
         {/* 添加可信发行者 */}
         <div className="subsection">
@@ -826,6 +911,21 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       {/* ModularCompliance */}
       <div className="section">
         <h3>合规模块管理 (ModularCompliance)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {ownerStatus.modularCompliance.checking ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 owner 角色...</div>
+          ) : ownerStatus.modularCompliance.isOwner === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 owner 角色（请确保已配置合约地址）</div>
+          ) : ownerStatus.modularCompliance.isOwner ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Owner 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Owner 角色
+            </div>
+          )}
+        </div>
         
         {/* 添加模块 */}
         <div className="subsection">
@@ -982,6 +1082,21 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       {/* IdentityRegistry */}
       <div className="section">
         <h3>身份注册表管理 (IdentityRegistry)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {ownerStatus.identityRegistry.checking ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 owner 角色...</div>
+          ) : ownerStatus.identityRegistry.isOwner === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 owner 角色（请确保已配置合约地址）</div>
+          ) : ownerStatus.identityRegistry.isOwner ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Owner 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Owner 角色
+            </div>
+          )}
+        </div>
         
         {/* 设置身份注册表存储 */}
         <div className="subsection">
@@ -1114,6 +1229,21 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       {/* IdentityRegistryStorage */}
       <div className="section">
         <h3>身份注册表存储管理 (IdentityRegistryStorage)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {ownerStatus.identityRegistryStorage.checking ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 owner 角色...</div>
+          ) : ownerStatus.identityRegistryStorage.isOwner === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 owner 角色（请确保已配置合约地址）</div>
+          ) : ownerStatus.identityRegistryStorage.isOwner ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Owner 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Owner 角色
+            </div>
+          )}
+        </div>
         
         {/* 绑定身份注册表 */}
         <div className="subsection">
@@ -1174,6 +1304,21 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       {/* Token */}
       <div className="section">
         <h3>代币管理 (Token)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {ownerStatus.token.checking ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 owner 角色...</div>
+          ) : ownerStatus.token.isOwner === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 owner 角色（请确保已配置合约地址）</div>
+          ) : ownerStatus.token.isOwner ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Owner 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Owner 角色
+            </div>
+          )}
+        </div>
         
         {/* 设置身份注册表 */}
         <div className="subsection">

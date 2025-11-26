@@ -2,7 +2,7 @@
  * 从 Foundry 部署日志中读取合约地址
  * 参考 examples/utils/contracts.ts 中的 getContractAddresses 函数
  */
-function getContractAddresses(chainId: number): Record<string, string> {
+export function getContractAddresses(chainId: number): Record<string, string> {
   // 在浏览器环境中，无法直接读取文件系统
   // 优先从环境变量读取，如果没有则返回空对象
   if (typeof window !== "undefined") {
@@ -97,9 +97,27 @@ function getContractAddresses(chainId: number): Record<string, string> {
   }
 }
 
+// RPC URL 配置
+export const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
+
+// 根据 RPC URL 推断 chainId
+// 如果使用本地网络，chainId 应该是 31337
+// 如果使用 Base Sepolia，chainId 是 84532
+function inferChainIdFromRpc(rpcUrl: string): number {
+  if (rpcUrl.includes("127.0.0.1") || rpcUrl.includes("localhost")) {
+    return 31337; // 本地 Foundry Anvil 默认 chainId
+  }
+  // 默认使用 chainId 84532 (Base Sepolia)，可以通过环境变量 VITE_CHAIN_ID 修改
+  return Number(import.meta.env.VITE_CHAIN_ID || "84532");
+}
+
 // 合约地址配置（从部署日志自动初始化）
 // 默认使用 chainId 84532 (Base Sepolia)，可以通过环境变量 VITE_CHAIN_ID 修改
-const chainId = Number(import.meta.env.VITE_CHAIN_ID || "84532");
+// 如果使用本地 RPC，自动使用 chainId 31337
+export const CHAIN_ID = import.meta.env.VITE_CHAIN_ID 
+  ? Number(import.meta.env.VITE_CHAIN_ID) 
+  : inferChainIdFromRpc(RPC_URL);
+
 export const CONTRACT_ADDRESSES: Record<string, string> = {
   claimTopicsRegistry: "",
   identityRegistry: "",
@@ -107,11 +125,36 @@ export const CONTRACT_ADDRESSES: Record<string, string> = {
   trustedIssuersRegistry: "",
   token: "",
   modularCompliance: "",
-  ...getContractAddresses(chainId),
+  ...getContractAddresses(CHAIN_ID),
 };
 
-// RPC URL 配置
-export const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
+// 网络配置信息
+export const NETWORK_CONFIG = {
+  // 本地网络 (Foundry Anvil)
+  31337: {
+    chainId: "0x7A69", // 31337 in hex
+    chainName: "Localhost 8545",
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+    rpcUrls: ["http://127.0.0.1:8545"],
+    blockExplorerUrls: [],
+  },
+  // Base Sepolia
+  84532: {
+    chainId: "0x14A34", // 84532 in hex
+    chainName: "Base Sepolia",
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+    rpcUrls: ["https://sepolia.base.org"],
+    blockExplorerUrls: ["https://sepolia-explorer.base.org"],
+  },
+};
 
 // 角色类型
 export type UserRole = "owner" | "agent" | "public";

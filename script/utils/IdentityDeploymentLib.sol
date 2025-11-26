@@ -67,14 +67,14 @@ library IdentityDeploymentLib {
         claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerManagementKey, "claimissuer1");
         vm.stopBroadcast();
         
-        bytes32 claimKeyHash = keccak256(abi.encode(claimIssuerManagementKey));
+        // bytes32 claimKeyHash = keccak256(abi.encode(claimIssuerManagementKey));
 
-        vm.startBroadcast(claimIssuerManagementKey);
-        RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
+        // vm.startBroadcast(claimIssuerManagementKey);
+        // RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
         
-        // console.log("ClaimIssuer initialized successfully", claimIssuer);
+        // // console.log("ClaimIssuer initialized successfully", claimIssuer);
 
-        vm.stopBroadcast();
+        // vm.stopBroadcast();
     }
 }
 

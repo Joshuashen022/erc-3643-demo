@@ -42,8 +42,8 @@ contract IntegrationTest is Test {
     uint8 private constant TOKEN_DECIMALS = 6;
     address private constant ONCHAIN_ID = address(0x123456);
     
-    uint256 internal claimKeyPrivateKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
-    address internal claimKeyAddress;
+    uint256 internal claimIssuerKeyPrivateKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
+    address internal claimIssuerKeyAddress;
     bytes32 internal claimKeyHash;
     address internal claimKey = address(0x3333);
 
@@ -106,31 +106,36 @@ contract IntegrationTest is Test {
 
     // set up identity and claim issuer with CLAIM_TOPIC_KYC
     function setUpIdentity() internal {
-        address managementKey = address(0x1111);
-        claimKeyAddress = vm.addr(claimKeyPrivateKey);
-        claimKeyHash = keccak256(abi.encode(claimKeyAddress));
+        address identityKey = address(0x1111);
+
+        claimIssuerKeyAddress = vm.addr(claimIssuerKeyPrivateKey);
+        claimKeyHash = keccak256(abi.encode(identityKey));
 
         // Deploy claimIssuer and identity
-        claimIssuer = new RWAClaimIssuer(managementKey);
+        claimIssuer = new RWAClaimIssuer(claimIssuerKeyAddress);
 
-        vm.startPrank(managementKey);
-        claimIssuer.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
-        vm.stopPrank();    
+        // vm.startPrank(managementKey);
+        // claimIssuer.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
+        // vm.stopPrank();    
             
-        identity = new RWAIdentity(managementKey);
-        vm.startPrank(managementKey);
-        identity.addKey(claimKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
+        identity = new RWAIdentity(identityKey);
+        
+        // Add claimIssuerKeyAddress as a CLAIM key (purpose 3) to the identity
+        // This is required because addClaim requires the sender to have a CLAIM key
+        bytes32 claimIssuerKeyHash = keccak256(abi.encode(claimIssuerKeyAddress));
+        vm.startPrank(identityKey);
+        identity.addKey(claimIssuerKeyHash, PURPOSE_CLAIM, KEY_TYPE_ECDSA);
         vm.stopPrank();
 
         // Create valid signature for the claim
-        IIdentity claimIdentity = IIdentity(address(identity));
+        // IIdentity claimIdentity = IIdentity(address(identity));
         bytes memory data = "";
-        bytes32 dataHash = keccak256(abi.encode(claimIdentity, CLAIM_TOPIC_KYC, data));
+        bytes32 dataHash = keccak256(abi.encode(identity, CLAIM_TOPIC_KYC, data));
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimIssuerKeyPrivateKey, prefixedHash);
         bytes memory sig = abi.encodePacked(r, s, v);
             
-        vm.prank(claimKeyAddress);
+        vm.prank(claimIssuerKeyAddress);
         identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
     }
 
@@ -182,27 +187,44 @@ contract IntegrationTest is Test {
     }
 
     function testSetUpRegisterIdentityWithMoreTopics_Success() public {
-        address newUser = address(0x9999);
         uint256 newTopic = 2;
+        uint256 claimSchemeEcdsa = 1;
+        address newIdentityManagementKey = address(0x9999);
+
+        // Create new identity
+        RWAIdentity newIdentity = new RWAIdentity(newIdentityManagementKey);
+
+        // Add claimIssuer's signature for topic 1 (KYC)
+        {
+            bytes memory data = "";
+            bytes32 dataHash1 = keccak256(abi.encode(address(newIdentity), CLAIM_TOPIC_KYC, data));
+            bytes32 prefixedHash1 = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash1));
+            (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(claimIssuerKeyPrivateKey, prefixedHash1);
+            bytes memory sig1 = abi.encodePacked(r1, s1, v1);
+            vm.prank(newIdentityManagementKey);
+            newIdentity.addClaim(CLAIM_TOPIC_KYC, claimSchemeEcdsa, address(claimIssuer), sig1, data, "");
+        }
         
-        // Create valid signature for the new topic claim
-        IIdentity claimIdentity = IIdentity(address(identity));
-        bytes memory data = "";
-        bytes32 dataHash = keccak256(abi.encode(claimIdentity, newTopic, data));
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        
-        vm.prank(claimKeyAddress);
-        identity.addClaim(newTopic, 1, address(claimIssuer), sig, data, "");
+        // Add claimIssuer's signature for new topic
+        {
+            bytes memory data = "";
+            bytes32 dataHash2 = keccak256(abi.encode(address(newIdentity), newTopic, data));
+            bytes32 prefixedHash2 = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash2));
+            (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(claimIssuerKeyPrivateKey, prefixedHash2);
+            bytes memory sig2 = abi.encodePacked(r2, s2, v2);
+            vm.prank(newIdentityManagementKey);
+            newIdentity.addClaim(newTopic, claimSchemeEcdsa, address(claimIssuer), sig2, data, "");
+        }
+
+        // Update trusted issuers registry to require both topics
         uint256[] memory topics = new uint256[](2);
         topics[0] = CLAIM_TOPIC_KYC;
         topics[1] = newTopic;
-        // this will replace the existing topic with the new topic
         trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
 
-        setUpRegisterIdentity(newUser);
-        assertTrue(identityRegistry.isVerified(newUser));
+        // Register new identity
+        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), COUNTRY_US);
+        assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
     }
 
     // ============ transferFrom tests ============

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESSES } from "../utils/config";
+import { CONTRACT_ADDRESSES, CHAIN_ID } from "../utils/config";
+import { checkNetwork, switchToTargetNetwork } from "../utils/contracts";
 
 interface AgentPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -11,6 +12,10 @@ interface AgentPanelProps {
 export default function AgentPanel({ provider, wallet, account }: AgentPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
+  const [isAgent, setIsAgent] = useState<boolean | null>(null);
+  const [checkingAgent, setCheckingAgent] = useState(false);
+  const [isTokenAgent, setIsTokenAgent] = useState<boolean | null>(null);
+  const [checkingTokenAgent, setCheckingTokenAgent] = useState(false);
 
   // IdentityRegistry 状态
   const [userAddress, setUserAddress] = useState("");
@@ -27,6 +32,62 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
   const showResult = (key: string, message: string) => {
     setResults((prev) => ({ ...prev, [key]: message }));
   };
+
+  // 组件加载时检查 agent 角色
+  useEffect(() => {
+    const checkIdentityRegistryAgentRole = async () => {
+      if (!account || !CONTRACT_ADDRESSES.identityRegistry) {
+        setIsAgent(null);
+        return;
+      }
+
+      setCheckingAgent(true);
+      try {
+        const contract = new ethers.Contract(
+          CONTRACT_ADDRESSES.identityRegistry,
+          [
+            "function isAgent(address _agent) external view returns (bool)",
+          ],
+          provider
+        );
+        const agentStatus = await contract.isAgent(account);
+        setIsAgent(agentStatus);
+      } catch (error: any) {
+        console.error("检查 IdentityRegistry agent 角色失败:", error);
+        setIsAgent(null);
+      } finally {
+        setCheckingAgent(false);
+      }
+    };
+
+    const checkTokenAgentRole = async () => {
+      if (!account || !CONTRACT_ADDRESSES.token) {
+        setIsTokenAgent(null);
+        return;
+      }
+
+      setCheckingTokenAgent(true);
+      try {
+        const contract = new ethers.Contract(
+          CONTRACT_ADDRESSES.token,
+          [
+            "function isAgent(address _agent) external view returns (bool)",
+          ],
+          provider
+        );
+        const agentStatus = await contract.isAgent(account);
+        setIsTokenAgent(agentStatus);
+      } catch (error: any) {
+        console.error("检查 Token agent 角色失败:", error);
+        setIsTokenAgent(null);
+      } finally {
+        setCheckingTokenAgent(false);
+      }
+    };
+
+    checkIdentityRegistryAgentRole();
+    checkTokenAgentRole();
+  }, [account, provider]);
 
   // IdentityRegistry 操作
   const handleRegisterIdentity = async () => {
@@ -134,6 +195,27 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
     }
   };
 
+  // 检查网络并切换到正确网络（如果需要）
+  const ensureCorrectNetwork = async (): Promise<boolean> => {
+    const networkCheck = await checkNetwork();
+    if (!networkCheck.correct) {
+      try {
+        await switchToTargetNetwork();
+        // 等待一下让网络切换完成
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const newNetworkCheck = await checkNetwork();
+        if (!newNetworkCheck.correct) {
+          showResult("network", `网络错误: 当前网络 ChainId ${networkCheck.currentChainId}，需要 ChainId ${CHAIN_ID}。请在 MetaMask 中切换到正确的网络。`);
+          return false;
+        }
+      } catch (error: any) {
+        showResult("network", `切换网络失败: ${error.message}`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   // Token 操作
   const handleMint = async () => {
     if (!toAddress || !amount || !CONTRACT_ADDRESSES.token) {
@@ -143,6 +225,13 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
 
     setLoading(true);
     try {
+      // 确保在正确的网络
+      const networkOk = await ensureCorrectNetwork();
+      if (!networkOk) {
+        setLoading(false);
+        return;
+      }
+
       const contract = new ethers.Contract(
         CONTRACT_ADDRESSES.token,
         [
@@ -156,7 +245,12 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
       setToAddress("");
       setAmount("");
     } catch (error: any) {
-      showResult("mint", `错误: ${error.message}`);
+      let errorMsg = error.message || "未知错误";
+      // 如果错误信息包含 gas 或网络相关，给出更友好的提示
+      if (errorMsg.includes("insufficient funds") || errorMsg.includes("gas") || errorMsg.includes("network")) {
+        errorMsg = `交易失败: ${errorMsg}\n\n请检查:\n1. MetaMask 是否连接到正确的网络 (ChainId: ${CHAIN_ID})\n2. 账户余额是否充足\n3. 合约地址是否正确配置`;
+      }
+      showResult("mint", `错误: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -304,6 +398,21 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
       {/* IdentityRegistry */}
       <div className="section">
         <h3>身份管理 (IdentityRegistry)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {checkingAgent ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 agent 角色...</div>
+          ) : isAgent === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 agent 角色（请确保已配置合约地址）</div>
+          ) : isAgent ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Agent 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Agent 角色
+            </div>
+          )}
+        </div>
         <div className="form-row">
           <div className="form-group">
             <label>用户地址</label>
@@ -379,6 +488,21 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
       {/* Token 操作 */}
       <div className="section">
         <h3>代币管理 (Token)</h3>
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+          {checkingTokenAgent ? (
+            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 agent 角色...</div>
+          ) : isTokenAgent === null ? (
+            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 agent 角色（请确保已配置合约地址）</div>
+          ) : isTokenAgent ? (
+            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Agent 角色
+            </div>
+          ) : (
+            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
+              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Agent 角色
+            </div>
+          )}
+        </div>
         <div className="form-row">
           <div className="form-group">
             <label>接收地址</label>

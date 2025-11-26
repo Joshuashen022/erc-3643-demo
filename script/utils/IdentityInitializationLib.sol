@@ -65,7 +65,7 @@ library IdentityInitializationLib {
         uint256 keyTypeEcdsa,
         address claimIssuer
     ) private {
-        bytes32 claimKeyHash = keccak256(abi.encode(identityKey));
+        // bytes32 claimKeyHash = keccak256(abi.encode(identityKey));
         // console.log("Adding ClaimIssuer key to ClaimIssuer");
         // vm.startBroadcast(claimIssuerManagementKey);
         // RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
@@ -73,11 +73,13 @@ library IdentityInitializationLib {
         // vm.stopBroadcast();
         
         // Add key
-        vm.startBroadcast(identityKey);
-        console.log("Adding Identity key to Identity");
-        RWAIdentity(identity).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-        console.log("Identity key added successfully");
+
+        // console.log("Adding Identity key to Identity");
+        // RWAIdentity(identity).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
+        // console.log("Identity key added successfully");
         // Generate signature
+        
+        vm.startBroadcast(identityKey);
         bytes memory sig = _generateSignature(vm, identity, claimTopicKyc, claimIssuerPrivateKey);
         
         // Add claim

@@ -40,6 +40,10 @@ contract DeployERC3643 is Script {
     ITREXImplementationAuthority.Version public currentVersion;
     address public identity;
     address public claimIssuer;
+    
+    // Wallet addresses computed from private keys
+    address public identityManagementKey;
+    address public claimIssuerManagementKey;
 
     function run() external {
         console.log("=== Deploying RWA Identity Factories ===");
@@ -47,6 +51,11 @@ contract DeployERC3643 is Script {
         
         VmSafe.Wallet memory claimIssuerWallet = vm.createWallet(claimIssuerPrivateKey);
         VmSafe.Wallet memory identityWallet = vm.createWallet(identityPrivateKey);
+        
+        // Store wallet addresses for access in tests
+        identityManagementKey = identityWallet.addr;
+        claimIssuerManagementKey = claimIssuerWallet.addr;
+        
         // Initialize ClaimIssuer
         claimIssuer = IdentityDeploymentLib.initializeClaimIssuer(
             vm,
@@ -153,6 +162,14 @@ contract DeployERC3643 is Script {
 
     function claimIssuerGateway() external view returns (RWAClaimIssuerGateway) {
         return identityDeployment.claimIssuerGateway;
+    }
+    
+    function getIdentityManagementKey() external view returns (address) {
+        return identityManagementKey;
+    }
+    
+    function getClaimIssuerManagementKey() external view returns (address) {
+        return claimIssuerManagementKey;
     }
 }
 

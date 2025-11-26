@@ -82,7 +82,7 @@ contract DeployERC3643Test is Test {
         assertNotEq(address(identityRegistry), address(0));
         assertNotEq(address(identity), address(0));
         assertNotEq(address(claimIssuer), address(0));
-        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+        address managementKey = deployScript.getIdentityManagementKey();
         assertTrue(identityRegistry.isVerified(managementKey));
     }
 
@@ -135,63 +135,77 @@ contract DeployERC3643Test is Test {
         uint256 keyTypeEcdsa = 1;
         uint256 claimTopicKyc = 1;
         uint256 claimSchemeEcdsa = 1;
-        uint256 newClaimKeyPrivateKey = uint256(0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef);
-        address newManagementKey = vm.addr(newClaimKeyPrivateKey);
-        bytes32 claimKeyHash = keccak256(abi.encode(newManagementKey));
+        // Use the same private key as the deployment script for signing claims
+        uint256 claimKeyPrivateKey = deployScript.claimIssuerPrivateKey();
+        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
+
+        address newIdentityManagementKey = address(0x1111);
 
         // Create new identity
         vm.prank(identityIdFactory.owner());
-        address newIdentity = identityIdFactory.createIdentity(newManagementKey, "newIdentity");
+        address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, "newIdentity");
 
-        // Add claim key to new identity
-        vm.prank(newManagementKey);
-        RWAIdentity(newIdentity).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-
-        // Add claim key to claimIssuer (required for signature verification)
-        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
-        vm.prank(managementKey);
-        RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-
-        // Add claim to new identity
+        // Add claimIssuer's signature to new identity
         bytes memory data = "";
         bytes32 dataHash = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newClaimKeyPrivateKey, prefixedHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
         bytes memory sig = abi.encodePacked(r, s, v);
-        vm.prank(newManagementKey);
+        vm.prank(newIdentityManagementKey);
         RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
         
         // Register new identity
-        identityRegistry.registerIdentity(newManagementKey, IIdentity(address(newIdentity)), 840);
-        assertTrue(identityRegistry.isVerified(newManagementKey));
+        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
+        assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
     }
 
     function test_RegisterIdentityWithMoreTopics_Success() public {
-        address newUser = address(0x9999);
+        uint256 claimTopicKyc = 1;
         uint256 newTopic = 2;
-        uint256 claimKeyPrivateKey = vm.envOr("CLAIM_KEY_PRIVATE_KEY", uint256(0));
-        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
-        address claimKeyAddress = managementKey;
-        
-        // Create valid signature for the new topic claim
-        bytes memory data = "";
-        bytes32 dataHash = keccak256(abi.encode(identity, newTopic, data));
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        
-        vm.prank(claimKeyAddress);
-        identity.addClaim(newTopic, 1, address(claimIssuer), sig, data, "");
-        uint256[] memory topics = new uint256[](2);
-        topics[0] = 1;
-        topics[1] = newTopic;
+        uint256 claimSchemeEcdsa = 1;
+        // Use the same private key as the deployment script for signing claims
+        uint256 claimKeyPrivateKey = deployScript.claimIssuerPrivateKey();
+        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
 
-        // this will replace the existing topic with the new topic
+        address newIdentityManagementKey = address(0x9999);
+
+        // Create new identity
+        vm.prank(identityIdFactory.owner());
+        address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, "newIdentityWithMoreTopics");
+
+
+        // Add claimIssuer's signature for topic 1 (KYC)
+        {
+            bytes memory data = "Bob is happy";
+            bytes32 dataHash1 = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
+            bytes32 prefixedHash1 = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash1));
+            (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(claimKeyPrivateKey, prefixedHash1);
+            bytes memory sig1 = abi.encodePacked(r1, s1, v1);
+            vm.prank(newIdentityManagementKey);
+            RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig1, data, "");
+        }
+        
+        // Add claimIssuer's signature for new topic
+        {
+            bytes memory data = "Alice is sad";
+            bytes32 dataHash2 = keccak256(abi.encode(newIdentity, newTopic, data));
+            bytes32 prefixedHash2 = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash2));
+            (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(claimKeyPrivateKey, prefixedHash2);
+            bytes memory sig2 = abi.encodePacked(r2, s2, v2);
+            vm.prank(newIdentityManagementKey);
+            RWAIdentity(newIdentity).addClaim(newTopic, claimSchemeEcdsa, address(claimIssuer), sig2, data, "");
+        }
+
+        // Update trusted issuers registry to require both topics
+        uint256[] memory topics = new uint256[](2);
+        topics[0] = claimTopicKyc;
+        topics[1] = newTopic;
         trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
 
-        identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), 840);
+        // Register new identity
+        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
         
-        assertTrue(identityRegistry.isVerified(newUser));
+        assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
     }
 
     // ============ transferFrom tests ============
@@ -325,10 +339,10 @@ contract DeployERC3643Test is Test {
         rwaToken.mint(lostWallet, amount);
 
         // Add newWallet as a management key to the existing identity (used for lost wallet)
-        address managementKey = vm.envOr("MANAGEMENT_KEY", msg.sender);
+        address identityManagementKey = deployScript.getIdentityManagementKey();
         bytes32 newWalletKeyHash = keccak256(abi.encode(newWallet));
         
-        vm.startPrank(managementKey);
+        vm.startPrank(identityManagementKey);
         identity.addKey(newWalletKeyHash, 1, 1);
         vm.stopPrank();
 

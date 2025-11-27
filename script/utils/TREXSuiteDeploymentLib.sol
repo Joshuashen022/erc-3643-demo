@@ -12,6 +12,7 @@ import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAIdentityRegistryStorage} from "../../src/rwa/IdentityRegistry.sol";
 import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
+import {IdentityDeploymentLib} from "./IdentityDeploymentLib.sol";
 
 library TREXSuiteDeploymentLib {
     struct TREXSuiteResult {
@@ -24,35 +25,32 @@ library TREXSuiteDeploymentLib {
         address suiteOwner;
     }
 
-    function deployTREXSuite(
-        Vm vm,
-        TREXFactory trexFactory,
-        string memory salt,
-        address claimIssuer,
-        address deployer,
-        address suiteOwner
-    ) internal returns (TREXSuiteResult memory result) {
-        console.log("Suite owner (msg.sender):", suiteOwner);
-
-        // Prepare deployment details
-        ITREXFactory.TokenDetails memory tokenDetails = _prepareTokenDetails(suiteOwner);
-        ITREXFactory.ClaimDetails memory claimDetails = _prepareClaimDetails(claimIssuer);
+    function prepareClaimDetails(
+        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults
+    ) public pure returns (ITREXFactory.ClaimDetails memory) {
+        uint256 length = claimIssuerResults.length;
+        address[] memory issuers = new address[](length);
+        uint256[][] memory issuerClaims = new uint256[][](length);
         
-        // Deploy TREX Suite using the factory
-        vm.startBroadcast(deployer);
-        trexFactory.deployTREXSuite(salt, tokenDetails, claimDetails);
-        vm.stopBroadcast();
+        // Process each claim issuer
+        for (uint256 i = 0; i < length; i++) {
+            issuers[i] = claimIssuerResults[i].claimIssuer;
+            issuerClaims[i] = claimIssuerResults[i].claimTopics;
+        }
         
-        // Get the deployed token address and initialize result
-        address tokenAddress = trexFactory.getToken(salt);
-        console.log("TREX Suite deployed successfully");
-        console.log("Token deployed at:", tokenAddress);
-        console.log("Salt used:", salt);
+        // Collect claim topics (use first issuer's topics as base, typically all issuers have same topics)
+        // For most use cases, all issuers will have the same claim topics (e.g., KYC)
+        // todo:: if not, how to handle the case?
+        uint256[] memory allClaimTopics = claimIssuerResults[0].claimTopics;
 
-        result = _initializeSuiteResult(tokenAddress, result.suiteOwner);
+        return ITREXFactory.ClaimDetails({
+            claimTopics: allClaimTopics,
+            issuers: issuers,
+            issuerClaims: issuerClaims
+        });
     }
 
-    function _prepareTokenDetails(address suiteOwner) private returns (ITREXFactory.TokenDetails memory) {
+    function prepareTokenDetails(address suiteOwner) public returns (ITREXFactory.TokenDetails memory) {
         TestModule testModule = new TestModule();
         testModule.initialize();
         
@@ -78,22 +76,37 @@ library TREXSuiteDeploymentLib {
         });
     }
 
-    function _prepareClaimDetails(address claimIssuer) private pure returns (ITREXFactory.ClaimDetails memory) {
-        uint256 claimTopicKyc = 1;
-        uint256[] memory claimTopics = new uint256[](1);
-        claimTopics[0] = claimTopicKyc;
-        address[] memory issuers = new address[](1);
-        issuers[0] = claimIssuer;
-        uint256[][] memory issuerClaims = new uint256[][](1);
-        issuerClaims[0] = new uint256[](1);
-        issuerClaims[0][0] = claimTopicKyc;
+    function deployTREXSuite(
+        Vm vm,
+        TREXFactory trexFactory,
+        string memory salt,
+        address suiteOwner,
+        ITREXFactory.ClaimDetails memory claimDetails,
+        ITREXFactory.TokenDetails memory tokenDetails
+    ) internal returns (TREXSuiteResult memory result) {
+        console.log("Suite owner for TREX Suite:", suiteOwner);
 
-        return ITREXFactory.ClaimDetails({
-            claimTopics: claimTopics,
-            issuers: issuers,
-            issuerClaims: issuerClaims
-        });
+        // Deploy TREX Suite using the factory
+        vm.startBroadcast(msg.sender);
+        trexFactory.deployTREXSuite(salt, tokenDetails, claimDetails);
+        vm.stopBroadcast();
+        
+        // Get the deployed token address and initialize result
+        address tokenAddress = trexFactory.getToken(salt);
+        console.log("TREX Suite deployed successfully");
+        console.log("Token deployed at:", tokenAddress);
+        console.log("Salt used:", salt);
+
+        if (suiteOwner != msg.sender) {
+            vm.startBroadcast(msg.sender);
+            trexFactory.transferOwnership(suiteOwner);
+            vm.stopBroadcast();
+            console.log("TREX Factory ownership transferred to suite owner", suiteOwner);
+        }
+        
+        result = _initializeSuiteResult(tokenAddress, result.suiteOwner);
     }
+
 
     function _initializeSuiteResult(address tokenAddress, address suiteOwner) private view returns (TREXSuiteResult memory result) {
         result.suiteOwner = suiteOwner;

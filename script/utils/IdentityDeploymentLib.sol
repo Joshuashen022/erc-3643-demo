@@ -23,6 +23,12 @@ library IdentityDeploymentLib {
         IdFactory idFactory;
     }
 
+    struct ClaimIssuerDeploymentResult {
+        uint256 claimIssuerPrivateKey;
+        address claimIssuer;
+        uint256 [] claimTopics;
+    }
+
     function deployAllIdentityContracts(
         Vm vm,
         address deployer
@@ -57,24 +63,26 @@ library IdentityDeploymentLib {
 
     function initializeClaimIssuer(
         Vm vm,
-        RWAClaimIssuerIdFactory claimIssuerIdFactory,
-        address claimIssuerManagementKey,
-        address identityKey,
-        uint256 purposeClaim,
-        uint256 keyTypeEcdsa
-    ) internal returns (address claimIssuer) {
+        RWAClaimIssuerIdFactory claimIssuerIdFactory
+    ) internal returns (ClaimIssuerDeploymentResult[] memory claimIssuers) {
+        uint256 claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
+        uint256 claimTopicKyc = vm.envOr("CLAIM_TOPIC_KYC", uint256(1));
+        string memory claimIssuerName = "claimissuer1";
+        uint256[] memory claimTopics = new uint256[](1);
+        claimTopics[0] = claimTopicKyc;
+
+        VmSafe.Wallet memory claimIssuerWallet = vm.createWallet(claimIssuerPrivateKey);
+
         vm.startBroadcast();
-        claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerManagementKey, "claimissuer1");
+        address claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerWallet.addr, claimIssuerName);
         vm.stopBroadcast();
         
-        // bytes32 claimKeyHash = keccak256(abi.encode(claimIssuerManagementKey));
-
-        // vm.startBroadcast(claimIssuerManagementKey);
-        // RWAClaimIssuer(claimIssuer).addKey(claimKeyHash, purposeClaim, keyTypeEcdsa);
-        
-        // // console.log("ClaimIssuer initialized successfully", claimIssuer);
-
-        // vm.stopBroadcast();
+        claimIssuers = new ClaimIssuerDeploymentResult[](1);
+        claimIssuers[0] = ClaimIssuerDeploymentResult({
+            claimIssuerPrivateKey: claimIssuerPrivateKey,
+            claimIssuer: claimIssuer,
+            claimTopics: claimTopics
+        });
     }
 }
 

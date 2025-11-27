@@ -11,6 +11,7 @@ import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {TREXFactory} from "../../lib/ERC-3643/contracts/factory/TREXFactory.sol";
 import {RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 import {RWAClaimIssuer} from "../../src/rwa/identity/Identity.sol";
+import {IdentityInitializationLib} from "./IdentityInitializationLib.sol";
 
 library ValidationLib {
     function validateRWAModule(
@@ -85,6 +86,49 @@ library ValidationLib {
 
         require(identityRegistry.isVerified(identityManagementKey), "Identity is not verified");
         console.log("Identity is verified", identityManagementKey);
+    }
+
+    function validateIdentities(
+        RWAIdentityRegistry identityRegistry,
+        address claimIssuerManagementKey,
+        address claimIssuer,
+        IdentityInitializationLib.IdentityInitResult[] memory identities
+    ) internal view {
+        // Check that claimIssuerManagementKey is set
+        require(claimIssuerManagementKey != address(0), "ClaimIssuer management key should be set");
+        
+        // Check that managementKey is a management key of ClaimIssuer (purpose = 1)
+        require(
+            RWAClaimIssuer(claimIssuer).keyHasPurpose(keccak256(abi.encode(claimIssuerManagementKey)), 1),
+            "Management key should be a management key of ClaimIssuer"
+        );
+        
+        console.log("ClaimIssuer:", claimIssuer, "Management Key", claimIssuerManagementKey);
+        
+        for (uint256 i = 0; i < identities.length; i++) {
+            // Check that identityManagementKey is set
+            require(
+                identities[i].identityManagementKey != address(0),
+                "Identity management key should be set"
+            );
+
+            // Check that managementKey is a management key of Identity (purpose = 1)
+            require(
+                RWAIdentity(identities[i].identity).keyHasPurpose(
+                    keccak256(abi.encode(identities[i].identityManagementKey)),
+                    1
+                ),
+                "Management key should be a management key of Identity"
+            );
+
+            console.log("Identity:", identities[i].identity, "Management Key", identities[i].identityManagementKey);
+
+            require(
+                identityRegistry.isVerified(identities[i].identityManagementKey),
+                "Identity is not verified"
+            );
+            console.log("Identity is verified", identities[i].identityManagementKey);
+        }
     }
 }
 

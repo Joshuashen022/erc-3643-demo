@@ -53,7 +53,7 @@ library TREXSuiteDeploymentLib {
     function prepareTokenDetails(address suiteOwner) public returns (ITREXFactory.TokenDetails memory) {
         TestModule testModule = new TestModule();
         testModule.initialize();
-        
+        // todo:: add more compliance modules
         address[] memory complianceModules = new address[](1);
         complianceModules[0] = address(testModule);
         

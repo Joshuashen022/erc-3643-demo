@@ -220,6 +220,62 @@ async function main() {
   }
   console.log(`✓ TREX Factory Owner: ${trexFactoryOwner}`);
 
+  const identityIdFactoryABI = getContractABI("RWAIdentityIdFactory");
+  const identityIdFactory = new ethers.Contract(
+    addresses["RWAIdentityIdFactory"],
+    identityIdFactoryABI.length > 0 ? identityIdFactoryABI : [
+      "function owner() view returns (address)",
+    ],
+    provider
+  );
+  const identityIdFactoryOwner = toAddressString(await identityIdFactory.owner());
+  if (identityIdFactoryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
+    throw new Error(`Identity Id Factory owner should match suite owner. Expected: ${suiteOwner}, Got: ${identityIdFactoryOwner}`);
+  }
+  console.log(`✓ Identity Id Factory Owner: ${identityIdFactoryOwner}`);
+
+  const identityGatewayABI = getContractABI("RWAIdentityGateway");
+  const identityGateway = new ethers.Contract(
+    addresses["RWAIdentityGateway"],
+    identityGatewayABI.length > 0 ? identityGatewayABI : [
+      "function owner() view returns (address)",
+    ],
+    provider
+  );
+  const identityGatewayOwner = toAddressString(await identityGateway.owner());
+  if (identityGatewayOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
+    throw new Error(`Identity Gateway owner should match suite owner. Expected: ${suiteOwner}, Got: ${identityGatewayOwner}`);
+  }
+  console.log(`✓ Identity Gateway Owner: ${identityGatewayOwner}`);
+
+  const claimIssuerIdFactoryABI = getContractABI("RWAClaimIssuerIdFactory");
+  const claimIssuerIdFactory = new ethers.Contract(
+    addresses["RWAClaimIssuerIdFactory"],
+    claimIssuerIdFactoryABI.length > 0 ? claimIssuerIdFactoryABI : [
+      "function owner() view returns (address)",
+    ],
+    provider
+  );
+  const claimIssuerIdFactoryOwner = toAddressString(await claimIssuerIdFactory.owner());
+  if (claimIssuerIdFactoryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
+    throw new Error(`Claim Issuer Id Factory owner should match suite owner. Expected: ${suiteOwner}, Got: ${claimIssuerIdFactoryOwner}`);
+  }
+  console.log(`✓ Claim Issuer Id Factory Owner: ${claimIssuerIdFactoryOwner}`);
+
+  const claimIssuerGatewayABI = getContractABI("RWAClaimIssuerGateway");
+  const claimIssuerGateway = new ethers.Contract(
+    addresses["RWAClaimIssuerGateway"],
+    claimIssuerGatewayABI.length > 0 ? claimIssuerGatewayABI : [
+      "function owner() view returns (address)",
+    ],
+    provider
+  );
+  const claimIssuerGatewayOwner = toAddressString(await claimIssuerGateway.owner());
+  if (claimIssuerGatewayOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
+    throw new Error(`Claim Issuer Gateway owner should match suite owner. Expected: ${suiteOwner}, Got: ${claimIssuerGatewayOwner}`);
+  }
+  console.log(`✓ Claim Issuer Gateway Owner: ${claimIssuerGatewayOwner}`);
+
   // 打印所有信息（与部署脚本格式一致）
   console.log("\n=== 合约信息汇总 ===");
   console.log(`Token: ${tokenAddress} Agent ${suiteOwner}`);
@@ -230,7 +286,10 @@ async function main() {
   console.log(`Trusted Issuers Registry: ${trustedIssuersRegistryAddress} Owner ${suiteOwner}`);
   console.log(`Claim Topics Registry: ${claimTopicsRegistryAddress} Owner ${suiteOwner}`);
   console.log(`TREX Factory: ${addresses["TREXFactory"]} Owner ${suiteOwner}`);
-
+  console.log(`Identity Id Factory: ${addresses["RWAIdentityIdFactory"]} Owner ${suiteOwner}`);
+  console.log(`Identity Gateway: ${addresses["RWAIdentityGateway"]} Owner ${suiteOwner}`);
+  console.log(`Claim Issuer Id Factory: ${addresses["RWAClaimIssuerIdFactory"]} Owner ${suiteOwner}`);
+  console.log(`Claim Issuer Gateway: ${addresses["RWAClaimIssuerGateway"]} Owner ${suiteOwner}`);
   console.log("\n✓ 所有验证通过！");
 
   // 生成 .env 文件
@@ -247,7 +306,10 @@ VITE_IDENTITY_REGISTRY=${identityRegistryAddress}
 VITE_IDENTITY_REGISTRY_STORAGE=${identityRegistryStorageAddress}
 VITE_TRUSTED_ISSUERS_REGISTRY=${trustedIssuersRegistryAddress}
 VITE_CLAIM_TOPICS_REGISTRY=${claimTopicsRegistryAddress}
-
+VITE_RWA_CLAIM_ISSUER_ID_FACTORY=${addresses["RWAClaimIssuerIdFactory"]}
+VITE_RWA_CLAIM_ISSUER_GATEWAY=${addresses["RWAClaimIssuerGateway"]}
+VITE_RWA_IDENTITY_ID_FACTORY=${addresses["RWAIdentityIdFactory"]}
+VITE_RWA_IDENTITY_GATEWAY=${addresses["RWAIdentityGateway"]}
 # Suite Owner (for reference)
 SUITE_OWNER=${suiteOwner}
 `;

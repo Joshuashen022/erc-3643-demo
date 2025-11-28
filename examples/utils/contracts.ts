@@ -53,6 +53,18 @@ export function getContractABI(contractName: string): any[] {
   if (contractName === "RWAIdentityRegistry") {
     possiblePaths.push(path.join(__dirname, `../../out/IdentityRegistry.sol/RWAIdentityRegistry.json`));
   }
+  if (contractName === "RWAClaimIssuerIdFactory") {
+    possiblePaths.push(path.join(__dirname, `../../out/RWAClaimIssuerIdFactory.sol/RWAClaimIssuerIdFactory.json`));
+  }
+  if (contractName === "RWAClaimIssuerGateway") {
+    possiblePaths.push(path.join(__dirname, `../../out/RWAClaimIssuerIdFactory.sol/RWAClaimIssuerGateway.json`));
+  }
+  if (contractName === "RWAIdentityIdFactory") {
+    possiblePaths.push(path.join(__dirname, `../../out/RWAIdentityIdFactory.sol/RWAIdentityIdFactory.json`));
+  }
+  if (contractName === "RWAIdentityGateway") {
+    possiblePaths.push(path.join(__dirname, `../../out/RWAIdentityIdFactory.sol/RWAIdentityGateway.json`));
+  }
 
   for (const abiPath of possiblePaths) {
     if (fs.existsSync(abiPath)) {

@@ -14,6 +14,13 @@ export function getContractAddresses(chainId: number): Record<string, string> {
       trustedIssuersRegistry: import.meta.env.VITE_TRUSTED_ISSUERS_REGISTRY || "",
       token: import.meta.env.VITE_TOKEN || "",
       modularCompliance: import.meta.env.VITE_MODULAR_COMPLIANCE || "",
+      rwaClaimIssuerIdFactory: import.meta.env.VITE_RWA_CLAIM_ISSUER_ID_FACTORY || "",
+      rwaClaimIssuerGateway: import.meta.env.VITE_RWA_CLAIM_ISSUER_GATEWAY || "",
+      rwaIdentityIdFactory: import.meta.env.VITE_RWA_IDENTITY_ID_FACTORY || "",
+      rwaIdentityGateway: import.meta.env.VITE_RWA_IDENTITY_GATEWAY || "",
+      trexImplementationAuthority: import.meta.env.VITE_TREX_IMPLEMENTATION_AUTHORITY || "",
+      trexGateway: import.meta.env.VITE_TREX_GATEWAY || "",
+      trexFactory: import.meta.env.VITE_TREX_FACTORY || "",
     };
   }
 
@@ -125,6 +132,11 @@ export const CONTRACT_ADDRESSES: Record<string, string> = {
   trustedIssuersRegistry: "",
   token: "",
   modularCompliance: "",
+  rwaClaimIssuerIdFactory: "",
+  rwaClaimIssuerGateway: "",
+  trexImplementationAuthority: "",
+  trexGateway: "",
+  trexFactory: "",
   ...getContractAddresses(CHAIN_ID),
 };
 
@@ -157,5 +169,5 @@ export const NETWORK_CONFIG = {
 };
 
 // 角色类型
-export type UserRole = "owner" | "agent" | "public";
+export type UserRole = "owner" | "agent" | "public" | "backend" | "compliance" | "legal";
 

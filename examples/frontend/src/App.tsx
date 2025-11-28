@@ -5,6 +5,9 @@ import { RPC_URL, UserRole, CHAIN_ID } from "./utils/config";
 import OwnerPanel from "./components/OwnerPanel";
 import AgentPanel from "./components/AgentPanel";
 import PublicPanel from "./components/PublicPanel";
+import BackendPanel from "./components/BackendPanel";
+import CompliancePanel from "./components/CompliancePanel";
+import LegalPanel from "./components/LegalPanel";
 import "./App.css";
 
 function App() {
@@ -132,6 +135,9 @@ function App() {
                 <option value="public">普通用户</option>
                 <option value="agent">Agent</option>
                 <option value="owner">Owner</option>
+                <option value="backend">后端管理</option>
+                <option value="compliance">监管管理</option>
+                <option value="legal">法务管理</option>
               </select>
             </div>
           ) : (
@@ -152,6 +158,12 @@ function App() {
           <OwnerPanel provider={provider!} wallet={wallet!} account={account} />
         ) : role === "agent" ? (
           <AgentPanel provider={provider!} wallet={wallet!} account={account} />
+        ) : role === "backend" ? (
+          <BackendPanel provider={provider!} wallet={wallet!} account={account} />
+        ) : role === "compliance" ? (
+          <CompliancePanel provider={provider!} wallet={wallet!} account={account} />
+        ) : role === "legal" ? (
+          <LegalPanel provider={provider!} wallet={wallet!} account={account} />
         ) : (
           <PublicPanel provider={provider!} account={account} />
         )}

@@ -8,6 +8,7 @@ import PublicPanel from "./components/PublicPanel";
 import BackendPanel from "./components/BackendPanel";
 import CompliancePanel from "./components/CompliancePanel";
 import LegalPanel from "./components/LegalPanel";
+import UserPanel from "./components/UserPanel";
 import "./App.css";
 
 // 角色模块配置
@@ -109,6 +110,30 @@ const ROLE_MODULES: Record<UserRole, { name: string; modules: string[]; descript
       "  • allowance(address _owner, address _spender)",
       "  • transfer(address _to, uint256 _amount)",
       "  • approve(address _spender, uint256 _amount)",
+    ],
+  },
+  user: {
+    name: "身份管理",
+    description: "管理Identity合约的密钥和声明",
+    modules: [
+      "Identity - 身份合约管理",
+      "Management Key (Purpose 1):",
+      "  • addKey(bytes32 _key, uint256 _purpose, uint256 _type)",
+      "  • removeKey(bytes32 _key, uint256 _purpose)",
+      "  • approve(uint256 _id, bool _approve)",
+      "  • execute(address _to, uint256 _value, bytes memory _data)",
+      "Action Key (Purpose 2):",
+      "  • execute(address _to, uint256 _value, bytes memory _data)",
+      "  • approve(uint256 _id, bool _approve)",
+      "Claim Key (Purpose 3):",
+      "  • addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri)",
+      "  • removeClaim(bytes32 _claimId)",
+      "View Functions:",
+      "  • getKey(bytes32 _key) / getKeyPurposes(bytes32 _key) / getKeysByPurpose(uint256 _purpose)",
+      "  • getClaimIdsByTopic(uint256 _topic) / getClaim(bytes32 _claimId)",
+      "  • keyHasPurpose(bytes32 _key, uint256 _purpose)",
+      "  • isClaimValid(address _identity, uint256 claimTopic, bytes memory sig, bytes memory data)",
+      "  • getRecoveredAddress(bytes memory sig, bytes32 dataHash)",
     ],
   },
 };
@@ -257,6 +282,7 @@ function App() {
                 style={{ marginLeft: "1rem" }}
               >
                 <option value="public">普通用户</option>
+                <option value="user">身份管理</option>
                 <option value="agent">财务管理</option>
                 <option value="owner">合约管理</option>
                 <option value="backend">后端管理</option>
@@ -331,6 +357,8 @@ function App() {
           <CompliancePanel provider={provider!} wallet={wallet!} account={account} />
         ) : role === "legal" ? (
           <LegalPanel provider={provider!} wallet={wallet!} account={account} />
+        ) : role === "user" ? (
+          <UserPanel provider={provider!} wallet={wallet!} account={account} />
         ) : (
           <PublicPanel provider={provider!} account={account} />
         )}

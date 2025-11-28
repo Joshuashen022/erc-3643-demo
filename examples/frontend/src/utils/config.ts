@@ -169,5 +169,5 @@ export const NETWORK_CONFIG = {
 };
 
 // 角色类型
-export type UserRole = "owner" | "agent" | "public" | "backend" | "compliance" | "legal";
+export type UserRole = "owner" | "agent" | "public" | "backend" | "compliance" | "legal" | "user";
 

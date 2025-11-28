@@ -12,15 +12,8 @@ interface AgentPanelProps {
 export default function AgentPanel({ provider, wallet, account }: AgentPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
-  const [isAgent, setIsAgent] = useState<boolean | null>(null);
-  const [checkingAgent, setCheckingAgent] = useState(false);
   const [isTokenAgent, setIsTokenAgent] = useState<boolean | null>(null);
   const [checkingTokenAgent, setCheckingTokenAgent] = useState(false);
-
-  // IdentityRegistry 状态
-  const [userAddress, setUserAddress] = useState("");
-  const [identityAddress, setIdentityAddress] = useState("");
-  const [country, setCountry] = useState("");
 
   // Token 状态
   const [toAddress, setToAddress] = useState("");
@@ -35,31 +28,6 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
 
   // 组件加载时检查 agent 角色
   useEffect(() => {
-    const checkIdentityRegistryAgentRole = async () => {
-      if (!account || !CONTRACT_ADDRESSES.identityRegistry) {
-        setIsAgent(null);
-        return;
-      }
-
-      setCheckingAgent(true);
-      try {
-        const contract = new ethers.Contract(
-          CONTRACT_ADDRESSES.identityRegistry,
-          [
-            "function isAgent(address _agent) external view returns (bool)",
-          ],
-          provider
-        );
-        const agentStatus = await contract.isAgent(account);
-        setIsAgent(agentStatus);
-      } catch (error: any) {
-        console.error("检查 IdentityRegistry agent 角色失败:", error);
-        setIsAgent(null);
-      } finally {
-        setCheckingAgent(false);
-      }
-    };
-
     const checkTokenAgentRole = async () => {
       if (!account || !CONTRACT_ADDRESSES.token) {
         setIsTokenAgent(null);
@@ -85,115 +53,8 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
       }
     };
 
-    checkIdentityRegistryAgentRole();
     checkTokenAgentRole();
   }, [account, provider]);
-
-  // IdentityRegistry 操作
-  const handleRegisterIdentity = async () => {
-    if (!userAddress || !identityAddress || !country || !CONTRACT_ADDRESSES.identityRegistry) {
-      showResult("registerIdentity", "请填写所有字段并配置合约地址");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESSES.identityRegistry,
-        [
-          "function registerIdentity(address _userAddress, address _identity, uint16 _country) external",
-        ],
-        wallet
-      );
-      const tx = await contract.registerIdentity(userAddress, identityAddress, country);
-      await tx.wait();
-      showResult("registerIdentity", `成功注册身份，交易哈希: ${tx.hash}`);
-      setUserAddress("");
-      setIdentityAddress("");
-      setCountry("");
-    } catch (error: any) {
-      showResult("registerIdentity", `错误: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateIdentity = async () => {
-    if (!userAddress || !identityAddress || !CONTRACT_ADDRESSES.identityRegistry) {
-      showResult("updateIdentity", "请填写所有字段并配置合约地址");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESSES.identityRegistry,
-        [
-          "function updateIdentity(address _userAddress, address _identity) external",
-        ],
-        wallet
-      );
-      const tx = await contract.updateIdentity(userAddress, identityAddress);
-      await tx.wait();
-      showResult("updateIdentity", `成功更新身份，交易哈希: ${tx.hash}`);
-      setUserAddress("");
-      setIdentityAddress("");
-    } catch (error: any) {
-      showResult("updateIdentity", `错误: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteIdentity = async () => {
-    if (!userAddress || !CONTRACT_ADDRESSES.identityRegistry) {
-      showResult("deleteIdentity", "请填写用户地址并配置合约地址");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESSES.identityRegistry,
-        [
-          "function deleteIdentity(address _userAddress) external",
-        ],
-        wallet
-      );
-      const tx = await contract.deleteIdentity(userAddress);
-      await tx.wait();
-      showResult("deleteIdentity", `成功删除身份，交易哈希: ${tx.hash}`);
-      setUserAddress("");
-    } catch (error: any) {
-      showResult("deleteIdentity", `错误: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleIsVerified = async () => {
-    if (!userAddress || !CONTRACT_ADDRESSES.identityRegistry) {
-      showResult("isVerified", "请填写用户地址并配置合约地址");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESSES.identityRegistry,
-        [
-          "function isVerified(address _userAddress) external view returns (bool)",
-        ],
-        provider
-      );
-      const verified = await contract.isVerified(userAddress);
-      showResult("isVerified", `用户 ${userAddress} 验证状态: ${verified ? "已验证" : "未验证"}`);
-    } catch (error: any) {
-      showResult("isVerified", `错误: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 检查网络并切换到正确网络（如果需要）
   const ensureCorrectNetwork = async (): Promise<boolean> => {
@@ -394,96 +255,6 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
   return (
     <div className="panel">
       <h2>Agent 管理面板</h2>
-
-      {/* IdentityRegistry */}
-      <div className="section">
-        <h3>身份管理 (IdentityRegistry)</h3>
-        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
-          {checkingAgent ? (
-            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 agent 角色...</div>
-          ) : isAgent === null ? (
-            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 agent 角色（请确保已配置合约地址）</div>
-          ) : isAgent ? (
-            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
-              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Agent 角色
-            </div>
-          ) : (
-            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
-              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Agent 角色
-            </div>
-          )}
-        </div>
-        <div className="form-row">
-          <div className="form-group">
-            <label>用户地址</label>
-            <input
-              type="text"
-              value={userAddress}
-              onChange={(e) => setUserAddress(e.target.value)}
-              placeholder="0x..."
-            />
-          </div>
-          <div className="form-group">
-            <label>身份合约地址</label>
-            <input
-              type="text"
-              value={identityAddress}
-              onChange={(e) => setIdentityAddress(e.target.value)}
-              placeholder="0x..."
-            />
-          </div>
-          <div className="form-group">
-            <label>国家代码</label>
-            <input
-              type="text"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              placeholder="例如: 1"
-            />
-          </div>
-        </div>
-        <div className="button-group">
-          <button onClick={handleRegisterIdentity} disabled={loading} className="btn-primary">
-            注册身份
-          </button>
-          <button onClick={handleUpdateIdentity} disabled={loading} className="btn-success">
-            更新身份
-          </button>
-          <button onClick={handleDeleteIdentity} disabled={loading} className="btn-danger">
-            删除身份
-          </button>
-          <button onClick={handleIsVerified} disabled={loading} className="btn-secondary">
-            查询验证状态
-          </button>
-        </div>
-        {results.registerIdentity && (
-          <div className={`result ${results.registerIdentity.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
-            <pre>{results.registerIdentity}</pre>
-          </div>
-        )}
-        {results.updateIdentity && (
-          <div className={`result ${results.updateIdentity.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
-            <pre>{results.updateIdentity}</pre>
-          </div>
-        )}
-        {results.deleteIdentity && (
-          <div className={`result ${results.deleteIdentity.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
-            <pre>{results.deleteIdentity}</pre>
-          </div>
-        )}
-        {results.isVerified && (
-          <div className={`result ${results.isVerified.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
-            <pre>{results.isVerified}</pre>
-          </div>
-        )}
-        <div style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#666" }}>
-          合约地址: {CONTRACT_ADDRESSES.identityRegistry ? (
-            <span style={{ fontFamily: "monospace" }}>{CONTRACT_ADDRESSES.identityRegistry}</span>
-          ) : (
-            <span style={{ color: "#999" }}>未配置</span>
-          )}
-        </div>
-      </div>
 
       {/* Token 操作 */}
       <div className="section">

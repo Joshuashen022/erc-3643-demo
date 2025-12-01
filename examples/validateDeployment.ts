@@ -225,6 +225,7 @@ async function main() {
     addresses["RWAIdentityIdFactory"],
     identityIdFactoryABI.length > 0 ? identityIdFactoryABI : [
       "function owner() view returns (address)",
+      "function getIdentity(address _wallet) external view returns (address)",
     ],
     provider
   );
@@ -253,6 +254,7 @@ async function main() {
     addresses["RWAClaimIssuerIdFactory"],
     claimIssuerIdFactoryABI.length > 0 ? claimIssuerIdFactoryABI : [
       "function owner() view returns (address)",
+      "function getIdentity(address _wallet) external view returns (address)",
     ],
     provider
   );
@@ -275,7 +277,32 @@ async function main() {
     throw new Error(`Claim Issuer Gateway owner should match suite owner. Expected: ${suiteOwner}, Got: ${claimIssuerGatewayOwner}`);
   }
   console.log(`✓ Claim Issuer Gateway Owner: ${claimIssuerGatewayOwner}`);
-
+  const identityAddress = await identityIdFactory.getIdentity(suiteOwner);
+  const claimIssuerAddress = await claimIssuerIdFactory.getIdentity(suiteOwner);
+  // const identity = new ethers.Contract(
+  //   identityAddress,
+  //   [
+  //     "function keyHasPurpose(bytes32 _key, uint256 _purpose) public view override returns(bool result)",
+  //   ],
+  //   provider
+  // );
+  // const claimIssuer = new ethers.Contract(
+  //   claimIssuerAddress,
+  //   ["function keyHasPurpose(bytes32 _key, uint256 _purpose) public view override returns(bool result)"],
+  //   provider
+  // );
+  // const hasManagementKey = await identity.keyHasPurpose(
+  //   ethers.keccak256(suiteOwner), 1
+  // );
+  // const hasClaimKey = await claimIssuer.keyHasPurpose(
+  //   ethers.keccak256(suiteOwner), 3
+  // );
+  // if (!hasClaimKey) {
+  //   throw new Error(`Claim Issuer should have claim key. Expected: ${suiteOwner}, Got: ${claimIssuerAddress}`);
+  // }
+  // if (!hasManagementKey) {
+  //   throw new Error(`Identity should have management key. Expected: ${suiteOwner}, Got: ${identityAddress}`);
+  // }
   // 打印所有信息（与部署脚本格式一致）
   console.log("\n=== 合约信息汇总 ===");
   console.log(`Token: ${tokenAddress} Agent ${suiteOwner}`);
@@ -290,6 +317,8 @@ async function main() {
   console.log(`Identity Gateway: ${addresses["RWAIdentityGateway"]} Owner ${suiteOwner}`);
   console.log(`Claim Issuer Id Factory: ${addresses["RWAClaimIssuerIdFactory"]} Owner ${suiteOwner}`);
   console.log(`Claim Issuer Gateway: ${addresses["RWAClaimIssuerGateway"]} Owner ${suiteOwner}`);
+  console.log(`Identity: ${identityAddress}`);
+  console.log(`Claim Issuer: ${claimIssuerAddress}`);
   console.log("\n✓ 所有验证通过！");
 
   // 生成 .env 文件

@@ -38,8 +38,10 @@ contract DeployERC3643 is Script {
 
     function run() external {
         identityDeployment = IdentityDeploymentLib.deployAllIdentityContracts(vm, msg.sender);
-        
+        // outputs identityDeployment
+
         (trexImplementationAuthority, currentVersion) = TREXDeploymentLib.createTREXImplementationAuthority(vm);
+        // outputs trexImplementationAuthority and currentVersion
         
         trexFactory = TREXDeploymentLib.deployTREXFactory(
             vm,
@@ -70,8 +72,12 @@ contract DeployERC3643 is Script {
         );
         
         trexGateway = TREXDeploymentLib.deployTREXGateway(vm, trexFactory);
-
+        
+        console.log("\n--------------------------------\n");
+        console.log("====== Validating suite ======");
+        console.log("\n--------------------------------\n");
         validate();
+        console.log("\n========== Validating suite completed ==========\n");
         
         TREXSuiteDeploymentLib.unPauseToken(vm, trexFactory, salt, suiteOwner);
     }

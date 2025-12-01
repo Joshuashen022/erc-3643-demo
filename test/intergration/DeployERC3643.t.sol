@@ -23,6 +23,7 @@ import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
 import {RWAToken} from "../../src/rwa/RWAToken.sol";
 import {RWAIdentityRegistryStorage, RWATrustedIssuersRegistry, RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 
+import {console} from "forge-std/console.sol";
 
 contract DeployERC3643Test is Test {
     DeployERC3643 deployScript;
@@ -43,8 +44,12 @@ contract DeployERC3643Test is Test {
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     RWAClaimTopicsRegistry internal claimTopicsRegistry;
     
-    RWAIdentity public identity;
     RWAClaimIssuer public claimIssuer;
+    RWAIdentity public identity;
+    address public identityManagementKey;
+    uint256 public claimIssuerPrivateKey;
+    address public claimIssuerManagementKey;
+    address public suiteOwner;
 
     // Event definition for testing
     event RecoverySuccess(address indexed _lostWallet, address indexed _newWallet, address indexed _investorOnchainID);
@@ -52,7 +57,6 @@ contract DeployERC3643Test is Test {
     function setUp() public {
         deployScript = new DeployERC3643();
         deployScript.run();
-        
         trexImplementationAuthority = deployScript.trexImplementationAuthority();
         trexFactory = deployScript.trexFactory();
         trexGateway = deployScript.trexGateway();
@@ -68,8 +72,44 @@ contract DeployERC3643Test is Test {
         identityRegistryStorage = RWAIdentityRegistryStorage(address(identityRegistry.identityStorage()));
         trustedIssuersRegistry = RWATrustedIssuersRegistry(address(identityRegistry.issuersRegistry()));
         claimTopicsRegistry = RWAClaimTopicsRegistry(address(identityRegistry.topicsRegistry()));
-        identity = RWAIdentity(deployScript.identity());
-        claimIssuer = RWAClaimIssuer(deployScript.claimIssuer());
+
+        // Get claimIssuer from environment variable
+        claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
+        require(claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
+        claimIssuerManagementKey = vm.addr(claimIssuerPrivateKey);
+        claimIssuer = RWAClaimIssuer(claimIssuerIdFactory.getIdentity(claimIssuerManagementKey));
+        require(address(claimIssuer) != address(0), "ClaimIssuer not found");
+        suiteOwner = deployScript.suiteOwner();
+
+        identityManagementKey = address(0xDEAD);
+        identity = initializeIdentity(identityManagementKey, "testIdentity");
+    }
+    
+    // scenario: create a new OnChainID and register it to identity registry
+    function initializeIdentity(address newIdentityManagementKey, string memory identityName) public returns (RWAIdentity) {
+        uint256 claimTopicKyc = 1;
+        uint256 claimSchemeEcdsa = 1;
+        // Use the same private key as the deployment script for signing claims
+        uint256 claimKeyPrivateKey = claimIssuerPrivateKey;
+        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
+
+        // Create new identity
+        vm.prank(identityIdFactory.owner());
+        address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, identityName);
+        
+        // Add claimIssuer's signature to new identity
+        bytes memory data = "";
+        bytes32 dataHash = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
+        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+        bytes memory sig = abi.encodePacked(r, s, v);
+        vm.prank(newIdentityManagementKey);
+        RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
+        
+        // Register new identity
+        vm.prank(suiteOwner);
+        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
+        return RWAIdentity(newIdentity);
     }
 
     // ============ Basic Deployment Tests ============
@@ -80,16 +120,12 @@ contract DeployERC3643Test is Test {
         assertNotEq(address(rwaToken), address(0));
         assertNotEq(address(compliance), address(0));
         assertNotEq(address(identityRegistry), address(0));
-        assertNotEq(address(identity), address(0));
         assertNotEq(address(claimIssuer), address(0));
-        address managementKey = deployScript.getIdentityManagementKey();
-        assertTrue(identityRegistry.isVerified(managementKey));
+        assertTrue(identityRegistry.isVerified(identityManagementKey));
     }
 
     // ============ Agent Initialization Tests ============
     function test_AgentInitialization_Success() public view {
-        address suiteOwner = deployScript.suiteOwner();
-        
         // Check that suiteOwner is set
         assertNotEq(suiteOwner, address(0), "Suite owner should be set");
         
@@ -113,49 +149,9 @@ contract DeployERC3643Test is Test {
     }
 
     // ============ Register Identity Tests ============
-    // scenario: register a new identity to existing identity registry(OnChainID)
-    function test_RegisterIdentity_Success() public {
-        address newUser = address(0x9999);
-        identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), 840);
-        assertTrue(identityRegistry.isVerified(newUser));
-    }
-
-    // scenario: delete an existing OnChainID from identity registry
-    function test_DeleteIdentity_Success() public {
-        address newUser = address(0x9999);
-        identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), 840);
-        assertTrue(identityRegistry.isVerified(newUser));
-        identityRegistry.deleteIdentity(newUser);
-        assertFalse(identityRegistry.isVerified(newUser));
-    }
-
-    // scenario: create a new OnChainID and register it to identity registry
-    function test_RegisterNewIdentity_Success() public {
-        uint256 purposeClaim = 3;
-        uint256 keyTypeEcdsa = 1;
-        uint256 claimTopicKyc = 1;
-        uint256 claimSchemeEcdsa = 1;
-        // Use the same private key as the deployment script for signing claims
-        uint256 claimKeyPrivateKey = deployScript.claimIssuerPrivateKey();
-        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
-
-        address newIdentityManagementKey = address(0x1111);
-
-        // Create new identity
-        vm.prank(identityIdFactory.owner());
-        address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, "newIdentity");
-
-        // Add claimIssuer's signature to new identity
-        bytes memory data = "";
-        bytes32 dataHash = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        vm.prank(newIdentityManagementKey);
-        RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
-        
-        // Register new identity
-        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
+    function test_InitializeIdentity_Success() public {
+        address newIdentityManagementKey = address(0x213141);
+        RWAIdentity newIdentity = initializeIdentity(newIdentityManagementKey, "testtesttest");
         assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
     }
 
@@ -164,7 +160,7 @@ contract DeployERC3643Test is Test {
         uint256 newTopic = 2;
         uint256 claimSchemeEcdsa = 1;
         // Use the same private key as the deployment script for signing claims
-        uint256 claimKeyPrivateKey = deployScript.claimIssuerPrivateKey();
+        uint256 claimKeyPrivateKey = claimIssuerPrivateKey;
         require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
 
         address newIdentityManagementKey = address(0x9999);
@@ -200,9 +196,11 @@ contract DeployERC3643Test is Test {
         uint256[] memory topics = new uint256[](2);
         topics[0] = claimTopicKyc;
         topics[1] = newTopic;
+        vm.prank(suiteOwner);
         trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
 
         // Register new identity
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
         
         assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
@@ -217,8 +215,11 @@ contract DeployERC3643Test is Test {
         uint256 allowance = 2000;
 
         // Setup: verify addresses, mint tokens to from, approve spender
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 
         // 测试中调用 approve 时未使用 vm.prank(from)，导致批准来自测试合约而非 from。因此 _allowances[from][spender] 为 0，transferFrom 在第 228 行计算 _allowances[from][msg.sender] - _amount 时发生下溢。
@@ -250,8 +251,11 @@ contract DeployERC3643Test is Test {
         uint256 amount = 1000;
 
         // Setup
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 
         // Execute transfer
@@ -270,9 +274,11 @@ contract DeployERC3643Test is Test {
         uint256 amount = 1000;
 
         // Setup: verify address
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
 
         // Execute mint
+        vm.prank(suiteOwner);
         rwaToken.mint(to, amount);
 
         // Assertions
@@ -287,10 +293,13 @@ contract DeployERC3643Test is Test {
         uint256 burnAmount = 500;
 
         // Setup
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(user, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         rwaToken.mint(user, mintAmount);
 
         // Execute burn
+        vm.prank(suiteOwner);
         rwaToken.burn(user, burnAmount);
 
         // Assertions
@@ -315,11 +324,15 @@ contract DeployERC3643Test is Test {
         uint256 amount = 1000;
 
         // Setup: verify addresses, mint tokens to from
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 
         // Execute forcedTransfer
+        vm.prank(suiteOwner);
         bool result = rwaToken.forcedTransfer(from, to, amount);
 
         // Assertions
@@ -335,11 +348,12 @@ contract DeployERC3643Test is Test {
         uint256 amount = 1000;
 
         // Setup: register lost wallet and mint tokens
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(lostWallet, IIdentity(address(identity)), 840);
+        vm.prank(suiteOwner);
         rwaToken.mint(lostWallet, amount);
 
         // Add newWallet as a management key to the existing identity (used for lost wallet)
-        address identityManagementKey = deployScript.getIdentityManagementKey();
         bytes32 newWalletKeyHash = keccak256(abi.encode(newWallet));
         
         vm.startPrank(identityManagementKey);
@@ -349,6 +363,7 @@ contract DeployERC3643Test is Test {
         // Execute recovery
         vm.expectEmit(true, true, true, true);
         emit RecoverySuccess(lostWallet, newWallet, address(identity));
+        vm.prank(suiteOwner);
         bool result = rwaToken.recoveryAddress(lostWallet, newWallet, address(identity));
 
         // Assertions

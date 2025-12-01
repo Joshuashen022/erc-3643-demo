@@ -26,7 +26,6 @@ library TREXDeploymentLib {
     function createTREXImplementationAuthority(
         Vm vm
     ) internal returns (TREXImplementationAuthority trexImplementationAuthority, ITREXImplementationAuthority.Version memory currentVersion) {
-        console.log("\n--- Deploying TREXImplementationAuthority ---");
         vm.startBroadcast();
         trexImplementationAuthority = new TREXImplementationAuthority(
             true,  // referenceStatus = true (main IA)
@@ -34,10 +33,7 @@ library TREXDeploymentLib {
             address(0)   // iaFactory = address(0) initially, will be set after IAFactory deployment
         );
         vm.stopBroadcast();
-        console.log("TREXImplementationAuthority deployed at:", address(trexImplementationAuthority));
         
-        // Step 1.5: Deploy implementation contracts and add TREX version
-        console.log("\n--- Deploying Implementation Contracts ---");
         vm.startBroadcast();
         Token tokenImplementation = new Token();
         ClaimTopicsRegistry ctrImplementation = new ClaimTopicsRegistry();
@@ -46,16 +42,6 @@ library TREXDeploymentLib {
         ModularCompliance mcImplementation = new ModularCompliance();
         IdentityRegistry irImplementation = new IdentityRegistry();
         vm.stopBroadcast();
-        
-        console.log("Token implementation deployed at:", address(tokenImplementation));
-        console.log("ClaimTopicsRegistry implementation deployed at:", address(ctrImplementation));
-        console.log("IdentityRegistryStorage implementation deployed at:", address(irsImplementation));
-        console.log("TrustedIssuersRegistry implementation deployed at:", address(tirImplementation));
-        console.log("ModularCompliance implementation deployed at:", address(mcImplementation));
-        console.log("IdentityRegistry implementation deployed at:", address(irImplementation));
-        
-        // Add TREX version to TREXImplementationAuthority
-        console.log("\n--- Adding TREX Version ---");
         
         ITREXImplementationAuthority.Version memory version = ITREXImplementationAuthority.Version({
             major: 4,
@@ -77,13 +63,11 @@ library TREXDeploymentLib {
         vm.startBroadcast();
         trexImplementationAuthority.addTREXVersion(version, trexContracts);
         vm.stopBroadcast();
-        console.log("TREX version added successfully");
         
         // Activate the version so getter methods can return the implementation addresses
         vm.startBroadcast();
         trexImplementationAuthority.useTREXVersion(version);
         vm.stopBroadcast();
-        console.log("TREX version activated successfully");
 
         require(trexImplementationAuthority.getTokenImplementation() != address(0), "Token implementation is not set");
         require(trexImplementationAuthority.getCTRImplementation() != address(0), "ClaimTopicsRegistry implementation is not set");

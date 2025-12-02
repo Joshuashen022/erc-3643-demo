@@ -13,6 +13,7 @@ import {RWAIdentityRegistryStorage} from "../../src/rwa/IdentityRegistry.sol";
 import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {IdentityDeploymentLib} from "./IdentityDeploymentLib.sol";
+import {IdentityRegistryStorageProxy} from "../../lib/ERC-3643/contracts/proxy/IdentityRegistryStorageProxy.sol";
 
 library TREXSuiteDeploymentLib {
     struct TREXSuiteResult {
@@ -94,7 +95,7 @@ library TREXSuiteDeploymentLib {
         // Get the deployed token address and initialize result
         address tokenAddress = trexFactory.getToken(saltString);
         
-        result = _initializeSuiteResult(tokenAddress, result.suiteOwner);
+        result = _initializeSuiteResult(tokenAddress, suiteOwner);
         _displaySuiteResult(result);
     }
 

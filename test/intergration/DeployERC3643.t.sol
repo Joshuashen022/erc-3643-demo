@@ -57,21 +57,30 @@ contract DeployERC3643Test is Test {
     function setUp() public {
         deployScript = new DeployERC3643();
         deployScript.run();
+        
+        // TREX factory contracts
         trexImplementationAuthority = deployScript.trexImplementationAuthority();
         trexFactory = deployScript.trexFactory();
         trexGateway = deployScript.trexGateway();
-        identityIdFactory = deployScript.identityIdFactory();
-        identityGateway = deployScript.identityGateway();
-        claimIssuerIdFactory = deployScript.claimIssuerIdFactory();
-        claimIssuerGateway = deployScript.claimIssuerGateway();
 
-        string memory salt = deployScript.salt();
-        rwaToken = RWAToken(trexFactory.getToken(salt));
-        compliance = RWACompliance(address(rwaToken.compliance()));
-        identityRegistry = RWAIdentityRegistry(address(rwaToken.identityRegistry()));
-        identityRegistryStorage = RWAIdentityRegistryStorage(address(identityRegistry.identityStorage()));
-        trustedIssuersRegistry = RWATrustedIssuersRegistry(address(identityRegistry.issuersRegistry()));
-        claimTopicsRegistry = RWAClaimTopicsRegistry(address(identityRegistry.topicsRegistry()));
+        // RWA Identity contracts
+        (
+            ,,,, 
+            identityIdFactory,
+            identityGateway, 
+            claimIssuerIdFactory, 
+            claimIssuerGateway
+        ) = deployScript.identityDeployment();
+        
+        (
+            rwaToken, 
+            compliance, 
+            identityRegistry, 
+            identityRegistryStorage, 
+            trustedIssuersRegistry, 
+            claimTopicsRegistry,
+            suiteOwner
+        ) = deployScript.suiteResult();
 
         // Get claimIssuer from environment variable
         claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
@@ -79,7 +88,6 @@ contract DeployERC3643Test is Test {
         claimIssuerManagementKey = vm.addr(claimIssuerPrivateKey);
         claimIssuer = RWAClaimIssuer(claimIssuerIdFactory.getIdentity(claimIssuerManagementKey));
         require(address(claimIssuer) != address(0), "ClaimIssuer not found");
-        suiteOwner = deployScript.suiteOwner();
 
         identityManagementKey = address(0xDEAD);
         identity = initializeIdentity(identityManagementKey, "testIdentity");
@@ -244,7 +252,7 @@ contract DeployERC3643Test is Test {
         assertEq(rwaToken.allowance(from, spender), allowance - amount);
     }
 
-        // ============ transfer tests ============
+    // ============ transfer tests ============
     function test_TransferSuccess() public {
         address from = address(0x1111);
         address to = address(0x2222);
@@ -268,7 +276,7 @@ contract DeployERC3643Test is Test {
         assertEq(rwaToken.balanceOf(to), amount);
     }
 
-        // ============ mint tests ============
+    // ============ mint tests ============
     function test_MintSuccess() public {
         address to = address(0x1111);
         uint256 amount = 1000;
@@ -317,7 +325,7 @@ contract DeployERC3643Test is Test {
         assertTrue(compliance.canTransfer(from, to, amount));
     }
 
-        // ============ forcedTransfer tests ============
+    // ============ forcedTransfer tests ============
     function test_ForcedTransferSuccess() public {
         address from = address(0x1111);
         address to = address(0x2222);
@@ -341,7 +349,7 @@ contract DeployERC3643Test is Test {
         assertEq(rwaToken.balanceOf(to), amount);
     }
 
-        // ============ recoveryAddress tests ============
+    // ============ recoveryAddress tests ============
     function test_RecoveryAddressSuccess() public {
         address lostWallet = address(0x1111);
         address newWallet = address(0x2222);
@@ -373,6 +381,30 @@ contract DeployERC3643Test is Test {
         assertFalse(identityRegistry.isVerified(lostWallet));
         assertTrue(identityRegistry.isVerified(newWallet));
     }
+
+    // // ============ Specific Logics ============
+    // function test_DowngradeToERC20Success() public {
+        
+    //     TREXFactory.TokenDetails memory tokenDetails = TREXFactory.TokenDetails({
+    //         owner: suiteOwner,
+    //         name: "TREX Token",
+    //         symbol: "TREX",
+    //         decimals: 18,
+    //         irs: address(identityRegistryStorage),
+    //         ONCHAINID: address(0),
+    //         irAgents: new address[](0),
+    //         tokenAgents: new address[](0),
+    //         complianceModules: new address[](0),
+    //         complianceSettings: new bytes[](0)
+    //     });
+    //     TREXFactory.ClaimDetails memory claimDetails = TREXFactory.ClaimDetails({
+    //         claimTopics: new uint256[](0),
+    //         issuers: new address[](0),
+    //         issuerClaims: new uint256[][](0)
+    //     });
+
+    //     trexFactory.deployTREXSuite("test-salt", tokenDetails, claimDetails);
+    // }
 
     // ============ deployIdentityWithSalt tests ============
     // function test_DeployIdentityWithSalt_Success() public {

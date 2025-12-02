@@ -8,14 +8,14 @@ import {TREXFactory} from "../../lib/ERC-3643/contracts/factory/TREXFactory.sol"
 import {TREXGateway} from "../../lib/ERC-3643/contracts/factory/TREXGateway.sol";
 import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "../../lib/solidity/contracts/interface/IClaimIssuer.sol";
-import {RWAIdentityIdFactory} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
-import {RWAClaimIssuerIdFactory} from "../../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
+import {RWAIdentityIdFactory, RWAIdentityGateway} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
+import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
 
 import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
 import {RWAToken} from "../../src/rwa/RWAToken.sol";
-import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
+import {RWAIdentityRegistryStorage, RWATrustedIssuersRegistry, RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 
 contract MockCompliance {
     function canTransfer(address from, address to, uint256 amount) external view returns (bool) {
@@ -48,18 +48,24 @@ contract DownToERC20Test is Test {
     TREXFactory public trexFactory;
     TREXGateway public trexGateway;
     RWAIdentityIdFactory public identityIdFactory;
+    RWAIdentityGateway public identityGateway;
+    RWAClaimIssuerIdFactory public claimIssuerIdFactory;
+    RWAClaimIssuerGateway public claimIssuerGateway;
 
     RWAToken internal rwaToken;
     RWACompliance internal compliance;
     RWAIdentityRegistry internal identityRegistry;
     // IdentityRegistry-related variables
+    RWAIdentityRegistryStorage internal identityRegistryStorage;
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
+    RWAClaimTopicsRegistry internal claimTopicsRegistry;
     
     RWAIdentity public identity;
     RWAClaimIssuer public claimIssuer;
     address public identityManagementKey;
     uint256 public claimIssuerPrivateKey;
     address public claimIssuerManagementKey;
+    address public suiteOwner;
 
     // Event definitions for testing
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -69,26 +75,37 @@ contract DownToERC20Test is Test {
         deployScript = new DeployERC3643();
         deployScript.run();
         
+        // TREX factory contracts
         trexImplementationAuthority = deployScript.trexImplementationAuthority();
         trexFactory = deployScript.trexFactory();
         trexGateway = deployScript.trexGateway();
-        identityIdFactory = deployScript.identityIdFactory();
 
-        string memory salt = deployScript.salt();
-        rwaToken = RWAToken(trexFactory.getToken(salt));
-        compliance = RWACompliance(address(rwaToken.compliance()));
-        identityRegistry = RWAIdentityRegistry(address(rwaToken.identityRegistry()));
-        trustedIssuersRegistry = RWATrustedIssuersRegistry(address(identityRegistry.issuersRegistry()));
+        // RWA Identity contracts
+        (
+            ,,,, 
+            identityIdFactory,
+            identityGateway, 
+            claimIssuerIdFactory, 
+            claimIssuerGateway
+        ) = deployScript.identityDeployment();
         
+        (
+            rwaToken, 
+            compliance, 
+            identityRegistry, 
+            identityRegistryStorage, 
+            trustedIssuersRegistry, 
+            claimTopicsRegistry,
+            suiteOwner
+        ) = deployScript.suiteResult();
+
         // Get claimIssuer from environment variable
         claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
         require(claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
         claimIssuerManagementKey = vm.addr(claimIssuerPrivateKey);
-        RWAClaimIssuerIdFactory claimIssuerIdFactory = deployScript.claimIssuerIdFactory();
         claimIssuer = RWAClaimIssuer(claimIssuerIdFactory.getIdentity(claimIssuerManagementKey));
         require(address(claimIssuer) != address(0), "ClaimIssuer not found");
 
-        // Create a shared identity for testing
         identityManagementKey = address(0xDEAD);
         identity = initializeIdentity(identityManagementKey, "testIdentity");
 
@@ -96,7 +113,6 @@ contract DownToERC20Test is Test {
         MockCompliance mockCompliance = new MockCompliance();
         MockIdentityRegistry mockIdentityRegistry = new MockIdentityRegistry();
 
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         rwaToken.setCompliance(address(mockCompliance));
         vm.prank(suiteOwner);
@@ -105,22 +121,27 @@ contract DownToERC20Test is Test {
     
     // scenario: create a new OnChainID and register it to identity registry
     function initializeIdentity(address newIdentityManagementKey, string memory identityName) public returns (RWAIdentity) {
-        require(claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
+        uint256 claimTopicKyc = 1;
+        uint256 claimSchemeEcdsa = 1;
+        // Use the same private key as the deployment script for signing claims
+        uint256 claimKeyPrivateKey = claimIssuerPrivateKey;
+        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
 
         // Create new identity
         vm.prank(identityIdFactory.owner());
         address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, identityName);
         
         // Add claimIssuer's signature to new identity
-        bytes32 dataHash = keccak256(abi.encode(newIdentity, uint256(1), ""));
+        bytes memory data = "";
+        bytes32 dataHash = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimIssuerPrivateKey, prefixedHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
         bytes memory sig = abi.encodePacked(r, s, v);
         vm.prank(newIdentityManagementKey);
-        RWAIdentity(newIdentity).addClaim(1, 1, address(claimIssuer), sig, "", "");
+        RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
         
         // Register new identity
-        vm.prank(deployScript.suiteOwner());
+        vm.prank(suiteOwner);
         identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
         return RWAIdentity(newIdentity);
     }
@@ -133,8 +154,8 @@ contract DownToERC20Test is Test {
         assertNotEq(address(rwaToken), address(0));
         assertNotEq(address(compliance), address(0));
         assertNotEq(address(identityRegistry), address(0));
-        assertNotEq(address(identity), address(0));
         assertNotEq(address(claimIssuer), address(0));
+        assertTrue(identityRegistry.isVerified(identityManagementKey));
     }
 
     // ============ ERC20 Metadata Tests ============
@@ -482,7 +503,6 @@ contract DownToERC20Test is Test {
     // ============ Register Identity Tests ============
 
     function switchBackToERC3643() public {
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         rwaToken.setCompliance(address(compliance));
         vm.prank(suiteOwner);
@@ -498,7 +518,6 @@ contract DownToERC20Test is Test {
     function test_RegisterIdentity_Success() public {
         address newUser = address(0x9999);
         switchBackToERC3643();
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         identityRegistry.registerIdentity(newUser, IIdentity(address(identity)), 840);
         assertTrue(identityRegistry.isVerified(newUser));
@@ -552,7 +571,6 @@ contract DownToERC20Test is Test {
         uint256[] memory topics = new uint256[](2);
         topics[0] = claimTopicKyc;
         topics[1] = newTopic;
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
 
@@ -573,7 +591,6 @@ contract DownToERC20Test is Test {
         uint256 allowance = 2000;
 
         // Setup: verify addresses, mint tokens to from, approve spender
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
         vm.prank(suiteOwner);
@@ -611,7 +628,6 @@ contract DownToERC20Test is Test {
         uint256 amount = 1000;
 
         // Setup
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
         vm.prank(suiteOwner);
@@ -636,7 +652,6 @@ contract DownToERC20Test is Test {
         uint256 amount = 1000;
 
         // Setup: verify address
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
 
@@ -657,7 +672,6 @@ contract DownToERC20Test is Test {
         uint256 burnAmount = 500;
 
         // Setup
-        address suiteOwner = deployScript.suiteOwner();
         vm.prank(suiteOwner);
         identityRegistry.registerIdentity(user, IIdentity(address(identity)), 840);
         vm.prank(suiteOwner);

@@ -44,9 +44,9 @@ library TREXDeploymentLib {
         vm.stopBroadcast();
         
         ITREXImplementationAuthority.Version memory version = ITREXImplementationAuthority.Version({
-            major: 4,
+            major: 0,
             minor: 0,
-            patch: 0
+            patch: 1
         });
 
         currentVersion = version;

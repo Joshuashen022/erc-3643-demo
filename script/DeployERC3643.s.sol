@@ -10,7 +10,6 @@ import {IdentityDeploymentLib} from "./utils/IdentityDeploymentLib.sol";
 import {TREXDeploymentLib} from "./utils/TREXDeploymentLib.sol";
 import {TREXSuiteDeploymentLib} from "./utils/TREXSuiteDeploymentLib.sol";
 import {IdentityInitializationLib} from "./utils/IdentityInitializationLib.sol";
-import {ValidationLib} from "./utils/ValidationLib.sol";
 import {RWAIdentityIdFactory, RWAIdentityGateway} from "../src/rwa/proxy/RWAIdentityIdFactory.sol";
 import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
 import {ITREXFactory} from "../lib/ERC-3643/contracts/factory/ITREXFactory.sol";
@@ -20,9 +19,9 @@ contract DeployERC3643 is Script {
     address public suiteOwner = vm.envOr("SUITE_OWNER", msg.sender);
 
     // TREX factory contracts
-    TREXImplementationAuthority public trexImplementationAuthority;
     TREXFactory public trexFactory;
     TREXGateway public trexGateway;
+    TREXImplementationAuthority public trexImplementationAuthority;
 
     // RWA Identity contracts
     IdentityDeploymentLib.IdentityDeploymentResult public identityDeployment;
@@ -76,24 +75,11 @@ contract DeployERC3643 is Script {
             tokenDetails
         );
         
-        console2.log("\n===============================Deploying TREX Gateway======================================\n");
+        console2.log("\n===============================Deploying TREX Gateway=======================================\n");
         trexGateway = TREXDeploymentLib.deployTREXGateway(vm, trexFactory);
 
-        console2.log("\n===============================Unpausing token============================================\n");
+        console2.log("\n===============================Unpausing token==============================================\n");
         TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, suiteOwner);
-    }
-
-    function validate() internal view {
-        ValidationLib.validateRWAModule(
-            suiteOwner,
-            suiteResult.token,
-            suiteResult.identityRegistry,
-            suiteResult.compliance,
-            suiteResult.trustedIssuersRegistry,
-            suiteResult.claimTopicsRegistry,
-            trexFactory
-        );
-        // todo:: validate claim issuers
     }
 
     function identityIdFactory() external view returns (RWAIdentityIdFactory) {

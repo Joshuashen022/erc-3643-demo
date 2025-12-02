@@ -17,7 +17,6 @@ import {ITREXFactory} from "../lib/ERC-3643/contracts/factory/ITREXFactory.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 
 contract DeployERC3643 is Script {
-    string public salt = "trex-suite-1";
     address public suiteOwner = vm.envOr("SUITE_OWNER", msg.sender);
 
     // TREX factory contracts
@@ -37,50 +36,53 @@ contract DeployERC3643 is Script {
     IdentityDeploymentLib.ClaimIssuerDeploymentResult[] claimIssuers;
 
     function run() external {
+        // Deploy Identity contracts
+        console.log("\n===============================Deploying Identity contracts================================\n");
         identityDeployment = IdentityDeploymentLib.deployAllIdentityContracts(vm, msg.sender);
-        // outputs identityDeployment
 
+        // Create TREX implementation authority
+        console.log("\n===============================Creating TREX implementation authority=======================\n");
         (trexImplementationAuthority, currentVersion) = TREXDeploymentLib.createTREXImplementationAuthority(vm);
-        // outputs trexImplementationAuthority and currentVersion
-        
+
+        // Deploy TREXFactory
+        console.log("\n===============================Deploying TREXFactory========================================\n");
         trexFactory = TREXDeploymentLib.deployTREXFactory(
             vm,
             trexImplementationAuthority,
-            identityDeployment.idFactory,
+            identityDeployment.identityIdFactory,
             msg.sender
         );
-        
-        // Initialize ClaimIssuer
+
+        // Initialize ClaimIssuers
+        console.log("\n===============================Initializing ClaimIssuers======================================\n");
         IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults = IdentityDeploymentLib.initializeClaimIssuer(
             vm,
             identityDeployment.claimIssuerIdFactory
         );
 
+        // Prepare claim details
         for (uint256 i = 0; i < claimIssuerResults.length; i++) {
             claimIssuers.push(claimIssuerResults[i]);
         }
 
+        console.log("\n===============================Preparing claim details======================================\n");
         ITREXFactory.ClaimDetails memory claimDetails = TREXSuiteDeploymentLib.prepareClaimDetails(claimIssuerResults);
         ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(suiteOwner);
         suiteResult = TREXSuiteDeploymentLib.deployTREXSuite(
             vm,
             trexFactory,
-            salt,
             suiteOwner,
             claimDetails,
             tokenDetails
         );
         
+        console.log("\n===============================Deploying TREX Gateway======================================\n");
         trexGateway = TREXDeploymentLib.deployTREXGateway(vm, trexFactory);
-        
-        console.log("\n--------------------------------\n");
-        console.log("====== Validating suite ======");
-        console.log("\n--------------------------------\n");
-        validate();
-        console.log("\n========== Validating suite completed ==========\n");
-        
-        TREXSuiteDeploymentLib.unPauseToken(vm, trexFactory, salt, suiteOwner);
+
+        console.log("\n===============================Unpausing token============================================\n");
+        TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, suiteOwner);
     }
+
     function validate() internal view {
         ValidationLib.validateRWAModule(
             suiteOwner,
@@ -97,7 +99,7 @@ contract DeployERC3643 is Script {
     function identityIdFactory() external view returns (RWAIdentityIdFactory) {
         return identityDeployment.identityIdFactory;
     }
-
+    
     function identityGateway() external view returns (RWAIdentityGateway) {
         return identityDeployment.identityGateway;
     }

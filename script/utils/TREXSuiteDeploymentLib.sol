@@ -79,32 +79,23 @@ library TREXSuiteDeploymentLib {
     function deployTREXSuite(
         Vm vm,
         TREXFactory trexFactory,
-        string memory salt,
         address suiteOwner,
         ITREXFactory.ClaimDetails memory claimDetails,
         ITREXFactory.TokenDetails memory tokenDetails
     ) internal returns (TREXSuiteResult memory result) {
-        console.log("Suite owner for TREX Suite:", suiteOwner);
+        bytes32 salt = keccak256(abi.encodePacked(suiteOwner, tokenDetails.name, block.timestamp));
 
+        string memory saltString = string(abi.encodePacked(salt));
         // Deploy TREX Suite using the factory
         vm.startBroadcast(msg.sender);
-        trexFactory.deployTREXSuite(salt, tokenDetails, claimDetails);
+        trexFactory.deployTREXSuite(saltString, tokenDetails, claimDetails);
         vm.stopBroadcast();
         
         // Get the deployed token address and initialize result
-        address tokenAddress = trexFactory.getToken(salt);
-        console.log("TREX Suite deployed successfully");
-        console.log("Token deployed at:", tokenAddress);
-        console.log("Salt used:", salt);
-
-        if (suiteOwner != msg.sender) {
-            vm.startBroadcast(msg.sender);
-            trexFactory.transferOwnership(suiteOwner);
-            vm.stopBroadcast();
-            console.log("TREX Factory ownership transferred to suite owner", suiteOwner);
-        }
+        address tokenAddress = trexFactory.getToken(saltString);
         
         result = _initializeSuiteResult(tokenAddress, result.suiteOwner);
+        _displaySuiteResult(result);
     }
 
 
@@ -120,15 +111,26 @@ library TREXSuiteDeploymentLib {
 
     function unPauseToken(
         Vm vm,
-        TREXFactory trexFactory,
-        string memory salt,
-        address suiteOwner
+        RWAToken token,
+        address tokenOwner
     ) internal {
-        address tokenAddress = trexFactory.getToken(salt);
-
-        vm.startBroadcast(suiteOwner);
-        RWAToken(tokenAddress).unpause();
+        vm.startBroadcast(tokenOwner);
+        token.unpause();
         vm.stopBroadcast();
+        _displayUnpauseToken(token);
+    }
+
+    function _displaySuiteResult(TREXSuiteResult memory result) internal view {
+        console.log("Token:", address(result.token));
+        console.log("Compliance:", address(result.compliance));
+        console.log("Identity registry:", address(result.identityRegistry));
+        console.log("Identity registry storage:", address(result.identityRegistryStorage));
+        console.log("Trusted issuers registry:", address(result.trustedIssuersRegistry));
+        console.log("Claim topics registry:", address(result.claimTopicsRegistry));
+    }
+
+    function _displayUnpauseToken(RWAToken token) internal view {
+        console.log("Token unpaused:", address(token));
     }
 }
 

@@ -13,14 +13,12 @@ library IdentityDeploymentLib {
     struct IdentityDeploymentResult {
         RWAIdentity rwaIdentityImpl;
         RWAClaimIssuer rwaClaimIssuerImpl;
-        ImplementationAuthority implementationAuthority;
+        ImplementationAuthority identityimplementationAuthority;
         ImplementationAuthority claimIssuerImplementationAuthority;
         RWAIdentityIdFactory identityIdFactory;
         RWAIdentityGateway identityGateway;
         RWAClaimIssuerIdFactory claimIssuerIdFactory;
         RWAClaimIssuerGateway claimIssuerGateway;
-        address claimIssuer;
-        IdFactory idFactory;
     }
 
     struct ClaimIssuerDeploymentResult {
@@ -38,33 +36,24 @@ library IdentityDeploymentLib {
         vm.startBroadcast();
         result.rwaIdentityImpl = new RWAIdentity(deployer);
         result.rwaClaimIssuerImpl = new RWAClaimIssuer(deployer);
-        result.implementationAuthority = new ImplementationAuthority(address(result.rwaIdentityImpl));
+        result.identityimplementationAuthority = new ImplementationAuthority(address(result.rwaIdentityImpl));
         result.claimIssuerImplementationAuthority = new ImplementationAuthority(address(result.rwaClaimIssuerImpl));
 
-        result.identityIdFactory = new RWAIdentityIdFactory(address(result.implementationAuthority));
+        result.identityIdFactory = new RWAIdentityIdFactory(address(result.identityimplementationAuthority));
         result.identityGateway = new RWAIdentityGateway(address(result.identityIdFactory), signers);
         result.claimIssuerIdFactory = new RWAClaimIssuerIdFactory(address(result.claimIssuerImplementationAuthority));
         result.claimIssuerGateway = new RWAClaimIssuerGateway(address(result.claimIssuerIdFactory), signers);
 
         vm.stopBroadcast();
-        
-        console.log("IdentityIdFactory deployed at:", address(result.identityIdFactory), "rwaIdentityImpl", address(result.rwaIdentityImpl));
-        console.log("IdentityGateway deployed at:", address(result.identityGateway));
-        console.log("ClaimIssuerIdFactory deployed at:", address(result.claimIssuerIdFactory), "rwaClaimIssuerImpl", address(result.rwaClaimIssuerImpl));
-        console.log("ClaimIssuerGateway deployed at:", address(result.claimIssuerGateway));
-
-        console.log("IdentityIdFactory owner:", result.identityIdFactory.owner());
-        console.log("IdentityGateway owner:", result.identityGateway.owner());
-        console.log("ClaimIssuerIdFactory owner:", result.claimIssuerIdFactory.owner());
-        console.log("ClaimIssuerGateway owner:", result.claimIssuerGateway.owner());
-
-        result.idFactory = IdFactory(address(result.identityIdFactory));
+        _displayIdentityDeploymentResult(result);
     }
 
     function initializeClaimIssuer(
         Vm vm,
         RWAClaimIssuerIdFactory claimIssuerIdFactory
     ) internal returns (ClaimIssuerDeploymentResult[] memory claimIssuers) {
+        
+        // todo this is template for now, we need to make it dynamic
         uint256 claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
         uint256 claimTopicKyc = vm.envOr("CLAIM_TOPIC_KYC", uint256(1));
         string memory claimIssuerName = "claimissuer1";
@@ -79,10 +68,31 @@ library IdentityDeploymentLib {
         
         claimIssuers = new ClaimIssuerDeploymentResult[](1);
         claimIssuers[0] = ClaimIssuerDeploymentResult({
-            claimIssuerPrivateKey: claimIssuerPrivateKey,
+            claimIssuerPrivateKey: claimIssuerPrivateKey,   
             claimIssuer: claimIssuer,
             claimTopics: claimTopics
         });
+        
+        _displayClaimIssuerDeploymentResult(claimIssuers);
+    }
+
+    function _displayIdentityDeploymentResult(IdentityDeploymentResult memory result) internal view {
+        console.log("Identity implementation authority:", address(result.identityimplementationAuthority));
+        console.log("Identity ID factory:", address(result.identityIdFactory));
+        console.log("Identity gateway:", address(result.identityGateway));
+        console.log("Claim issuer implementation authority:", address(result.claimIssuerImplementationAuthority));
+        console.log("Claim issuer ID factory:", address(result.claimIssuerIdFactory));
+        console.log("Claim issuer gateway:", address(result.claimIssuerGateway));
+    }
+
+    function _displayClaimIssuerDeploymentResult(ClaimIssuerDeploymentResult[] memory claimIssuers) internal view {
+        for (uint256 i = 0; i < claimIssuers.length; i++) {
+            console.log("Claim issuer:", address(claimIssuers[i].claimIssuer));
+            console.log("Claim topics count:", claimIssuers[i].claimTopics.length);
+            for (uint256 j = 0; j < claimIssuers[i].claimTopics.length; j++) {
+                console.log("  Topic", j, ":", claimIssuers[i].claimTopics[j]);
+            }
+        }
     }
 }
 

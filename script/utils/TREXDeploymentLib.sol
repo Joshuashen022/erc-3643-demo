@@ -68,13 +68,8 @@ library TREXDeploymentLib {
         vm.startBroadcast();
         trexImplementationAuthority.useTREXVersion(version);
         vm.stopBroadcast();
-
-        require(trexImplementationAuthority.getTokenImplementation() != address(0), "Token implementation is not set");
-        require(trexImplementationAuthority.getCTRImplementation() != address(0), "ClaimTopicsRegistry implementation is not set");
-        require(trexImplementationAuthority.getIRImplementation() != address(0), "IdentityRegistry implementation is not set");
-        require(trexImplementationAuthority.getIRSImplementation() != address(0), "IdentityRegistryStorage implementation is not set");
-        require(trexImplementationAuthority.getTIRImplementation() != address(0), "TrustedIssuersRegistry implementation is not set");
-        require(trexImplementationAuthority.getMCImplementation() != address(0), "ModularCompliance implementation is not set");
+        _displayTREXImplementationAuthority(trexImplementationAuthority);
+        _displayCurrentVersion(version);
     }
 
     function deployTREXFactory(
@@ -83,7 +78,6 @@ library TREXDeploymentLib {
         IdFactory idFactory,
         address deployer
     ) internal returns (TREXFactory trexFactory) {
-        console.log("\n--- Deploying TREXFactory ---");
         vm.startBroadcast(deployer);
         trexFactory = new TREXFactory(
             address(trexImplementationAuthority),
@@ -93,28 +87,41 @@ library TREXDeploymentLib {
         
         vm.startBroadcast();
         idFactory.addTokenFactory(address(trexFactory));
-        vm.stopBroadcast();
-        
-        // Set TREXFactory in TREXImplementationAuthority
-        console.log("\n--- Setting TREXFactory in TREXImplementationAuthority ---");
-        vm.startBroadcast();
         trexImplementationAuthority.setTREXFactory(address(trexFactory));
         vm.stopBroadcast();
-        console.log("TREXFactory set in TREXImplementationAuthority");
+        _displayTREXFactory(trexFactory);
     }
 
     function deployTREXGateway(
         Vm vm,
         TREXFactory trexFactory
     ) internal returns (TREXGateway trexGateway) {
-        console.log("\n--- Deploying TREXGateway ---");
         vm.startBroadcast();
         trexGateway = new TREXGateway(
             address(trexFactory),
             true  // publicDeploymentStatus = true (allow public deployments)
         );
         vm.stopBroadcast();
-        console.log("TREXGateway deployed at:", address(trexGateway));
+        _displayTREXGateway(trexGateway);
+    }
+
+    function _displayTREXImplementationAuthority(TREXImplementationAuthority trexImplementationAuthority) internal view {
+        console.log("TREX implementation authority:", address(trexImplementationAuthority));
+    }
+
+    function _displayTREXFactory(TREXFactory trexFactory) internal view {
+        console.log("TREX factory:", address(trexFactory));
+    }
+
+    function _displayTREXGateway(TREXGateway trexGateway) internal view {
+        console.log("TREX gateway:", address(trexGateway));
+    }
+
+    function _displayCurrentVersion(ITREXImplementationAuthority.Version memory currentVersion) internal view {
+        console.log("Current version:");
+        console.log("  Major:", uint256(currentVersion.major));
+        console.log("  Minor:", uint256(currentVersion.minor));
+        console.log("  Patch:", uint256(currentVersion.patch));
     }
 }
 

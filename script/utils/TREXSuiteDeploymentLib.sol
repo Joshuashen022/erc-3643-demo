@@ -13,6 +13,7 @@ import {RWAIdentityRegistryStorage} from "../../src/rwa/IdentityRegistry.sol";
 import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {IdentityDeploymentLib} from "./IdentityDeploymentLib.sol";
+import {ConfigReaderLib} from "./ConfigReaderLib.sol";
 import {IdentityRegistryStorageProxy} from "../../lib/ERC-3643/contracts/proxy/IdentityRegistryStorageProxy.sol";
 
 library TREXSuiteDeploymentLib {
@@ -26,8 +27,19 @@ library TREXSuiteDeploymentLib {
         address suiteOwner;
     }
 
+    /// @notice Reads claim topics from environment variable CLAIM_TOPICS with default comma delimiter
+    /// @param vm The Vm instance for reading environment variables
+    /// @return claimTopics Array of claim topics parsed from environment variable
+    /// @dev Environment variable format: "1,2,3" for comma-separated topics
+    function readClaimTopicsFromEnv(
+        Vm vm
+    ) public view returns (uint256[] memory claimTopics) {
+        claimTopics = vm.envUint("CLAIM_TOPICS", ",");
+    }
+
     function prepareClaimDetails(
-        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults
+        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults,
+        ConfigReaderLib.DeploymentConfig memory config
     ) public pure returns (ITREXFactory.ClaimDetails memory) {
         uint256 length = claimIssuerResults.length;
         address[] memory issuers = new address[](length);
@@ -38,40 +50,32 @@ library TREXSuiteDeploymentLib {
             issuers[i] = claimIssuerResults[i].claimIssuer;
             issuerClaims[i] = claimIssuerResults[i].claimTopics;
         }
-        
-        // Collect claim topics (use first issuer's topics as base, typically all issuers have same topics)
-        // For most use cases, all issuers will have the same claim topics (e.g., KYC)
-        // todo:: if not, how to handle the case?
-        uint256[] memory allClaimTopics = claimIssuerResults[0].claimTopics;
 
         return ITREXFactory.ClaimDetails({
-            claimTopics: allClaimTopics,
+            claimTopics: config.claimTopics,
             issuers: issuers,
             issuerClaims: issuerClaims
         });
     }
 
-    function prepareTokenDetails(address suiteOwner) public returns (ITREXFactory.TokenDetails memory) {
+    function prepareTokenDetails(
+        ConfigReaderLib.DeploymentConfig memory config
+    ) public returns (ITREXFactory.TokenDetails memory) {
         TestModule testModule = new TestModule();
         testModule.initialize();
         // todo:: add more compliance modules
         address[] memory complianceModules = new address[](1);
         complianceModules[0] = address(testModule);
-        
-        address[] memory irAgents = new address[](1);
-        irAgents[0] = suiteOwner;
-        address[] memory tokenAgents = new address[](1);
-        tokenAgents[0] = suiteOwner;
 
         return ITREXFactory.TokenDetails({
-            owner: suiteOwner,
-            name: "TREX Token",
-            symbol: "TREX",
-            decimals: 18,
-            irs: address(0),
-            ONCHAINID: address(0),
-            irAgents: irAgents,
-            tokenAgents: tokenAgents,
+            owner: config.suiteOwner,
+            name: config.tokenName,
+            symbol: config.tokenSymbol,
+            decimals: config.tokenDecimals,
+            irs: config.irs,
+            ONCHAINID: config.onchainId,
+            irAgents: config.irAgents,
+            tokenAgents: config.tokenAgents,
             complianceModules: complianceModules,
             complianceSettings: new bytes[](0)
         });
@@ -80,11 +84,11 @@ library TREXSuiteDeploymentLib {
     function deployTREXSuite(
         Vm vm,
         TREXFactory trexFactory,
-        address suiteOwner,
+        ConfigReaderLib.DeploymentConfig memory config,
         ITREXFactory.ClaimDetails memory claimDetails,
         ITREXFactory.TokenDetails memory tokenDetails
     ) internal returns (TREXSuiteResult memory result) {
-        bytes32 salt = keccak256(abi.encodePacked(suiteOwner, tokenDetails.name, block.timestamp));
+        bytes32 salt = keccak256(abi.encodePacked(config.suiteOwner, tokenDetails.name, block.timestamp));
 
         string memory saltString = string(abi.encodePacked(salt));
         // Deploy TREX Suite using the factory
@@ -95,19 +99,8 @@ library TREXSuiteDeploymentLib {
         // Get the deployed token address and initialize result
         address tokenAddress = trexFactory.getToken(saltString);
         
-        result = _initializeSuiteResult(tokenAddress, suiteOwner);
+        result = _initializeSuiteResult(tokenAddress, config.suiteOwner);
         _displaySuiteResult(result);
-    }
-
-
-    function _initializeSuiteResult(address tokenAddress, address suiteOwner) private view returns (TREXSuiteResult memory result) {
-        result.suiteOwner = suiteOwner;
-        result.token = RWAToken(tokenAddress);
-        result.compliance = RWACompliance(address(result.token.compliance()));
-        result.identityRegistry = RWAIdentityRegistry(address(result.token.identityRegistry()));
-        result.identityRegistryStorage = RWAIdentityRegistryStorage(address(result.identityRegistry.identityStorage()));
-        result.trustedIssuersRegistry = RWATrustedIssuersRegistry(address(result.identityRegistry.issuersRegistry()));
-        result.claimTopicsRegistry = RWAClaimTopicsRegistry(address(result.identityRegistry.topicsRegistry()));
     }
 
     function unPauseToken(
@@ -119,6 +112,16 @@ library TREXSuiteDeploymentLib {
         token.unpause();
         vm.stopBroadcast();
         _displayUnpauseToken(token);
+    }
+
+    function _initializeSuiteResult(address tokenAddress, address suiteOwner) private view returns (TREXSuiteResult memory result) {
+        result.suiteOwner = suiteOwner;
+        result.token = RWAToken(tokenAddress);
+        result.compliance = RWACompliance(address(result.token.compliance()));
+        result.identityRegistry = RWAIdentityRegistry(address(result.token.identityRegistry()));
+        result.identityRegistryStorage = RWAIdentityRegistryStorage(address(result.identityRegistry.identityStorage()));
+        result.trustedIssuersRegistry = RWATrustedIssuersRegistry(address(result.identityRegistry.issuersRegistry()));
+        result.claimTopicsRegistry = RWAClaimTopicsRegistry(address(result.identityRegistry.topicsRegistry()));
     }
 
     function _displaySuiteResult(TREXSuiteResult memory result) internal view {

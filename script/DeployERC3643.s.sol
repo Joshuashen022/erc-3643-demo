@@ -9,6 +9,7 @@ import {TREXGateway} from "../lib/ERC-3643/contracts/factory/TREXGateway.sol";
 import {IdentityDeploymentLib} from "./utils/IdentityDeploymentLib.sol";
 import {TREXDeploymentLib} from "./utils/TREXDeploymentLib.sol";
 import {TREXSuiteDeploymentLib} from "./utils/TREXSuiteDeploymentLib.sol";
+import {ConfigReaderLib} from "./utils/ConfigReaderLib.sol";
 import {IdentityInitializationLib} from "./utils/IdentityInitializationLib.sol";
 import {RWAIdentityIdFactory, RWAIdentityGateway} from "../src/rwa/proxy/RWAIdentityIdFactory.sol";
 import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
@@ -16,7 +17,8 @@ import {ITREXFactory} from "../lib/ERC-3643/contracts/factory/ITREXFactory.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 
 contract DeployERC3643 is Script {
-    address public suiteOwner = vm.envOr("SUITE_OWNER", msg.sender);
+    // Deployment configuration
+    ConfigReaderLib.DeploymentConfig public deploymentConfig;
 
     // TREX factory contracts
     TREXFactory public trexFactory;
@@ -35,6 +37,10 @@ contract DeployERC3643 is Script {
     IdentityDeploymentLib.ClaimIssuerDeploymentResult[] claimIssuers;
 
     function run() external {
+        // Read configuration from config.json at the beginning
+        console2.log("\n===============================Reading deployment configuration===========================\n");
+        ConfigReaderLib.readConfig(vm, msg.sender, deploymentConfig);
+
         // Deploy Identity contracts
         console2.log("\n===============================Deploying Identity contracts================================\n");
         identityDeployment = IdentityDeploymentLib.deployAllIdentityContracts(vm, msg.sender);
@@ -56,7 +62,8 @@ contract DeployERC3643 is Script {
         console2.log("\n===============================Initializing ClaimIssuers======================================\n");
         IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults = IdentityDeploymentLib.initializeClaimIssuer(
             vm,
-            identityDeployment.claimIssuerIdFactory
+            identityDeployment.claimIssuerIdFactory,
+            deploymentConfig
         );
 
         // Prepare claim details
@@ -65,12 +72,15 @@ contract DeployERC3643 is Script {
         }
 
         console2.log("\n===============================Preparing claim details======================================\n");
-        ITREXFactory.ClaimDetails memory claimDetails = TREXSuiteDeploymentLib.prepareClaimDetails(claimIssuerResults);
-        ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(suiteOwner);
+        ITREXFactory.ClaimDetails memory claimDetails = TREXSuiteDeploymentLib.prepareClaimDetails(
+            claimIssuerResults,
+            deploymentConfig
+        );
+        ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(deploymentConfig);
         suiteResult = TREXSuiteDeploymentLib.deployTREXSuite(
             vm,
             trexFactory,
-            suiteOwner,
+            deploymentConfig,
             claimDetails,
             tokenDetails
         );
@@ -79,7 +89,7 @@ contract DeployERC3643 is Script {
         trexGateway = TREXDeploymentLib.deployTREXGateway(vm, trexFactory);
 
         console2.log("\n===============================Unpausing token==============================================\n");
-        TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, suiteOwner);
+        TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, deploymentConfig.suiteOwner);
     }
 
     function identityIdFactory() external view returns (RWAIdentityIdFactory) {
@@ -96,6 +106,15 @@ contract DeployERC3643 is Script {
 
     function claimIssuerGateway() external view returns (RWAClaimIssuerGateway) {
         return identityDeployment.claimIssuerGateway;
+    }
+
+    function getClaimIssuers() external view returns (IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory) {
+        return claimIssuers;
+    }
+
+    function getClaimIssuer(uint256 index) external view returns (IdentityDeploymentLib.ClaimIssuerDeploymentResult memory) {
+        require(index < claimIssuers.length, "ClaimIssuer index out of bounds");
+        return claimIssuers[index];
     }
     
 }

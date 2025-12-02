@@ -8,6 +8,7 @@ import {IdFactory} from "../../lib/solidity/contracts/factory/IdFactory.sol";
 import {RWAIdentity, RWAClaimIssuer} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityIdFactory, RWAIdentityGateway} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
 import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
+import {ConfigReaderLib} from "./ConfigReaderLib.sol";
 
 library IdentityDeploymentLib {
     struct IdentityDeploymentResult {
@@ -49,33 +50,60 @@ library IdentityDeploymentLib {
         _displayIdentityDeploymentResult(result);
     }
 
+    /// @notice Initializes claim issuers from deployment configuration
+    /// @param vm The Vm instance for creating wallets
+    /// @param claimIssuerIdFactory The factory contract to create claim issuer identities
+    /// @param config The deployment configuration containing claim issuer configs
+    /// @return claimIssuers Array of deployed claim issuer results
     function initializeClaimIssuer(
         Vm vm,
-        RWAClaimIssuerIdFactory claimIssuerIdFactory
+        RWAClaimIssuerIdFactory claimIssuerIdFactory,
+        ConfigReaderLib.DeploymentConfig memory config
     ) internal returns (ClaimIssuerDeploymentResult[] memory claimIssuers) {
+        require(config.claimIssuers.length > 0, "No claim issuers configured");
         
-        // todo this is template for now, we need to make it dynamic
-        uint256 claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
-        uint256 claimTopicKyc = vm.envOr("CLAIM_TOPIC_KYC", uint256(1));
-        string memory claimIssuerName = "claimissuer1";
-        uint256[] memory claimTopics = new uint256[](1);
-        claimTopics[0] = claimTopicKyc;
-
-        VmSafe.Wallet memory claimIssuerWallet = vm.createWallet(claimIssuerPrivateKey);
-
+        // Deploy all claim issuers
+        claimIssuers = new ClaimIssuerDeploymentResult[](config.claimIssuers.length);
+        
         vm.startBroadcast();
-        address claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerWallet.addr, claimIssuerName);
+        for (uint256 i = 0; i < config.claimIssuers.length; i++) {
+            VmSafe.Wallet memory claimIssuerWallet = vm.createWallet(config.claimIssuers[i].privateKey);
+            string memory claimIssuerName = string(abi.encodePacked("claimissuer", _uint2str(i + 1)));
+            
+            address claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerWallet.addr, claimIssuerName);
+            
+            claimIssuers[i] = ClaimIssuerDeploymentResult({
+                claimIssuerPrivateKey: config.claimIssuers[i].privateKey,
+                claimIssuer: claimIssuer,
+                claimIssuerOwner: claimIssuerWallet.addr,
+                claimTopics: config.claimIssuers[i].claimTopics
+            });
+        }
         vm.stopBroadcast();
         
-        claimIssuers = new ClaimIssuerDeploymentResult[](1);
-        claimIssuers[0] = ClaimIssuerDeploymentResult({
-            claimIssuerPrivateKey: claimIssuerPrivateKey,   
-            claimIssuer: claimIssuer,
-            claimIssuerOwner: claimIssuerWallet.addr,
-            claimTopics: claimTopics
-        });
-        
         _displayClaimIssuerDeploymentResult(claimIssuers);
+    }
+
+    /// @notice Converts uint256 to string
+    /// @param num The number to convert
+    /// @return str String representation of the number
+    function _uint2str(uint256 num) private pure returns (string memory str) {
+        if (num == 0) {
+            return "0";
+        }
+        uint256 temp = num;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (num != 0) {
+            digits--;
+            buffer[digits] = bytes1(uint8(48 + num % 10));
+            num /= 10;
+        }
+        return string(buffer);
     }
 
     function _displayIdentityDeploymentResult(IdentityDeploymentResult memory result) internal view {

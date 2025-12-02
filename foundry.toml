@@ -12,6 +12,11 @@ remappings = [
     "ERC-3643/=lib/ERC-3643/contracts/"
 ]
 
+# File system permissions for scripts
+fs_permissions = [
+    { access = "read", path = "./config.json" }
+]
+
 # optimize solidity config for localhost deployment
 [profile.localhost]
 optimizer = true

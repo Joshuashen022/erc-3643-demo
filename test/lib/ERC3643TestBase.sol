@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import {Test} from "forge-std/Test.sol";
 import {DeployERC3643} from "../../script/DeployERC3643.s.sol";
+import {IdentityDeploymentLib} from "../../script/utils/IdentityDeploymentLib.sol";
 import {TREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
 import {TREXFactory} from "../../lib/ERC-3643/contracts/factory/TREXFactory.sol";
 import {TREXGateway} from "../../lib/ERC-3643/contracts/factory/TREXGateway.sol";
@@ -74,13 +75,15 @@ abstract contract ERC3643TestBase is Test {
             suiteOwner
         ) = deployScript.suiteResult();
 
-        // Get claimIssuer from environment variable
-        claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
-        require(claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
-        claimIssuerManagementKey = vm.addr(claimIssuerPrivateKey);
-        claimIssuer = RWAClaimIssuer(claimIssuerIdFactory.getIdentity(claimIssuerManagementKey));
-        require(address(claimIssuer) != address(0), "ClaimIssuer not found");
+        // Get claimIssuer from deployment script
+        // todo::switch to using a loop to get all claim issuers
+        require(deployScript.getClaimIssuers().length > 0, "No claim issuers deployed");
+        IdentityDeploymentLib.ClaimIssuerDeploymentResult memory claimIssuerResult = deployScript.getClaimIssuer(0);
+        claimIssuerPrivateKey = claimIssuerResult.claimIssuerPrivateKey;
+        claimIssuerManagementKey = claimIssuerResult.claimIssuerOwner;
+        claimIssuer = RWAClaimIssuer(claimIssuerResult.claimIssuer);
 
+        require(address(claimIssuer) != address(0), "ClaimIssuer not found");
         identityManagementKey = address(0xDEAD);
         identity = initializeIdentity(identityManagementKey, "testIdentity");
     }

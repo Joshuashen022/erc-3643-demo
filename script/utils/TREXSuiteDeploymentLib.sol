@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
-import {console} from "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {TREXFactory} from "../../lib/ERC-3643/contracts/factory/TREXFactory.sol";
 import {ITREXFactory} from "../../lib/ERC-3643/contracts/factory/ITREXFactory.sol";
@@ -121,16 +121,16 @@ library TREXSuiteDeploymentLib {
     }
 
     function _displaySuiteResult(TREXSuiteResult memory result) internal view {
-        console.log("Token:", address(result.token));
-        console.log("Compliance:", address(result.compliance));
-        console.log("Identity registry:", address(result.identityRegistry));
-        console.log("Identity registry storage:", address(result.identityRegistryStorage));
-        console.log("Trusted issuers registry:", address(result.trustedIssuersRegistry));
-        console.log("Claim topics registry:", address(result.claimTopicsRegistry));
+        console2.log("Token: %s, owner: %s", address(result.token), address(result.token.owner()));
+        console2.log("Compliance: %s, owner: %s", address(result.compliance), address(result.compliance.owner()));
+        console2.log("Identity registry: %s, owner: %s", address(result.identityRegistry), address(result.identityRegistry.owner()));
+        console2.log("Identity registry storage: %s, owner: %s", address(result.identityRegistryStorage), address(result.identityRegistryStorage.owner()));
+        console2.log("Trusted issuers registry: %s, owner: %s", address(result.trustedIssuersRegistry), address(result.trustedIssuersRegistry.owner()));
+        console2.log("Claim topics registry: %s, owner: %s", address(result.claimTopicsRegistry), address(result.claimTopicsRegistry.owner()));
     }
 
     function _displayUnpauseToken(RWAToken token) internal view {
-        console.log("Token unpaused:", address(token));
+        console2.log("Token unpaused: %s, owner: %s", address(token), address(token.owner()));
     }
 }
 

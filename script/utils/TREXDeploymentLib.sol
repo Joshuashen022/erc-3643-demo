@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
-import {console} from "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {Token} from "../../lib/ERC-3643/contracts/token/Token.sol";
 import {ClaimTopicsRegistry} from "../../lib/ERC-3643/contracts/registry/implementation/ClaimTopicsRegistry.sol";
@@ -106,22 +106,19 @@ library TREXDeploymentLib {
     }
 
     function _displayTREXImplementationAuthority(TREXImplementationAuthority trexImplementationAuthority) internal view {
-        console.log("TREX implementation authority:", address(trexImplementationAuthority));
+        console2.log("TREX implementation authority: %s, owner: %s", address(trexImplementationAuthority), address(trexImplementationAuthority.owner()));
     }
-
+    
     function _displayTREXFactory(TREXFactory trexFactory) internal view {
-        console.log("TREX factory:", address(trexFactory));
+        console2.log("TREX factory: %s, owner: %s", address(trexFactory), address(trexFactory.owner()));
     }
 
     function _displayTREXGateway(TREXGateway trexGateway) internal view {
-        console.log("TREX gateway:", address(trexGateway));
+        console2.log("TREX gateway: %s, owner: %s", address(trexGateway), address(trexGateway.owner()));
     }
 
     function _displayCurrentVersion(ITREXImplementationAuthority.Version memory currentVersion) internal view {
-        console.log("Current version:");
-        console.log("  Major:", uint256(currentVersion.major));
-        console.log("  Minor:", uint256(currentVersion.minor));
-        console.log("  Patch:", uint256(currentVersion.patch));
+        console2.log("Current version: major: %s, minor: %s, patch: %s", uint256(currentVersion.major), uint256(currentVersion.minor), uint256(currentVersion.patch));
     }
 }
 

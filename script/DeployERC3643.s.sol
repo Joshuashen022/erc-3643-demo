@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
-import {Script, console} from "forge-std/Script.sol";
+import {Script, console2} from "forge-std/Script.sol";
 import {TREXImplementationAuthority} from "../lib/ERC-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
 import {ITREXImplementationAuthority} from "../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import {TREXFactory} from "../lib/ERC-3643/contracts/factory/TREXFactory.sol";
@@ -37,15 +37,15 @@ contract DeployERC3643 is Script {
 
     function run() external {
         // Deploy Identity contracts
-        console.log("\n===============================Deploying Identity contracts================================\n");
+        console2.log("\n===============================Deploying Identity contracts================================\n");
         identityDeployment = IdentityDeploymentLib.deployAllIdentityContracts(vm, msg.sender);
 
         // Create TREX implementation authority
-        console.log("\n===============================Creating TREX implementation authority=======================\n");
+        console2.log("\n===============================Creating TREX implementation authority=======================\n");
         (trexImplementationAuthority, currentVersion) = TREXDeploymentLib.createTREXImplementationAuthority(vm);
 
         // Deploy TREXFactory
-        console.log("\n===============================Deploying TREXFactory========================================\n");
+        console2.log("\n===============================Deploying TREXFactory========================================\n");
         trexFactory = TREXDeploymentLib.deployTREXFactory(
             vm,
             trexImplementationAuthority,
@@ -54,7 +54,7 @@ contract DeployERC3643 is Script {
         );
 
         // Initialize ClaimIssuers
-        console.log("\n===============================Initializing ClaimIssuers======================================\n");
+        console2.log("\n===============================Initializing ClaimIssuers======================================\n");
         IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults = IdentityDeploymentLib.initializeClaimIssuer(
             vm,
             identityDeployment.claimIssuerIdFactory
@@ -65,7 +65,7 @@ contract DeployERC3643 is Script {
             claimIssuers.push(claimIssuerResults[i]);
         }
 
-        console.log("\n===============================Preparing claim details======================================\n");
+        console2.log("\n===============================Preparing claim details======================================\n");
         ITREXFactory.ClaimDetails memory claimDetails = TREXSuiteDeploymentLib.prepareClaimDetails(claimIssuerResults);
         ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(suiteOwner);
         suiteResult = TREXSuiteDeploymentLib.deployTREXSuite(
@@ -76,10 +76,10 @@ contract DeployERC3643 is Script {
             tokenDetails
         );
         
-        console.log("\n===============================Deploying TREX Gateway======================================\n");
+        console2.log("\n===============================Deploying TREX Gateway======================================\n");
         trexGateway = TREXDeploymentLib.deployTREXGateway(vm, trexFactory);
 
-        console.log("\n===============================Unpausing token============================================\n");
+        console2.log("\n===============================Unpausing token============================================\n");
         TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, suiteOwner);
     }
 

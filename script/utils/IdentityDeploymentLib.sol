@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
-import {console} from "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
 import {Vm, VmSafe} from "forge-std/Vm.sol";
 import {ImplementationAuthority} from "../../lib/solidity/contracts/proxy/ImplementationAuthority.sol";
 import {IdFactory} from "../../lib/solidity/contracts/factory/IdFactory.sol";
@@ -24,6 +24,7 @@ library IdentityDeploymentLib {
     struct ClaimIssuerDeploymentResult {
         uint256 claimIssuerPrivateKey;
         address claimIssuer;
+        address claimIssuerOwner;
         uint256 [] claimTopics;
     }
 
@@ -70,6 +71,7 @@ library IdentityDeploymentLib {
         claimIssuers[0] = ClaimIssuerDeploymentResult({
             claimIssuerPrivateKey: claimIssuerPrivateKey,   
             claimIssuer: claimIssuer,
+            claimIssuerOwner: claimIssuerWallet.addr,
             claimTopics: claimTopics
         });
         
@@ -77,20 +79,20 @@ library IdentityDeploymentLib {
     }
 
     function _displayIdentityDeploymentResult(IdentityDeploymentResult memory result) internal view {
-        console.log("Identity implementation authority:", address(result.identityimplementationAuthority));
-        console.log("Identity ID factory:", address(result.identityIdFactory));
-        console.log("Identity gateway:", address(result.identityGateway));
-        console.log("Claim issuer implementation authority:", address(result.claimIssuerImplementationAuthority));
-        console.log("Claim issuer ID factory:", address(result.claimIssuerIdFactory));
-        console.log("Claim issuer gateway:", address(result.claimIssuerGateway));
+        console2.log("Identity implementation authority: %s, owner: %s", address(result.identityimplementationAuthority), address(result.identityimplementationAuthority.owner()));
+        console2.log("Identity ID factory: %s, owner: %s", address(result.identityIdFactory), address(result.identityIdFactory.owner()));
+        console2.log("Identity gateway: %s, owner: %s", address(result.identityGateway), address(result.identityGateway.owner()));
+        console2.log("Claim issuer implementation authority: %s, owner: %s", address(result.claimIssuerImplementationAuthority), address(result.claimIssuerImplementationAuthority.owner()));
+        console2.log("Claim issuer ID factory: %s, owner: %s", address(result.claimIssuerIdFactory), address(result.claimIssuerIdFactory.owner()));
+        console2.log("Claim issuer gateway: %s, owner: %s", address(result.claimIssuerGateway), address(result.claimIssuerGateway.owner()));
     }
 
     function _displayClaimIssuerDeploymentResult(ClaimIssuerDeploymentResult[] memory claimIssuers) internal view {
         for (uint256 i = 0; i < claimIssuers.length; i++) {
-            console.log("Claim issuer:", address(claimIssuers[i].claimIssuer));
-            console.log("Claim topics count:", claimIssuers[i].claimTopics.length);
+            console2.log("Claim issuer: %s, owner: %s", address(claimIssuers[i].claimIssuer), address(claimIssuers[i].claimIssuerOwner));
+            console2.log("Claim topics count:", claimIssuers[i].claimTopics.length);
             for (uint256 j = 0; j < claimIssuers[i].claimTopics.length; j++) {
-                console.log("  Topic", j, ":", claimIssuers[i].claimTopics[j]);
+                console2.log("  Topic", j, ":", claimIssuers[i].claimTopics[j]);
             }
         }
     }

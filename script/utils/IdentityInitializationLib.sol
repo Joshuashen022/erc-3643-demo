@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
-import {console} from "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {RWAIdentity, RWAClaimIssuer} from "../../src/rwa/identity/Identity.sol";
 import {RWAIdentityIdFactory} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
@@ -82,9 +82,9 @@ library IdentityInitializationLib {
         identities = new IdentityInitResult[](params.length);
         
         for (uint256 i = 0; i < params.length; i++) {
-            console.log("Initializing identity", i + 1, "of", params.length);
-            console.log("Identity management key", params[i].identityManagementKey);
-            console.log("Identity name", params[i].name);
+            console2.log("Initializing identity", i + 1, "of", params.length);
+            console2.log("Identity management key", params[i].identityManagementKey);
+            console2.log("Identity name", params[i].name);
 
             // Add key and claim
             address identity = _addKeyAndClaim(
@@ -112,7 +112,7 @@ library IdentityInitializationLib {
             params.name
         );
         vm.stopBroadcast();
-        console.log("Identity created successfully", identity);
+        console2.log("Identity created successfully", identity);
 
         bytes memory sig = _generateSignature(vm, identity, config.claimTopicKyc, config.claimKeyPrivateKey, params.data);
         
@@ -129,7 +129,7 @@ library IdentityInitializationLib {
             uint16(params.country)
         );
         vm.stopBroadcast();
-        console.log("Identity registered successfully");
+        console2.log("Identity registered successfully");
         return identity;
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
-import {console} from "forge-std/console.sol";
+import {console2} from "forge-std/console2.sol";
 import {RWAToken} from "../../src/rwa/RWAToken.sol";
 import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
 import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
@@ -46,15 +46,15 @@ library ValidationLib {
         // Check that suiteOwner is the owner of TREX Factory
         require(trexFactory.owner() == suiteOwner, "TREX Factory owner should match suite owner");
 
-        console.log("Token:", address(token), "Agent", suiteOwner);
-        console.log("Identity Registry:", address(identityRegistry), "Agent", suiteOwner);
+        console2.log("Token:", address(token), "Agent", suiteOwner);
+        console2.log("Identity Registry:", address(identityRegistry), "Agent", suiteOwner);
 
-        console.log("Token:", address(token), "Owner", suiteOwner);
-        console.log("Identity Registry:", address(identityRegistry), "Owner", suiteOwner);
-        console.log("Compliance:", address(compliance), "Owner", suiteOwner);
-        console.log("Trusted Issuers Registry:", address(trustedIssuersRegistry), "Owner", suiteOwner);
-        console.log("Claim Topics Registry:", address(claimTopicsRegistry), "Owner", suiteOwner);
-        console.log("TREX Factory:", address(trexFactory), "Owner", suiteOwner);  
+        console2.log("Token:", address(token), "Owner", suiteOwner);
+        console2.log("Identity Registry:", address(identityRegistry), "Owner", suiteOwner);
+        console2.log("Compliance:", address(compliance), "Owner", suiteOwner);
+        console2.log("Trusted Issuers Registry:", address(trustedIssuersRegistry), "Owner", suiteOwner);
+        console2.log("Claim Topics Registry:", address(claimTopicsRegistry), "Owner", suiteOwner);
+        console2.log("TREX Factory:", address(trexFactory), "Owner", suiteOwner);  
     }
 
     function validateIdentity(
@@ -81,11 +81,11 @@ library ValidationLib {
             "Management key should be a management key of ClaimIssuer"
         );
 
-        console.log("Identity:", identity, "Management Key", identityManagementKey);
-        console.log("ClaimIssuer:", claimIssuer, "Management Key", claimIssuerManagementKey);
+        console2.log("Identity:", identity, "Management Key", identityManagementKey);
+        console2.log("ClaimIssuer:", claimIssuer, "Management Key", claimIssuerManagementKey);
 
         require(identityRegistry.isVerified(identityManagementKey), "Identity is not verified");
-        console.log("Identity is verified", identityManagementKey);
+        console2.log("Identity is verified", identityManagementKey);
     }
 
     function validateIdentities(
@@ -103,7 +103,7 @@ library ValidationLib {
             "Management key should be a management key of ClaimIssuer"
         );
         
-        console.log("ClaimIssuer:", claimIssuer, "Management Key", claimIssuerManagementKey);
+        console2.log("ClaimIssuer:", claimIssuer, "Management Key", claimIssuerManagementKey);
         
         for (uint256 i = 0; i < identities.length; i++) {
             // Check that identityManagementKey is set
@@ -121,13 +121,13 @@ library ValidationLib {
                 "Management key should be a management key of Identity"
             );
 
-            console.log("Identity:", identities[i].identity, "Management Key", identities[i].identityManagementKey);
+            console2.log("Identity:", identities[i].identity, "Management Key", identities[i].identityManagementKey);
 
             require(
                 identityRegistry.isVerified(identities[i].identityManagementKey),
                 "Identity is not verified"
             );
-            console.log("Identity is verified", identities[i].identityManagementKey);
+            console2.log("Identity is verified", identities[i].identityManagementKey);
         }
     }
 }

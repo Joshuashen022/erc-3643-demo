@@ -1,21 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.17;
 
-import {Test} from "forge-std/Test.sol";
-import {DeployERC3643} from "../../script/DeployERC3643.s.sol";
-import {TREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
-import {TREXFactory} from "../../lib/ERC-3643/contracts/factory/TREXFactory.sol";
-import {TREXGateway} from "../../lib/ERC-3643/contracts/factory/TREXGateway.sol";
+import {ERC3643TestBase} from "../lib/ERC3643TestBase.sol";
 import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "../../lib/solidity/contracts/interface/IClaimIssuer.sol";
-import {RWAIdentityIdFactory, RWAIdentityGateway} from "../../src/rwa/proxy/RWAIdentityIdFactory.sol";
-import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
-
-import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
-import {RWAIdentityRegistry} from "../../src/rwa/IdentityRegistry.sol";
-import {RWACompliance} from "../../src/rwa/RWACompliance.sol";
-import {RWAToken} from "../../src/rwa/RWAToken.sol";
-import {RWAIdentityRegistryStorage, RWATrustedIssuersRegistry, RWAClaimTopicsRegistry} from "../../src/rwa/IdentityRegistry.sol";
 
 contract MockCompliance {
     function canTransfer(address from, address to, uint256 amount) external view returns (bool) {
@@ -41,73 +29,13 @@ contract MockIdentityRegistry {
 // 4. check the token is an ERC20 token
 // 5. switch back to an ERC3643 token
 // 6. check the token is an ERC3643 token
-contract DownToERC20Test is Test {
-    DeployERC3643 deployScript;
-
-    TREXImplementationAuthority public trexImplementationAuthority;
-    TREXFactory public trexFactory;
-    TREXGateway public trexGateway;
-    RWAIdentityIdFactory public identityIdFactory;
-    RWAIdentityGateway public identityGateway;
-    RWAClaimIssuerIdFactory public claimIssuerIdFactory;
-    RWAClaimIssuerGateway public claimIssuerGateway;
-
-    RWAToken internal rwaToken;
-    RWACompliance internal compliance;
-    RWAIdentityRegistry internal identityRegistry;
-    // IdentityRegistry-related variables
-    RWAIdentityRegistryStorage internal identityRegistryStorage;
-    RWATrustedIssuersRegistry internal trustedIssuersRegistry;
-    RWAClaimTopicsRegistry internal claimTopicsRegistry;
-    
-    RWAIdentity public identity;
-    RWAClaimIssuer public claimIssuer;
-    address public identityManagementKey;
-    uint256 public claimIssuerPrivateKey;
-    address public claimIssuerManagementKey;
-    address public suiteOwner;
-
+contract DownToERC20Test is ERC3643TestBase {
     // Event definitions for testing
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
     function setUp() public {
-        deployScript = new DeployERC3643();
-        deployScript.run();
-        
-        // TREX factory contracts
-        trexImplementationAuthority = deployScript.trexImplementationAuthority();
-        trexFactory = deployScript.trexFactory();
-        trexGateway = deployScript.trexGateway();
-
-        // RWA Identity contracts
-        (
-            ,,,, 
-            identityIdFactory,
-            identityGateway, 
-            claimIssuerIdFactory, 
-            claimIssuerGateway
-        ) = deployScript.identityDeployment();
-        
-        (
-            rwaToken, 
-            compliance, 
-            identityRegistry, 
-            identityRegistryStorage, 
-            trustedIssuersRegistry, 
-            claimTopicsRegistry,
-            suiteOwner
-        ) = deployScript.suiteResult();
-
-        // Get claimIssuer from environment variable
-        claimIssuerPrivateKey = vm.envOr("CLAIM_ISSUER_PRIVATE_KEY", uint256(0));
-        require(claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
-        claimIssuerManagementKey = vm.addr(claimIssuerPrivateKey);
-        claimIssuer = RWAClaimIssuer(claimIssuerIdFactory.getIdentity(claimIssuerManagementKey));
-        require(address(claimIssuer) != address(0), "ClaimIssuer not found");
-
-        identityManagementKey = address(0xDEAD);
-        identity = initializeIdentity(identityManagementKey, "testIdentity");
+        setUpBase();
 
         // switch the compliance to a MockCompliance
         MockCompliance mockCompliance = new MockCompliance();
@@ -117,45 +45,6 @@ contract DownToERC20Test is Test {
         rwaToken.setCompliance(address(mockCompliance));
         vm.prank(suiteOwner);
         rwaToken.setIdentityRegistry(address(mockIdentityRegistry));
-    }
-    
-    // scenario: create a new OnChainID and register it to identity registry
-    function initializeIdentity(address newIdentityManagementKey, string memory identityName) public returns (RWAIdentity) {
-        uint256 claimTopicKyc = 1;
-        uint256 claimSchemeEcdsa = 1;
-        // Use the same private key as the deployment script for signing claims
-        uint256 claimKeyPrivateKey = claimIssuerPrivateKey;
-        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
-
-        // Create new identity
-        vm.prank(identityIdFactory.owner());
-        address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, identityName);
-        
-        // Add claimIssuer's signature to new identity
-        bytes memory data = "";
-        bytes32 dataHash = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        vm.prank(newIdentityManagementKey);
-        RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
-        
-        // Register new identity
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
-        return RWAIdentity(newIdentity);
-    }
-
-    // ============ Basic Deployment Tests ============
-    function test_DeployERC3643_Success() public view {
-        assertNotEq(address(trexImplementationAuthority), address(0));
-        assertNotEq(address(trexFactory), address(0));
-        assertNotEq(address(trexGateway), address(0));
-        assertNotEq(address(rwaToken), address(0));
-        assertNotEq(address(compliance), address(0));
-        assertNotEq(address(identityRegistry), address(0));
-        assertNotEq(address(claimIssuer), address(0));
-        assertTrue(identityRegistry.isVerified(identityManagementKey));
     }
 
     // ============ ERC20 Metadata Tests ============
@@ -534,49 +423,18 @@ contract DownToERC20Test is Test {
         switchBackToERC3643();
         uint256 claimTopicKyc = 1;
         uint256 newTopic = 2;
-        uint256 claimSchemeEcdsa = 1;
-        // Use the same private key as the deployment script for signing claims
-        uint256 claimKeyPrivateKey = claimIssuerPrivateKey;
-        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
 
         address newIdentityManagementKey = address(0x9999);
 
-        // Create new identity
-        vm.prank(identityIdFactory.owner());
-        address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, "newIdentityWithMoreTopics");
-
-        // Add claimIssuer's signature for topic 1 (KYC)
-        {
-            bytes memory data = "";
-            bytes32 dataHash1 = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
-            bytes32 prefixedHash1 = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash1));
-            (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(claimKeyPrivateKey, prefixedHash1);
-            bytes memory sig1 = abi.encodePacked(r1, s1, v1);
-            vm.prank(newIdentityManagementKey);
-            RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig1, data, "");
-        }
-        
-        // Add claimIssuer's signature for new topic
-        {
-            bytes memory data = "";
-            bytes32 dataHash2 = keccak256(abi.encode(newIdentity, newTopic, data));
-            bytes32 prefixedHash2 = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash2));
-            (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(claimKeyPrivateKey, prefixedHash2);
-            bytes memory sig2 = abi.encodePacked(r2, s2, v2);
-            vm.prank(newIdentityManagementKey);
-            RWAIdentity(newIdentity).addClaim(newTopic, claimSchemeEcdsa, address(claimIssuer), sig2, data, "");
-        }
-
-        // Update trusted issuers registry to require both topics
         uint256[] memory topics = new uint256[](2);
         topics[0] = claimTopicKyc;
         topics[1] = newTopic;
-        vm.prank(suiteOwner);
-        trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
+        
+        bytes[] memory dataArray = new bytes[](2);
+        dataArray[0] = "";
+        dataArray[1] = "";
 
-        // Register new identity
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
+        initializeIdentityWithTopics(newIdentityManagementKey, "newIdentityWithMoreTopics", topics, dataArray);
         
         assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
     }
@@ -598,14 +456,6 @@ contract DownToERC20Test is Test {
         vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 
-        // 测试中调用 approve 时未使用 vm.prank(from)，导致批准来自测试合约而非 from。因此 _allowances[from][spender] 为 0，transferFrom 在第 228 行计算 _allowances[from][msg.sender] - _amount 时发生下溢。
-        // 修复：
-        // 在调用 approve 前添加 vm.prank(from)，确保批准来自正确的地址
-        // 取消注释测试末尾的断言，验证所有预期结果
-        // 测试现在通过，所有断言都正确：
-        // from 的余额为 1000（2000 - 1000）
-        // to 的余额为 1000
-        // 剩余授权为 1000（2000 - 1000）
         vm.prank(from);
         rwaToken.approve(spender, allowance);
 

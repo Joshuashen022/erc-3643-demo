@@ -66,6 +66,8 @@ library DeploymentResultSerializerLib {
         string memory json;
 
         json = jsonKey.serialize("deployDate", block.timestamp);
+        json = jsonKey.serialize("deployer", msg.sender);
+        json = jsonKey.serialize("chainId", block.chainid);
         // Serialize TREX factory contracts
         json = jsonKey.serialize("trexFactory", address(trexFactory));
         json = jsonKey.serialize("trexFactoryOwner", address(trexFactory.owner()));

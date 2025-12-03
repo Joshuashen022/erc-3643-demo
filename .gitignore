@@ -18,3 +18,5 @@ dist/
 .idea
 
 config.json
+
+/deployment_results.json

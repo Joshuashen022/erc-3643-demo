@@ -21,11 +21,26 @@ library ConfigReaderLib {
         address onchainId;
         address[] irAgents;
         address[] tokenAgents;
+        OwnersConfig owners;
     }
 
     struct ClaimIssuerConfig {
         uint256 privateKey;
         uint256[] claimTopics;
+    }
+
+    struct OwnersConfig {
+        address claimIssuerGateway;
+        address claimIssuerIdFactory;
+        address identityIdFactory;
+        address identityGateway;
+        address token;
+        address identityRegistry;
+        address trexImplementationAuthority;
+        address trustedIssuersRegistry;
+        address claimTopicsRegistry;
+        address trexFactory;
+        address trexGateway;
     }
 
     /// @notice Reads deployment configuration from config.json file
@@ -65,7 +80,69 @@ library ConfigReaderLib {
             config.claimIssuers.push(claimIssuers[i]);
         }
         
+        // Read owners configuration
+        config.owners = _readOwnersConfig(json, defaultDeployer);
+        
         _displayConfig(config);
+    }
+
+    /// @notice Reads owners configuration from JSON
+    /// @param json The JSON string content
+    /// @param defaultOwner Default owner address to use if not specified in config
+    /// @return owners The owners configuration
+    function _readOwnersConfig(
+        string memory json,
+        address defaultOwner
+    ) private view returns (OwnersConfig memory owners) {
+        // Initialize all fields with defaultOwner as fallback
+        owners.claimIssuerGateway = defaultOwner;
+        owners.claimIssuerIdFactory = defaultOwner;
+        owners.identityIdFactory = defaultOwner;
+        owners.identityGateway = defaultOwner;
+        owners.token = defaultOwner;
+        owners.identityRegistry = defaultOwner;
+        owners.trexImplementationAuthority = defaultOwner;
+        owners.trustedIssuersRegistry = defaultOwner;
+        owners.claimTopicsRegistry = defaultOwner;
+        owners.trexFactory = defaultOwner;
+        owners.trexGateway = defaultOwner;
+        
+        // Read owners configuration if it exists
+        if (stdJson.keyExists(json, ".owners")) {
+            if (stdJson.keyExists(json, ".owners.claimIssuerGateway")) {
+                owners.claimIssuerGateway = _parseAddress(stdJson.readString(json, ".owners.claimIssuerGateway"));
+            }
+            if (stdJson.keyExists(json, ".owners.claimIssuerIdFactory")) {
+                owners.claimIssuerIdFactory = _parseAddress(stdJson.readString(json, ".owners.claimIssuerIdFactory"));
+            }
+            if (stdJson.keyExists(json, ".owners.identityIdFactory")) {
+                owners.identityIdFactory = _parseAddress(stdJson.readString(json, ".owners.identityIdFactory"));
+            }
+            if (stdJson.keyExists(json, ".owners.identityGateway")) {
+                owners.identityGateway = _parseAddress(stdJson.readString(json, ".owners.identityGateway"));
+            }
+            if (stdJson.keyExists(json, ".owners.token")) {
+                owners.token = _parseAddress(stdJson.readString(json, ".owners.token"));
+            }
+            if (stdJson.keyExists(json, ".owners.identityRegistry")) {
+                owners.identityRegistry = _parseAddress(stdJson.readString(json, ".owners.identityRegistry"));
+            }
+            if (stdJson.keyExists(json, ".owners.trexImplementationAuthority")) {
+                owners.trexImplementationAuthority = _parseAddress(stdJson.readString(json, ".owners.trexImplementationAuthority"));
+            }
+            if (stdJson.keyExists(json, ".owners.trustedIssuersRegistry")) {
+                owners.trustedIssuersRegistry = _parseAddress(stdJson.readString(json, ".owners.trustedIssuersRegistry"));
+            }
+            if (stdJson.keyExists(json, ".owners.claimTopicsRegistry")) {
+                owners.claimTopicsRegistry = _parseAddress(stdJson.readString(json, ".owners.claimTopicsRegistry"));
+            }
+            if (stdJson.keyExists(json, ".owners.trexFactory")) {
+                owners.trexFactory = _parseAddress(stdJson.readString(json, ".owners.trexFactory"));
+            }
+            if (stdJson.keyExists(json, ".owners.trexGateway")) {
+                owners.trexGateway = _parseAddress(stdJson.readString(json, ".owners.trexGateway"));
+            }
+        }
     }
 
     /// @notice Reads claim issuers configuration from JSON
@@ -266,6 +343,18 @@ library ConfigReaderLib {
                 console2.log("      Topic", j, ":", config.claimIssuers[i].claimTopics[j]);
             }
         }
+        console2.log("Owners configuration:");
+        console2.log("  claimIssuerGateway:", config.owners.claimIssuerGateway);
+        console2.log("  claimIssuerIdFactory:", config.owners.claimIssuerIdFactory);
+        console2.log("  identityIdFactory:", config.owners.identityIdFactory);
+        console2.log("  identityGateway:", config.owners.identityGateway);
+        console2.log("  token:", config.owners.token);
+        console2.log("  identityRegistry:", config.owners.identityRegistry);
+        console2.log("  trexImplementationAuthority:", config.owners.trexImplementationAuthority);
+        console2.log("  trustedIssuersRegistry:", config.owners.trustedIssuersRegistry);
+        console2.log("  claimTopicsRegistry:", config.owners.claimTopicsRegistry);
+        console2.log("  trexFactory:", config.owners.trexFactory);
+        console2.log("  trexGateway:", config.owners.trexGateway);
         console2.log("================================");
     }
 }

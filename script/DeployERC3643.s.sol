@@ -16,6 +16,7 @@ import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/R
 import {ITREXFactory} from "../lib/ERC-3643/contracts/factory/ITREXFactory.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {DeploymentResultSerializerLib} from "./utils/DeploymentResultSerializerLib.sol";
+import {OwnershipTransferLib} from "./utils/OwnershipTransferLib.sol";
 
 contract DeployERC3643 is Script {
     // Deployment configuration
@@ -92,6 +93,17 @@ contract DeployERC3643 is Script {
 
         console2.log("\n===============================Unpausing token==============================================\n");
         TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, deploymentConfig.suiteOwner);
+
+        console2.log("\n===============================Transferring contract ownerships==============================\n");
+        OwnershipTransferLib.transferAllOwnerships(
+            vm,
+            identityDeployment,
+            trexImplementationAuthority,
+            trexFactory,
+            trexGateway,
+            suiteResult,
+            deploymentConfig.owners
+        );
 
         console2.log("\n===============================Serializing deployment results================================\n");
         DeploymentResultSerializerLib.serializeAndWriteDeploymentResults(

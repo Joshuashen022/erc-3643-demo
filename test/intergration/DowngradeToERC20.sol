@@ -419,26 +419,6 @@ contract DownToERC20Test is ERC3643TestBase {
         assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
     }
 
-    function test_RegisterIdentityWithMoreTopics_Success() public {
-        switchBackToERC3643();
-        uint256 claimTopicKyc = 1;
-        uint256 newTopic = 2;
-
-        address newIdentityManagementKey = address(0x9999);
-
-        uint256[] memory topics = new uint256[](2);
-        topics[0] = claimTopicKyc;
-        topics[1] = newTopic;
-        
-        bytes[] memory dataArray = new bytes[](2);
-        dataArray[0] = "";
-        dataArray[1] = "";
-
-        initializeIdentityWithTopics(newIdentityManagementKey, "newIdentityWithMoreTopics", topics, dataArray);
-        
-        assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
-    }
-
     // ============ transferFrom tests ============
     function test_TransferFromSuccess() public {
         switchBackToERC3643();

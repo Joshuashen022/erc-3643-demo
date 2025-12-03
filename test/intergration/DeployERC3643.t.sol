@@ -45,25 +45,6 @@ contract DeployERC3643Test is ERC3643TestBase {
         assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
     }
 
-    function test_RegisterIdentityWithMoreTopics_Success() public {
-        uint256 claimTopicKyc = 1;
-        uint256 newTopic = 2;
-
-        address newIdentityManagementKey = address(0x9999);
-
-        uint256[] memory topics = new uint256[](2);
-        topics[0] = claimTopicKyc;
-        topics[1] = newTopic;
-        
-        bytes[] memory dataArray = new bytes[](2);
-        dataArray[0] = "Bob is happy";
-        dataArray[1] = "Alice is sad";
-
-        initializeIdentityWithTopics(newIdentityManagementKey, "newIdentityWithMoreTopics", topics, dataArray);
-        
-        assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
-    }
-
     /// @notice Basic deployment test
     function test_DeployERC3643_Success() public view {
         assertNotEq(address(trexImplementationAuthority), address(0));
@@ -72,7 +53,6 @@ contract DeployERC3643Test is ERC3643TestBase {
         assertNotEq(address(rwaToken), address(0));
         assertNotEq(address(compliance), address(0));
         assertNotEq(address(identityRegistry), address(0));
-        assertNotEq(address(claimIssuer), address(0));
         assertTrue(identityRegistry.isVerified(identityManagementKey));
     }
 

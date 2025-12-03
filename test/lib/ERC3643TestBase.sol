@@ -39,12 +39,13 @@ abstract contract ERC3643TestBase is Test {
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     RWAClaimTopicsRegistry internal claimTopicsRegistry;
     
-    RWAClaimIssuer public claimIssuer;
     RWAIdentity public identity;
     address public identityManagementKey;
-    uint256 public claimIssuerPrivateKey;
-    address public claimIssuerManagementKey;
     address public suiteOwner;
+    
+    // All claim issuers arrays
+    IdentityDeploymentLib.ClaimIssuerDeploymentResult[] public allClaimIssuers;
+    RWAClaimIssuer[] public allClaimIssuerContracts;
 
     /// @notice Common setup function that should be called in child contracts' setUp
     function setUpBase() internal {
@@ -75,15 +76,18 @@ abstract contract ERC3643TestBase is Test {
             suiteOwner
         ) = deployScript.suiteResult();
 
-        // Get claimIssuer from deployment script
-        // todo::switch to using a loop to get all claim issuers
+        // Get all claimIssuers from deployment script
         require(deployScript.getClaimIssuers().length > 0, "No claim issuers deployed");
-        IdentityDeploymentLib.ClaimIssuerDeploymentResult memory claimIssuerResult = deployScript.getClaimIssuer(0);
-        claimIssuerPrivateKey = claimIssuerResult.claimIssuerPrivateKey;
-        claimIssuerManagementKey = claimIssuerResult.claimIssuerOwner;
-        claimIssuer = RWAClaimIssuer(claimIssuerResult.claimIssuer);
-
-        require(address(claimIssuer) != address(0), "ClaimIssuer not found");
+        
+        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults = deployScript.getClaimIssuers();
+        
+        // Store all claim issuers
+        for (uint256 i = 0; i < claimIssuerResults.length; i++) {
+            require(claimIssuerResults[i].claimIssuer != address(0), "ClaimIssuer address is zero");
+            allClaimIssuers.push(claimIssuerResults[i]);
+            allClaimIssuerContracts.push(RWAClaimIssuer(claimIssuerResults[i].claimIssuer));
+        }
+        
         identityManagementKey = address(0xDEAD);
         identity = initializeIdentity(identityManagementKey, "testIdentity");
     }
@@ -93,24 +97,15 @@ abstract contract ERC3643TestBase is Test {
     /// @param identityName The name of the identity
     /// @return The initialized RWAIdentity contract
     function initializeIdentity(address newIdentityManagementKey, string memory identityName) public returns (RWAIdentity) {
-        uint256 claimTopicKyc = 1;
-        uint256 claimSchemeEcdsa = 1;
-        // Use the same private key as the deployment script for signing claims
-        uint256 claimKeyPrivateKey = claimIssuerPrivateKey;
-        require(claimKeyPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
+        require(allClaimIssuers.length > 0, "No claim issuers available");
 
         // Create new identity
         vm.prank(identityIdFactory.owner());
         address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, identityName);
         
-        // Add claimIssuer's signature to new identity
+        // Add claims for each issuer's each topic
         bytes memory data = "";
-        bytes32 dataHash = keccak256(abi.encode(newIdentity, claimTopicKyc, data));
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        vm.prank(newIdentityManagementKey);
-        RWAIdentity(newIdentity).addClaim(claimTopicKyc, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
+        _addAllClaimsToIdentity(newIdentity, newIdentityManagementKey, data);
         
         // Register new identity
         vm.prank(suiteOwner);
@@ -118,56 +113,51 @@ abstract contract ERC3643TestBase is Test {
         return RWAIdentity(newIdentity);
     }
 
-    /// @notice Helper function to add a claim to an identity
-    function _addClaimToIdentity(
+    /// @notice Helper function to add all claims from all issuers to an identity
+    /// @param newIdentity The identity contract address
+    /// @param newIdentityManagementKey The management key for the identity
+    /// @param data The claim data (can be empty)
+    function _addAllClaimsToIdentity(
+        address newIdentity,
+        address newIdentityManagementKey,
+        bytes memory data
+    ) internal {
+        require(allClaimIssuers.length > 0, "No claim issuers available");
+        
+        for (uint256 i = 0; i < allClaimIssuers.length; i++) {
+            IdentityDeploymentLib.ClaimIssuerDeploymentResult memory issuer = allClaimIssuers[i];
+            require(issuer.claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
+            
+            // Add claim for each topic of this issuer
+            for (uint256 j = 0; j < issuer.claimTopics.length; j++) {
+                uint256 topic = issuer.claimTopics[j];
+                _addClaimWithIssuer(newIdentity, newIdentityManagementKey, topic, issuer.claimIssuerPrivateKey, issuer.claimIssuer, data);
+            }
+        }
+    }
+
+    /// @notice Internal helper function to sign and add a single claim
+    /// @param newIdentity The identity contract address
+    /// @param newIdentityManagementKey The management key for the identity
+    /// @param topic The claim topic
+    /// @param issuerPrivateKey The private key of the claim issuer for signing
+    /// @param issuerAddress The address of the claim issuer
+    /// @param data The claim data
+    function _addClaimWithIssuer(
         address newIdentity,
         address newIdentityManagementKey,
         uint256 topic,
+        uint256 issuerPrivateKey,
+        address issuerAddress,
         bytes memory data
     ) internal {
         uint256 claimSchemeEcdsa = 1;
-        uint256 claimKeyPrivateKey = claimIssuerPrivateKey;
         bytes32 dataHash = keccak256(abi.encode(newIdentity, topic, data));
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimKeyPrivateKey, prefixedHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(issuerPrivateKey, prefixedHash);
         bytes memory sig = abi.encodePacked(r, s, v);
         vm.prank(newIdentityManagementKey);
-        RWAIdentity(newIdentity).addClaim(topic, claimSchemeEcdsa, address(claimIssuer), sig, data, "");
+        RWAIdentity(newIdentity).addClaim(topic, claimSchemeEcdsa, issuerAddress, sig, data, "");
     }
-
-    /// @notice Register identity with multiple claim topics
-    /// @param newIdentityManagementKey The management key for the new identity
-    /// @param identityName The name of the identity
-    /// @param topics Array of claim topics to add
-    /// @param dataArray Array of data for each topic (can be empty strings)
-    /// @return The initialized RWAIdentity contract
-    function initializeIdentityWithTopics(
-        address newIdentityManagementKey,
-        string memory identityName,
-        uint256[] memory topics,
-        bytes[] memory dataArray
-    ) public returns (RWAIdentity) {
-        require(claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
-        require(topics.length == dataArray.length, "Topics and data arrays must have same length");
-
-        // Create new identity
-        vm.prank(identityIdFactory.owner());
-        address newIdentity = identityIdFactory.createIdentity(newIdentityManagementKey, identityName);
-
-        // Add claims for each topic
-        for (uint256 i = 0; i < topics.length; i++) {
-            _addClaimToIdentity(newIdentity, newIdentityManagementKey, topics[i], dataArray[i]);
-        }
-
-        // Update trusted issuers registry to require all topics
-        vm.prank(suiteOwner);
-        trustedIssuersRegistry.updateIssuerClaimTopics(IClaimIssuer(address(claimIssuer)), topics);
-
-        // Register new identity
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(newIdentityManagementKey, IIdentity(address(newIdentity)), 840);
-        return RWAIdentity(newIdentity);
-    }
-
 }
 

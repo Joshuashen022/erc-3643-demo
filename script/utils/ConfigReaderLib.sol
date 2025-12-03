@@ -13,7 +13,6 @@ library ConfigReaderLib {
         // Claim issuers configuration
         ClaimIssuerConfig[] claimIssuers;
         // Token configuration
-        address suiteOwner;
         string tokenName;
         string tokenSymbol;
         uint8 tokenDecimals;
@@ -52,13 +51,13 @@ library ConfigReaderLib {
     ///          "name": "TREX Token",
     ///          "symbol": "TREX",
     ///          "decimals": 18,
-    ///          "suiteOwner": "0x...",  // optional, defaults to deployer
     ///          "irs": "0x...",  // optional, defaults to address(0)
     ///          "onchainId": "0x...",  // optional, defaults to address(0)
-    ///          "irAgents": ["0x..."],  // optional, defaults to [suiteOwner]
-    ///          "tokenAgents": ["0x..."]  // optional, defaults to [suiteOwner]
+    ///          "irAgents": ["0x..."],  // optional array
+    ///          "tokenAgents": ["0x..."]  // optional array
     ///        }
     ///      }
+    ///      Note: suiteOwner is always msg.sender (deployer), not read from config
     function readConfig(Vm vm, address defaultDeployer, DeploymentConfig storage config) public {
         // Read config.json file
         string memory configPath = string.concat(vm.projectRoot(), "/config.json");
@@ -68,7 +67,6 @@ library ConfigReaderLib {
         config.tokenName = stdJson.readString(json, ".token.name");
         config.tokenSymbol = stdJson.readString(json, ".token.symbol");
         config.tokenDecimals = uint8(stdJson.readUint(json, ".token.decimals"));
-        config.suiteOwner = _parseAddress(stdJson.readString(json, ".token.suiteOwner"));
         config.irs = _parseAddress(stdJson.readString(json, ".token.irs"));
         config.onchainId = _parseAddress(stdJson.readString(json, ".token.onchainId"));
         config.irAgents = _readAddressArray(json, ".token.irAgents");
@@ -324,7 +322,6 @@ library ConfigReaderLib {
         console2.log("Token name:", config.tokenName);
         console2.log("Token symbol:", config.tokenSymbol);
         console2.log("Token decimals:", config.tokenDecimals);
-        console2.log("Suite owner:", config.suiteOwner);
         console2.log("IRS:", config.irs);
         console2.log("ONCHAINID:", config.onchainId);
         console2.log("IR agents count:", config.irAgents.length);
@@ -355,7 +352,6 @@ library ConfigReaderLib {
         console2.log("  claimTopicsRegistry:", config.owners.claimTopicsRegistry);
         console2.log("  trexFactory:", config.owners.trexFactory);
         console2.log("  trexGateway:", config.owners.trexGateway);
-        console2.log("================================");
     }
 }
 

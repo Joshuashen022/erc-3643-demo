@@ -24,7 +24,6 @@ library TREXSuiteDeploymentLib {
         RWAIdentityRegistryStorage identityRegistryStorage;
         RWATrustedIssuersRegistry trustedIssuersRegistry;
         RWAClaimTopicsRegistry claimTopicsRegistry;
-        address suiteOwner;
     }
 
     /// @notice Reads claim topics from environment variable CLAIM_TOPICS with default comma delimiter
@@ -61,7 +60,8 @@ library TREXSuiteDeploymentLib {
 
     function prepareTokenDetails(
         Vm vm,
-        ConfigReaderLib.DeploymentConfig memory config
+        ConfigReaderLib.DeploymentConfig memory config,
+        address tokenOwner
     ) public returns (ITREXFactory.TokenDetails memory) {
         
         vm.startBroadcast(msg.sender);
@@ -74,7 +74,7 @@ library TREXSuiteDeploymentLib {
         complianceModules[0] = address(testModule);
 
         return ITREXFactory.TokenDetails({
-            owner: config.suiteOwner,
+            owner: tokenOwner,
             name: config.tokenName,
             symbol: config.tokenSymbol,
             decimals: config.tokenDecimals,
@@ -94,7 +94,7 @@ library TREXSuiteDeploymentLib {
         ITREXFactory.ClaimDetails memory claimDetails,
         ITREXFactory.TokenDetails memory tokenDetails
     ) internal returns (TREXSuiteResult memory result) {
-        bytes32 salt = keccak256(abi.encodePacked(config.suiteOwner, tokenDetails.name, block.timestamp));
+        bytes32 salt = keccak256(abi.encodePacked(msg.sender, tokenDetails.name, block.timestamp));
 
         string memory saltString = string(abi.encodePacked(salt));
         // Deploy TREX Suite using the factory
@@ -105,23 +105,11 @@ library TREXSuiteDeploymentLib {
         // Get the deployed token address and initialize result
         address tokenAddress = trexFactory.getToken(saltString);
         
-        result = _initializeSuiteResult(tokenAddress, config.suiteOwner);
+        result = _initializeSuiteResult(tokenAddress);
         _displaySuiteResult(result);
     }
 
-    function unPauseToken(
-        Vm vm,
-        RWAToken token,
-        address tokenOwner
-    ) internal {
-        vm.startBroadcast(tokenOwner);
-        token.unpause();
-        vm.stopBroadcast();
-        _displayUnpauseToken(token);
-    }
-
-    function _initializeSuiteResult(address tokenAddress, address suiteOwner) private view returns (TREXSuiteResult memory result) {
-        result.suiteOwner = suiteOwner;
+    function _initializeSuiteResult(address tokenAddress) private view returns (TREXSuiteResult memory result) {
         result.token = RWAToken(tokenAddress);
         result.compliance = RWACompliance(address(result.token.compliance()));
         result.identityRegistry = RWAIdentityRegistry(address(result.token.identityRegistry()));

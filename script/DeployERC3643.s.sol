@@ -79,7 +79,7 @@ contract DeployERC3643 is Script {
             claimIssuerResults,
             deploymentConfig
         );
-        ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(vm, deploymentConfig);
+        ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(vm, deploymentConfig, msg.sender);
         suiteResult = TREXSuiteDeploymentLib.deployTREXSuite(
             vm,
             trexFactory,
@@ -90,9 +90,6 @@ contract DeployERC3643 is Script {
         
         console2.log("\n===============================Deploying TREX Gateway=======================================\n");
         trexGateway = TREXDeploymentLib.deployTREXGateway(vm, trexFactory);
-
-        console2.log("\n===============================Unpausing token==============================================\n");
-        TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, deploymentConfig.suiteOwner);
 
         console2.log("\n===============================Transferring contract ownerships==============================\n");
         OwnershipTransferLib.transferAllOwnerships(
@@ -117,6 +114,7 @@ contract DeployERC3643 is Script {
             "deployment_results.json"
         );
         console2.log("Deployment results serialized and written to deployment_results.json");
+        console2.log("Contract is paused, unpause it by calling unpause() function with agent role");
     }
 
     function identityIdFactory() external view returns (RWAIdentityIdFactory) {

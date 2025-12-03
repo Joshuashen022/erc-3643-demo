@@ -72,8 +72,7 @@ abstract contract ERC3643TestBase is Test {
             identityRegistry, 
             identityRegistryStorage, 
             trustedIssuersRegistry, 
-            claimTopicsRegistry,
-            suiteOwner
+            claimTopicsRegistry
         ) = deployScript.suiteResult();
 
         // Get all claimIssuers from deployment script
@@ -88,8 +87,35 @@ abstract contract ERC3643TestBase is Test {
             allClaimIssuerContracts.push(RWAClaimIssuer(claimIssuerResults[i].claimIssuer));
         }
         
+        // Set suiteOwner to the actual token owner (from deployment config)
+        // This ensures suiteOwner matches the configured owner
+        suiteOwner = rwaToken.owner();
+        
         identityManagementKey = address(0xDEAD);
+        
         identity = initializeIdentity(identityManagementKey, "testIdentity");
+        
+        // Setup token agent and unpause token
+        _setupTokenAgentAndUnpause();
+    }
+    
+    
+    /// @notice Setup token agent and unpause the token if it's paused
+    function _setupTokenAgentAndUnpause() internal {
+        // Check if suiteOwner is already an agent
+        if (!identityRegistry.isAgent(suiteOwner)) {
+            // Add suiteOwner as agent (requires owner permission)
+            // Use the actual owner of identityRegistry to add agent
+            address registryOwner = identityRegistry.owner();
+            vm.prank(registryOwner);
+            identityRegistry.addAgent(suiteOwner);
+        }
+
+        // Check if token is paused and unpause if needed
+        if (rwaToken.paused()) {
+            vm.prank(suiteOwner);
+            rwaToken.unpause();
+        }
     }
     
     /// @notice Create a new OnChainID and register it to identity registry

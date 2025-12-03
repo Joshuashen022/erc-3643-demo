@@ -107,7 +107,6 @@ library DeploymentResultSerializerLib {
         json = jsonKey.serialize("trustedIssuersRegistryOwner", address(suiteResult.trustedIssuersRegistry.owner()));
         json = jsonKey.serialize("claimTopicsRegistry", address(suiteResult.claimTopicsRegistry));
         json = jsonKey.serialize("claimTopicsRegistryOwner", address(suiteResult.claimTopicsRegistry.owner()));
-        json = jsonKey.serialize("suiteOwner", suiteResult.suiteOwner);
 
         // Serialize claim issuers array (flattened with index prefix)
         for (uint256 i = 0; i < claimIssuers.length; i++) {

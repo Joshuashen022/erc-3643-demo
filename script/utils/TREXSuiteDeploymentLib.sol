@@ -38,6 +38,7 @@ library TREXSuiteDeploymentLib {
     }
 
     function prepareClaimDetails(
+        Vm vm,
         IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults,
         ConfigReaderLib.DeploymentConfig memory config
     ) public pure returns (ITREXFactory.ClaimDetails memory) {
@@ -59,10 +60,15 @@ library TREXSuiteDeploymentLib {
     }
 
     function prepareTokenDetails(
+        Vm vm,
         ConfigReaderLib.DeploymentConfig memory config
     ) public returns (ITREXFactory.TokenDetails memory) {
+        
+        vm.startBroadcast(msg.sender);
         TestModule testModule = new TestModule();
         testModule.initialize();
+        vm.stopBroadcast();
+        
         // todo:: add more compliance modules
         address[] memory complianceModules = new address[](1);
         complianceModules[0] = address(testModule);

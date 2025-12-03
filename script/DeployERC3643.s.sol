@@ -15,6 +15,7 @@ import {RWAIdentityIdFactory, RWAIdentityGateway} from "../src/rwa/proxy/RWAIden
 import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
 import {ITREXFactory} from "../lib/ERC-3643/contracts/factory/ITREXFactory.sol";
 import {VmSafe} from "forge-std/Vm.sol";
+import {DeploymentResultSerializerLib} from "./utils/DeploymentResultSerializerLib.sol";
 
 contract DeployERC3643 is Script {
     // Deployment configuration
@@ -73,10 +74,11 @@ contract DeployERC3643 is Script {
 
         console2.log("\n===============================Preparing claim details======================================\n");
         ITREXFactory.ClaimDetails memory claimDetails = TREXSuiteDeploymentLib.prepareClaimDetails(
+            vm,
             claimIssuerResults,
             deploymentConfig
         );
-        ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(deploymentConfig);
+        ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(vm, deploymentConfig);
         suiteResult = TREXSuiteDeploymentLib.deployTREXSuite(
             vm,
             trexFactory,
@@ -90,6 +92,19 @@ contract DeployERC3643 is Script {
 
         console2.log("\n===============================Unpausing token==============================================\n");
         TREXSuiteDeploymentLib.unPauseToken(vm, suiteResult.token, deploymentConfig.suiteOwner);
+
+        console2.log("\n===============================Serializing deployment results================================\n");
+        DeploymentResultSerializerLib.serializeAndWriteDeploymentResults(
+            trexFactory,
+            trexGateway,
+            trexImplementationAuthority,
+            identityDeployment,
+            suiteResult,
+            currentVersion,
+            claimIssuers,
+            "deployment_results.json"
+        );
+        console2.log("Deployment results serialized and written to deployment_results.json");
     }
 
     function identityIdFactory() external view returns (RWAIdentityIdFactory) {

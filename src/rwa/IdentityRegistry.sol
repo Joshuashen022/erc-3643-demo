@@ -6,18 +6,10 @@ import {IdentityRegistryStorage} from "ERC-3643/registry/implementation/Identity
 import {TrustedIssuersRegistry} from "ERC-3643/registry/implementation/TrustedIssuersRegistry.sol";
 import {ClaimTopicsRegistry} from "ERC-3643/registry/implementation/ClaimTopicsRegistry.sol";
 
-contract RWAIdentityRegistry is IdentityRegistry {
+contract RWAIdentityRegistry is IdentityRegistry {}
 
-}
+contract RWAIdentityRegistryStorage is IdentityRegistryStorage {}
 
-contract RWAIdentityRegistryStorage is IdentityRegistryStorage {
+contract RWATrustedIssuersRegistry is TrustedIssuersRegistry {}
 
-}
-
-contract RWATrustedIssuersRegistry is TrustedIssuersRegistry {
-
-}
-
-contract RWAClaimTopicsRegistry is ClaimTopicsRegistry {
-
-}
+contract RWAClaimTopicsRegistry is ClaimTopicsRegistry {}

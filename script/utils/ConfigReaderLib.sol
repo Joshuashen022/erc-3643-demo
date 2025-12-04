@@ -62,7 +62,7 @@ library ConfigReaderLib {
         // Read config.json file
         string memory configPath = string.concat(vm.projectRoot(), "/config.json");
         string memory json = vm.readFile(configPath);
-        
+
         config.claimTopics = stdJson.readUintArray(json, ".claimTopics");
         config.tokenName = stdJson.readString(json, ".token.name");
         config.tokenSymbol = stdJson.readString(json, ".token.symbol");
@@ -71,16 +71,16 @@ library ConfigReaderLib {
         config.onchainId = _parseAddress(stdJson.readString(json, ".token.onchainId"));
         config.irAgents = _readAddressArray(json, ".token.irAgents");
         config.tokenAgents = _readAddressArray(json, ".token.tokenAgents");
-        
+
         // Read claim issuers configuration
         ClaimIssuerConfig[] memory claimIssuers = _readClaimIssuersConfig(json, config.claimTopics);
         for (uint256 i = 0; i < claimIssuers.length; i++) {
             config.claimIssuers.push(claimIssuers[i]);
         }
-        
+
         // Read owners configuration
         config.owners = _readOwnersConfig(json, defaultDeployer);
-        
+
         _displayConfig(config);
     }
 
@@ -88,10 +88,11 @@ library ConfigReaderLib {
     /// @param json The JSON string content
     /// @param defaultOwner Default owner address to use if not specified in config
     /// @return owners The owners configuration
-    function _readOwnersConfig(
-        string memory json,
-        address defaultOwner
-    ) private view returns (OwnersConfig memory owners) {
+    function _readOwnersConfig(string memory json, address defaultOwner)
+        private
+        view
+        returns (OwnersConfig memory owners)
+    {
         // Initialize all fields with defaultOwner as fallback
         owners.claimIssuerGateway = defaultOwner;
         owners.claimIssuerIdFactory = defaultOwner;
@@ -104,7 +105,7 @@ library ConfigReaderLib {
         owners.claimTopicsRegistry = defaultOwner;
         owners.trexFactory = defaultOwner;
         owners.trexGateway = defaultOwner;
-        
+
         // Read owners configuration if it exists
         if (stdJson.keyExists(json, ".owners")) {
             if (stdJson.keyExists(json, ".owners.claimIssuerGateway")) {
@@ -126,10 +127,12 @@ library ConfigReaderLib {
                 owners.identityRegistry = _parseAddress(stdJson.readString(json, ".owners.identityRegistry"));
             }
             if (stdJson.keyExists(json, ".owners.trexImplementationAuthority")) {
-                owners.trexImplementationAuthority = _parseAddress(stdJson.readString(json, ".owners.trexImplementationAuthority"));
+                owners.trexImplementationAuthority =
+                    _parseAddress(stdJson.readString(json, ".owners.trexImplementationAuthority"));
             }
             if (stdJson.keyExists(json, ".owners.trustedIssuersRegistry")) {
-                owners.trustedIssuersRegistry = _parseAddress(stdJson.readString(json, ".owners.trustedIssuersRegistry"));
+                owners.trustedIssuersRegistry =
+                    _parseAddress(stdJson.readString(json, ".owners.trustedIssuersRegistry"));
             }
             if (stdJson.keyExists(json, ".owners.claimTopicsRegistry")) {
                 owners.claimTopicsRegistry = _parseAddress(stdJson.readString(json, ".owners.claimTopicsRegistry"));
@@ -147,10 +150,11 @@ library ConfigReaderLib {
     /// @param json The JSON string content
     /// @param defaultClaimTopics Default claim topics to use if not specified per issuer
     /// @return claimIssuers Array of claim issuer configurations
-    function _readClaimIssuersConfig(
-        string memory json,
-        uint256[] memory defaultClaimTopics
-    ) private view returns (ClaimIssuerConfig[] memory claimIssuers) {
+    function _readClaimIssuersConfig(string memory json, uint256[] memory defaultClaimTopics)
+        private
+        view
+        returns (ClaimIssuerConfig[] memory claimIssuers)
+    {
         // First pass: count how many claim issuers are configured
         uint256 count = 0;
         while (true) {
@@ -161,21 +165,21 @@ library ConfigReaderLib {
                 break;
             }
         }
-        
+
         if (count == 0) {
             return new ClaimIssuerConfig[](0);
         }
-        
+
         // Second pass: parse each claim issuer configuration
         claimIssuers = new ClaimIssuerConfig[](count);
         for (uint256 i = 0; i < count; i++) {
             string memory privateKeyPath = string.concat(".claimIssuers[", _uint2str(i), "].privateKey");
             string memory topicsPath = string.concat(".claimIssuers[", _uint2str(i), "].claimTopics");
-            
+
             // Read private key as string and parse it
             string memory privateKeyStr = stdJson.readString(json, privateKeyPath);
             uint256 privateKey = _parseUint256(privateKeyStr);
-            
+
             // Read claim topics (optional, use default if not specified)
             uint256[] memory claimTopics;
             if (stdJson.keyExists(json, topicsPath)) {
@@ -187,11 +191,8 @@ library ConfigReaderLib {
                 claimTopics = new uint256[](1);
                 claimTopics[0] = 1;
             }
-            
-            claimIssuers[i] = ClaimIssuerConfig({
-                privateKey: privateKey,
-                claimTopics: claimTopics
-            });
+
+            claimIssuers[i] = ClaimIssuerConfig({privateKey: privateKey, claimTopics: claimTopics});
         }
     }
 
@@ -201,9 +202,9 @@ library ConfigReaderLib {
     function _parseUint256(string memory str) private pure returns (uint256 num) {
         bytes memory strBytes = bytes(str);
         require(strBytes.length > 0, "Empty string cannot be parsed");
-        
+
         // Check if it's a hex string (starts with 0x)
-        if (strBytes.length >= 2 && strBytes[0] == '0' && (strBytes[1] == 'x' || strBytes[1] == 'X')) {
+        if (strBytes.length >= 2 && strBytes[0] == "0" && (strBytes[1] == "x" || strBytes[1] == "X")) {
             // Parse hex string
             uint256 result = 0;
             for (uint256 i = 2; i < strBytes.length; i++) {
@@ -235,7 +236,11 @@ library ConfigReaderLib {
     /// @param json The JSON string content
     /// @param jsonPath The JSON path to the array
     /// @return addresses Array of addresses
-    function _readAddressArray(string memory json, string memory jsonPath) private view returns (address[] memory addresses) {
+    function _readAddressArray(string memory json, string memory jsonPath)
+        private
+        view
+        returns (address[] memory addresses)
+    {
         // Count array length
         uint256 count = 0;
         while (true) {
@@ -246,11 +251,11 @@ library ConfigReaderLib {
                 break;
             }
         }
-        
+
         if (count == 0) {
             return new address[](0);
         }
-        
+
         // Read addresses
         addresses = new address[](count);
         for (uint256 i = 0; i < count; i++) {
@@ -266,13 +271,13 @@ library ConfigReaderLib {
     function _parseAddress(string memory str) private pure returns (address addr) {
         bytes memory strBytes = bytes(str);
         require(strBytes.length == 42, "Invalid address format");
-        require(strBytes[0] == '0' && (strBytes[1] == 'x' || strBytes[1] == 'X'), "Address must start with 0x");
-        
+        require(strBytes[0] == "0" && (strBytes[1] == "x" || strBytes[1] == "X"), "Address must start with 0x");
+
         uint160 result = 0;
         for (uint256 i = 2; i < 42; i++) {
             uint256 char = uint256(uint8(strBytes[i]));
             uint256 value;
-            
+
             if (char >= 48 && char <= 57) {
                 value = char - 48;
             } else if (char >= 65 && char <= 70) {
@@ -282,10 +287,10 @@ library ConfigReaderLib {
             } else {
                 revert("Invalid hex character in address");
             }
-            
+
             result = result * 16 + uint160(value);
         }
-        
+
         return address(result);
     }
 

@@ -26,13 +26,13 @@ library IdentityDeploymentLib {
         uint256 claimIssuerPrivateKey;
         address claimIssuer;
         address claimIssuerOwner;
-        uint256 [] claimTopics;
+        uint256[] claimTopics;
     }
 
-    function deployAllIdentityContracts(
-        Vm vm,
-        address deployer
-    ) internal returns (IdentityDeploymentResult memory result) {
+    function deployAllIdentityContracts(Vm vm, address deployer)
+        internal
+        returns (IdentityDeploymentResult memory result)
+    {
         address[] memory signers = new address[](0);
 
         vm.startBroadcast();
@@ -61,17 +61,17 @@ library IdentityDeploymentLib {
         ConfigReaderLib.DeploymentConfig memory config
     ) internal returns (ClaimIssuerDeploymentResult[] memory claimIssuers) {
         require(config.claimIssuers.length > 0, "No claim issuers configured");
-        
+
         // Deploy all claim issuers
         claimIssuers = new ClaimIssuerDeploymentResult[](config.claimIssuers.length);
-        
+
         vm.startBroadcast();
         for (uint256 i = 0; i < config.claimIssuers.length; i++) {
             VmSafe.Wallet memory claimIssuerWallet = vm.createWallet(config.claimIssuers[i].privateKey);
             string memory claimIssuerName = string(abi.encodePacked("claimissuer", _uint2str(i + 1)));
-            
+
             address claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerWallet.addr, claimIssuerName);
-            
+
             claimIssuers[i] = ClaimIssuerDeploymentResult({
                 claimIssuerPrivateKey: config.claimIssuers[i].privateKey,
                 claimIssuer: claimIssuer,
@@ -80,7 +80,7 @@ library IdentityDeploymentLib {
             });
         }
         vm.stopBroadcast();
-        
+
         _displayClaimIssuerDeploymentResult(claimIssuers);
     }
 
@@ -107,17 +107,43 @@ library IdentityDeploymentLib {
     }
 
     function _displayIdentityDeploymentResult(IdentityDeploymentResult memory result) internal view {
-        console2.log("Identity implementation authority: %s, owner: %s", address(result.identityimplementationAuthority), address(result.identityimplementationAuthority.owner()));
-        console2.log("Identity ID factory: %s, owner: %s", address(result.identityIdFactory), address(result.identityIdFactory.owner()));
-        console2.log("Identity gateway: %s, owner: %s", address(result.identityGateway), address(result.identityGateway.owner()));
-        console2.log("Claim issuer implementation authority: %s, owner: %s", address(result.claimIssuerImplementationAuthority), address(result.claimIssuerImplementationAuthority.owner()));
-        console2.log("Claim issuer ID factory: %s, owner: %s", address(result.claimIssuerIdFactory), address(result.claimIssuerIdFactory.owner()));
-        console2.log("Claim issuer gateway: %s, owner: %s", address(result.claimIssuerGateway), address(result.claimIssuerGateway.owner()));
+        console2.log(
+            "Identity implementation authority: %s, owner: %s",
+            address(result.identityimplementationAuthority),
+            address(result.identityimplementationAuthority.owner())
+        );
+        console2.log(
+            "Identity ID factory: %s, owner: %s",
+            address(result.identityIdFactory),
+            address(result.identityIdFactory.owner())
+        );
+        console2.log(
+            "Identity gateway: %s, owner: %s", address(result.identityGateway), address(result.identityGateway.owner())
+        );
+        console2.log(
+            "Claim issuer implementation authority: %s, owner: %s",
+            address(result.claimIssuerImplementationAuthority),
+            address(result.claimIssuerImplementationAuthority.owner())
+        );
+        console2.log(
+            "Claim issuer ID factory: %s, owner: %s",
+            address(result.claimIssuerIdFactory),
+            address(result.claimIssuerIdFactory.owner())
+        );
+        console2.log(
+            "Claim issuer gateway: %s, owner: %s",
+            address(result.claimIssuerGateway),
+            address(result.claimIssuerGateway.owner())
+        );
     }
 
     function _displayClaimIssuerDeploymentResult(ClaimIssuerDeploymentResult[] memory claimIssuers) internal view {
         for (uint256 i = 0; i < claimIssuers.length; i++) {
-            console2.log("Claim issuer: %s, owner: %s", address(claimIssuers[i].claimIssuer), address(claimIssuers[i].claimIssuerOwner));
+            console2.log(
+                "Claim issuer: %s, owner: %s",
+                address(claimIssuers[i].claimIssuer),
+                address(claimIssuers[i].claimIssuerOwner)
+            );
             console2.log("Claim topics count:", claimIssuers[i].claimTopics.length);
             for (uint256 j = 0; j < claimIssuers[i].claimTopics.length; j++) {
                 console2.log("  Topic", j, ":", claimIssuers[i].claimTopics[j]);

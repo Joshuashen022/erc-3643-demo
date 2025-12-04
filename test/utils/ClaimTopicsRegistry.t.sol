@@ -27,7 +27,6 @@ contract ClaimTopicsRegistryUtils is Test {
         claimTopicsRegistry.init();
 
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
-
     }
 
     // ============ init() tests ============
@@ -60,18 +59,18 @@ contract ClaimTopicsRegistryUtils is Test {
         assertEq(topics[0], CLAIM_TOPIC_KYC);
     }
 
-    function testAddClaimTopic_MultipleTopics() public{
+    function testAddClaimTopic_MultipleTopics() public {
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
         assertEq(topics.length, 3);
         assertTrue(
-            (topics[0] == CLAIM_TOPIC_KYC && topics[1] == CLAIM_TOPIC_AML && topics[2] == CLAIM_TOPIC_COUNTRY) ||
-            (topics[0] == CLAIM_TOPIC_KYC && topics[1] == CLAIM_TOPIC_COUNTRY && topics[2] == CLAIM_TOPIC_AML) ||
-            (topics[0] == CLAIM_TOPIC_AML && topics[1] == CLAIM_TOPIC_KYC && topics[2] == CLAIM_TOPIC_COUNTRY) ||
-            (topics[0] == CLAIM_TOPIC_AML && topics[1] == CLAIM_TOPIC_COUNTRY && topics[2] == CLAIM_TOPIC_KYC) ||
-            (topics[0] == CLAIM_TOPIC_COUNTRY && topics[1] == CLAIM_TOPIC_KYC && topics[2] == CLAIM_TOPIC_AML) ||
-            (topics[0] == CLAIM_TOPIC_COUNTRY && topics[1] == CLAIM_TOPIC_AML && topics[2] == CLAIM_TOPIC_KYC)
+            (topics[0] == CLAIM_TOPIC_KYC && topics[1] == CLAIM_TOPIC_AML && topics[2] == CLAIM_TOPIC_COUNTRY)
+                || (topics[0] == CLAIM_TOPIC_KYC && topics[1] == CLAIM_TOPIC_COUNTRY && topics[2] == CLAIM_TOPIC_AML)
+                || (topics[0] == CLAIM_TOPIC_AML && topics[1] == CLAIM_TOPIC_KYC && topics[2] == CLAIM_TOPIC_COUNTRY)
+                || (topics[0] == CLAIM_TOPIC_AML && topics[1] == CLAIM_TOPIC_COUNTRY && topics[2] == CLAIM_TOPIC_KYC)
+                || (topics[0] == CLAIM_TOPIC_COUNTRY && topics[1] == CLAIM_TOPIC_KYC && topics[2] == CLAIM_TOPIC_AML)
+                || (topics[0] == CLAIM_TOPIC_COUNTRY && topics[1] == CLAIM_TOPIC_AML && topics[2] == CLAIM_TOPIC_KYC)
         );
     }
 
@@ -112,7 +111,7 @@ contract ClaimTopicsRegistryUtils is Test {
     function testAddClaimTopic_EmitsEvent() public {
         // Remove KYC first, then add it back to test event emission
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
-        
+
         vm.expectEmit(true, false, false, true);
         emit ClaimTopicAdded(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
@@ -134,7 +133,7 @@ contract ClaimTopicsRegistryUtils is Test {
         // Add AML and COUNTRY first to have 3 topics
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
@@ -154,7 +153,7 @@ contract ClaimTopicsRegistryUtils is Test {
         // Add AML and COUNTRY first to have 3 topics
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
@@ -173,7 +172,7 @@ contract ClaimTopicsRegistryUtils is Test {
     function testRemoveClaimTopic_RemovesLast() public {
         // Add AML first to have KYC and AML
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
-        
+
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
 
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
@@ -193,7 +192,7 @@ contract ClaimTopicsRegistryUtils is Test {
         // Remove AML and COUNTRY first, leaving only KYC
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         // Removing a non-existent topic should not revert, just do nothing
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
 
@@ -235,7 +234,7 @@ contract ClaimTopicsRegistryUtils is Test {
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
         assertEq(topics.length, 0);
     }
@@ -250,7 +249,7 @@ contract ClaimTopicsRegistryUtils is Test {
         // Add AML and COUNTRY first to have 3 topics
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         uint256[] memory topicsBefore = claimTopicsRegistry.getClaimTopics();
         assertEq(topicsBefore.length, 3);
 
@@ -266,7 +265,7 @@ contract ClaimTopicsRegistryUtils is Test {
         // Add AML and COUNTRY first to have 3 topics
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         uint256[] memory topics = claimTopicsRegistry.getClaimTopics();
         assertEq(topics.length, 3);
 
@@ -294,7 +293,7 @@ contract ClaimTopicsRegistryUtils is Test {
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         // Add and remove multiple times
         for (uint256 i = 0; i < 5; i++) {
             claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
@@ -310,7 +309,7 @@ contract ClaimTopicsRegistryUtils is Test {
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_KYC);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_AML);
         claimTopicsRegistry.removeClaimTopic(CLAIM_TOPIC_COUNTRY);
-        
+
         // Add 10 topics
         for (uint256 i = 1; i <= 10; i++) {
             claimTopicsRegistry.addClaimTopic(i);
@@ -345,5 +344,4 @@ contract ClaimTopicsRegistryUtils is Test {
         assertTrue(found1 && found3 && found5 && found7 && found9);
     }
 }
-
 

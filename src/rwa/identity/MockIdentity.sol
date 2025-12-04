@@ -6,7 +6,7 @@ import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssue
 
 // Base Mock Identity contract for testing
 contract MockIdentity is IIdentity {
-        struct Claim {
+    struct Claim {
         uint256 topic;
         uint256 scheme;
         address issuer;
@@ -23,15 +23,8 @@ contract MockIdentity is IIdentity {
     constructor(address _issuer, uint256 _topic) {
         if (_issuer != address(0) && _topic != 0) {
             bytes32 claimId = calculateClaimId(_issuer, _topic);
-            claims[claimId] = Claim({
-                topic: _topic,
-                scheme: 1,
-                issuer: _issuer,
-                signature: "",
-                data: "",
-                uri: "",
-                exists: true
-            });
+            claims[claimId] =
+                Claim({topic: _topic, scheme: 1, issuer: _issuer, signature: "", data: "", uri: "", exists: true});
             claimsByTopic[_topic].push(claimId);
         }
     }
@@ -49,21 +42,15 @@ contract MockIdentity is IIdentity {
         string calldata _uri
     ) external override returns (bytes32) {
         bytes32 claimId = calculateClaimId(_issuer, _topic);
-        
+
         if (!claims[claimId].exists) {
             claimsByTopic[_topic].push(claimId);
         }
-        
+
         claims[claimId] = Claim({
-            topic: _topic,
-            scheme: _scheme,
-            issuer: _issuer,
-            signature: _signature,
-            data: _data,
-            uri: _uri,
-            exists: true
+            topic: _topic, scheme: _scheme, issuer: _issuer, signature: _signature, data: _data, uri: _uri, exists: true
         });
-        
+
         return claimId;
     }
 
@@ -71,14 +58,7 @@ contract MockIdentity is IIdentity {
         external
         view
         override
-        returns (
-            uint256,
-            uint256,
-            address,
-            bytes memory,
-            bytes memory,
-            string memory
-        )
+        returns (uint256, uint256, address, bytes memory, bytes memory, string memory)
     {
         Claim memory claim = claims[_claimId];
         require(claim.exists, "Claim does not exist");
@@ -88,7 +68,7 @@ contract MockIdentity is IIdentity {
     function removeClaim(bytes32 _claimId) external override returns (bool) {
         require(claims[_claimId].exists, "Claim does not exist");
         Claim memory claim = claims[_claimId];
-        
+
         // Remove from claimsByTopic array
         bytes32[] storage topicClaims = claimsByTopic[claim.topic];
         for (uint256 i = 0; i < topicClaims.length; i++) {
@@ -98,7 +78,7 @@ contract MockIdentity is IIdentity {
                 break;
             }
         }
-        
+
         delete claims[_claimId];
         return true;
     }
@@ -106,6 +86,7 @@ contract MockIdentity is IIdentity {
     function getClaimIdsByTopic(uint256 _topic) external view override returns (bytes32[] memory) {
         return claimsByTopic[_topic];
     }
+
     // IERC734 (Key Holder) functions
     function addKey(bytes32, uint256, uint256) external pure override returns (bool) {
         return true;
@@ -140,14 +121,8 @@ contract MockIdentity is IIdentity {
     }
 
     // IIdentity specific function
-    function isClaimValid(
-        IIdentity,
-        uint256,
-        bytes calldata,
-        bytes calldata
-    ) external pure override returns (bool) {
+    function isClaimValid(IIdentity, uint256, bytes calldata, bytes calldata) external pure override returns (bool) {
         return true;
     }
 }
-
 

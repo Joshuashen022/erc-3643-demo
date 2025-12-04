@@ -6,11 +6,17 @@ import {Vm} from "forge-std/Vm.sol";
 import {Token} from "../../lib/ERC-3643/contracts/token/Token.sol";
 import {ClaimTopicsRegistry} from "../../lib/ERC-3643/contracts/registry/implementation/ClaimTopicsRegistry.sol";
 import {IdentityRegistry} from "../../lib/ERC-3643/contracts/registry/implementation/IdentityRegistry.sol";
-import {IdentityRegistryStorage} from "../../lib/ERC-3643/contracts/registry/implementation/IdentityRegistryStorage.sol";
+import {
+    IdentityRegistryStorage
+} from "../../lib/ERC-3643/contracts/registry/implementation/IdentityRegistryStorage.sol";
 import {TrustedIssuersRegistry} from "../../lib/ERC-3643/contracts/registry/implementation/TrustedIssuersRegistry.sol";
 import {ModularCompliance} from "../../lib/ERC-3643/contracts/compliance/modular/ModularCompliance.sol";
-import {TREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
-import {ITREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
+import {
+    TREXImplementationAuthority
+} from "../../lib/ERC-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
+import {
+    ITREXImplementationAuthority
+} from "../../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import {TREXFactory} from "../../lib/ERC-3643/contracts/factory/TREXFactory.sol";
 import {TREXGateway} from "../../lib/ERC-3643/contracts/factory/TREXGateway.sol";
 import {IdFactory} from "../../lib/solidity/contracts/factory/IdFactory.sol";
@@ -23,17 +29,21 @@ library TREXDeploymentLib {
         ITREXImplementationAuthority.Version currentVersion;
     }
 
-    function createTREXImplementationAuthority(
-        Vm vm
-    ) internal returns (TREXImplementationAuthority trexImplementationAuthority, ITREXImplementationAuthority.Version memory currentVersion) {
+    function createTREXImplementationAuthority(Vm vm)
+        internal
+        returns (
+            TREXImplementationAuthority trexImplementationAuthority,
+            ITREXImplementationAuthority.Version memory currentVersion
+        )
+    {
         vm.startBroadcast();
         trexImplementationAuthority = new TREXImplementationAuthority(
-            true,  // referenceStatus = true (main IA)
-            address(0),  // trexFactory = address(0) initially
-            address(0)   // iaFactory = address(0) initially, will be set after IAFactory deployment
+            true, // referenceStatus = true (main IA)
+            address(0), // trexFactory = address(0) initially
+            address(0) // iaFactory = address(0) initially, will be set after IAFactory deployment
         );
         vm.stopBroadcast();
-        
+
         vm.startBroadcast();
         Token tokenImplementation = new Token();
         ClaimTopicsRegistry ctrImplementation = new ClaimTopicsRegistry();
@@ -42,12 +52,9 @@ library TREXDeploymentLib {
         ModularCompliance mcImplementation = new ModularCompliance();
         IdentityRegistry irImplementation = new IdentityRegistry();
         vm.stopBroadcast();
-        
-        ITREXImplementationAuthority.Version memory version = ITREXImplementationAuthority.Version({
-            major: 0,
-            minor: 0,
-            patch: 1
-        });
+
+        ITREXImplementationAuthority.Version memory version =
+            ITREXImplementationAuthority.Version({major: 0, minor: 0, patch: 1});
 
         currentVersion = version;
 
@@ -59,11 +66,11 @@ library TREXDeploymentLib {
             tirImplementation: address(tirImplementation),
             mcImplementation: address(mcImplementation)
         });
-        
+
         vm.startBroadcast();
         trexImplementationAuthority.addTREXVersion(version, trexContracts);
         vm.stopBroadcast();
-        
+
         // Activate the version so getter methods can return the implementation addresses
         vm.startBroadcast();
         trexImplementationAuthority.useTREXVersion(version);
@@ -79,12 +86,9 @@ library TREXDeploymentLib {
         address deployer
     ) internal returns (TREXFactory trexFactory) {
         vm.startBroadcast(deployer);
-        trexFactory = new TREXFactory(
-            address(trexImplementationAuthority),
-            address(idFactory)
-        );
+        trexFactory = new TREXFactory(address(trexImplementationAuthority), address(idFactory));
         vm.stopBroadcast();
-        
+
         vm.startBroadcast();
         idFactory.addTokenFactory(address(trexFactory));
         trexImplementationAuthority.setTREXFactory(address(trexFactory));
@@ -92,23 +96,27 @@ library TREXDeploymentLib {
         _displayTREXFactory(trexFactory);
     }
 
-    function deployTREXGateway(
-        Vm vm,
-        TREXFactory trexFactory
-    ) internal returns (TREXGateway trexGateway) {
+    function deployTREXGateway(Vm vm, TREXFactory trexFactory) internal returns (TREXGateway trexGateway) {
         vm.startBroadcast();
         trexGateway = new TREXGateway(
             address(trexFactory),
-            true  // publicDeploymentStatus = true (allow public deployments)
+            true // publicDeploymentStatus = true (allow public deployments)
         );
         vm.stopBroadcast();
         _displayTREXGateway(trexGateway);
     }
 
-    function _displayTREXImplementationAuthority(TREXImplementationAuthority trexImplementationAuthority) internal view {
-        console2.log("TREX implementation authority: %s, owner: %s", address(trexImplementationAuthority), address(trexImplementationAuthority.owner()));
+    function _displayTREXImplementationAuthority(TREXImplementationAuthority trexImplementationAuthority)
+        internal
+        view
+    {
+        console2.log(
+            "TREX implementation authority: %s, owner: %s",
+            address(trexImplementationAuthority),
+            address(trexImplementationAuthority.owner())
+        );
     }
-    
+
     function _displayTREXFactory(TREXFactory trexFactory) internal view {
         console2.log("TREX factory: %s, owner: %s", address(trexFactory), address(trexFactory.owner()));
     }
@@ -118,7 +126,12 @@ library TREXDeploymentLib {
     }
 
     function _displayCurrentVersion(ITREXImplementationAuthority.Version memory currentVersion) internal view {
-        console2.log("Current version: major: %s, minor: %s, patch: %s", uint256(currentVersion.major), uint256(currentVersion.minor), uint256(currentVersion.patch));
+        console2.log(
+            "Current version: major: %s, minor: %s, patch: %s",
+            uint256(currentVersion.major),
+            uint256(currentVersion.minor),
+            uint256(currentVersion.patch)
+        );
     }
 }
 

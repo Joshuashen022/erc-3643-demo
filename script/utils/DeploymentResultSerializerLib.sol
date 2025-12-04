@@ -4,14 +4,18 @@ pragma solidity 0.8.17;
 import {stdJson} from "forge-std/StdJson.sol";
 import {TREXFactory} from "../../lib/ERC-3643/contracts/factory/TREXFactory.sol";
 import {TREXGateway} from "../../lib/ERC-3643/contracts/factory/TREXGateway.sol";
-import {TREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
-import {ITREXImplementationAuthority} from "../../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
+import {
+    TREXImplementationAuthority
+} from "../../lib/ERC-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
+import {
+    ITREXImplementationAuthority
+} from "../../lib/ERC-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import {IdentityDeploymentLib} from "./IdentityDeploymentLib.sol";
 import {TREXSuiteDeploymentLib} from "./TREXSuiteDeploymentLib.sol";
+import {console2} from "forge-std/console2.sol";
 
 library DeploymentResultSerializerLib {
     using stdJson for string;
-
 
     /// @notice Serializes deployment results and writes to file
     /// @param trexFactory TREXFactory contract address
@@ -21,7 +25,7 @@ library DeploymentResultSerializerLib {
     /// @param suiteResult TREX suite deployment result
     /// @param currentVersion Current version information
     /// @param claimIssuers Array of claim issuer deployment results
-    /// @param filePath Path to write the JSON file
+    /// @return jsonString JSON string containing all deployment results
     function serializeAndWriteDeploymentResults(
         TREXFactory trexFactory,
         TREXGateway trexGateway,
@@ -29,8 +33,7 @@ library DeploymentResultSerializerLib {
         IdentityDeploymentLib.IdentityDeploymentResult memory identityDeployment,
         TREXSuiteDeploymentLib.TREXSuiteResult memory suiteResult,
         ITREXImplementationAuthority.Version memory currentVersion,
-        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuers,
-        string memory filePath
+        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuers
     ) internal returns (string memory jsonString) {
         jsonString = _serializeDeploymentResults(
             trexFactory,
@@ -41,7 +44,11 @@ library DeploymentResultSerializerLib {
             currentVersion,
             claimIssuers
         );
+
+        string memory filePath = _getDeploymentFilePath();
         jsonString.write(filePath);
+
+        console2.log("Deployment results serialized and written to %s", filePath);
     }
 
     /// @notice Serializes deployment results to JSON string
@@ -84,8 +91,12 @@ library DeploymentResultSerializerLib {
         // Serialize identity deployment result (flattened)
         json = jsonKey.serialize("rwaIdentityImpl", address(identityDeployment.rwaIdentityImpl));
         json = jsonKey.serialize("rwaClaimIssuerImpl", address(identityDeployment.rwaClaimIssuerImpl));
-        json = jsonKey.serialize("identityImplementationAuthority", address(identityDeployment.identityimplementationAuthority));
-        json = jsonKey.serialize("claimIssuerImplementationAuthority", address(identityDeployment.claimIssuerImplementationAuthority));
+        json = jsonKey.serialize(
+            "identityImplementationAuthority", address(identityDeployment.identityimplementationAuthority)
+        );
+        json = jsonKey.serialize(
+            "claimIssuerImplementationAuthority", address(identityDeployment.claimIssuerImplementationAuthority)
+        );
         json = jsonKey.serialize("identityIdFactory", address(identityDeployment.identityIdFactory));
         json = jsonKey.serialize("identityIdFactoryOwner", address(identityDeployment.identityIdFactory.owner()));
         json = jsonKey.serialize("identityGateway", address(identityDeployment.identityGateway));
@@ -111,13 +122,23 @@ library DeploymentResultSerializerLib {
         // Serialize claim issuers array (flattened with index prefix)
         for (uint256 i = 0; i < claimIssuers.length; i++) {
             string memory indexStr = _uint2str(i);
-            json = jsonKey.serialize(string.concat("claimIssuer", indexStr, "_claimIssuer"), claimIssuers[i].claimIssuer);
-            json = jsonKey.serialize(string.concat("claimIssuer", indexStr, "_claimIssuerOwner"), claimIssuers[i].claimIssuerOwner);
-            json = jsonKey.serialize(string.concat("claimIssuer", indexStr, "_claimTopics"), claimIssuers[i].claimTopics);
+            json =
+                jsonKey.serialize(string.concat("claimIssuer", indexStr, "_claimIssuer"), claimIssuers[i].claimIssuer);
+            json = jsonKey.serialize(
+                string.concat("claimIssuer", indexStr, "_claimIssuerOwner"), claimIssuers[i].claimIssuerOwner
+            );
+            json =
+                jsonKey.serialize(string.concat("claimIssuer", indexStr, "_claimTopics"), claimIssuers[i].claimTopics);
         }
         json = jsonKey.serialize("claimIssuersCount", claimIssuers.length);
-        
+
         return json;
+    }
+
+    function _getDeploymentFilePath() internal view returns (string memory filePath) {
+        string memory chainIdStr = _uint2str(block.chainid);
+        string memory blockTimestampStr = _uint2str(block.timestamp);
+        filePath = string.concat("deployments/deployment_results_", chainIdStr, "_", blockTimestampStr, ".json");
     }
 
     /// @notice Converts uint256 to string

@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import {Test} from "forge-std/Test.sol";
 import {RWATrustedIssuersRegistry} from "../../src/rwa/IdentityRegistry.sol";
 import {IClaimIssuer} from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
-import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";    
+import {MockClaimIssuer} from "../mocks/MockClaimIssuer.sol";
 
 contract TrustedIssuersRegistryUtils is Test {
     RWATrustedIssuersRegistry public trustedIssuersRegistry;
@@ -53,20 +53,19 @@ contract TrustedIssuersRegistryUtils is Test {
     function testRemoveTrustedIssuer_Success() public {
         // Verify issuer1 exists before removal
         assertTrue(trustedIssuersRegistry.isTrustedIssuer(address(issuer1)));
-        
+
         IClaimIssuer[] memory issuersBefore = trustedIssuersRegistry.getTrustedIssuers();
         assertEq(issuersBefore.length, 3);
         assertTrue(
-            issuersBefore[0] == IClaimIssuer(address(issuer1)) ||
-            issuersBefore[1] == IClaimIssuer(address(issuer1)) ||
-            issuersBefore[2] == IClaimIssuer(address(issuer1))
+            issuersBefore[0] == IClaimIssuer(address(issuer1)) || issuersBefore[1] == IClaimIssuer(address(issuer1))
+                || issuersBefore[2] == IClaimIssuer(address(issuer1))
         );
 
         // Verify issuer1 is in CLAIM_TOPIC_KYC list
         IClaimIssuer[] memory kycIssuersBefore = trustedIssuersRegistry.getTrustedIssuersForClaimTopic(CLAIM_TOPIC_KYC);
         assertTrue(
-            kycIssuersBefore[0] == IClaimIssuer(address(issuer1)) ||
-            kycIssuersBefore[1] == IClaimIssuer(address(issuer1))
+            kycIssuersBefore[0] == IClaimIssuer(address(issuer1))
+                || kycIssuersBefore[1] == IClaimIssuer(address(issuer1))
         );
 
         // Remove issuer1
@@ -76,7 +75,7 @@ contract TrustedIssuersRegistryUtils is Test {
 
         // Verify issuer1 no longer exists
         assertFalse(trustedIssuersRegistry.isTrustedIssuer(address(issuer1)));
-        
+
         IClaimIssuer[] memory issuersAfter = trustedIssuersRegistry.getTrustedIssuers();
         assertEq(issuersAfter.length, 2);
         assertTrue(issuersAfter[0] != IClaimIssuer(address(issuer1)));
@@ -107,7 +106,8 @@ contract TrustedIssuersRegistryUtils is Test {
         assertTrue(kycIssuers[0] == IClaimIssuer(address(issuer1)));
 
         // Verify issuer2 is removed from CLAIM_TOPIC_COUNTRY
-        IClaimIssuer[] memory countryIssuers = trustedIssuersRegistry.getTrustedIssuersForClaimTopic(CLAIM_TOPIC_COUNTRY);
+        IClaimIssuer[] memory countryIssuers =
+            trustedIssuersRegistry.getTrustedIssuersForClaimTopic(CLAIM_TOPIC_COUNTRY);
         assertEq(countryIssuers.length, 0);
     }
 
@@ -120,12 +120,14 @@ contract TrustedIssuersRegistryUtils is Test {
         assertTrue(trustedIssuersRegistry.isTrustedIssuer(address(issuer3)));
 
         // Verify their claim topics are intact
-        uint256[] memory issuer2Topics = trustedIssuersRegistry.getTrustedIssuerClaimTopics(IClaimIssuer(address(issuer2)));
+        uint256[] memory issuer2Topics =
+            trustedIssuersRegistry.getTrustedIssuerClaimTopics(IClaimIssuer(address(issuer2)));
         assertEq(issuer2Topics.length, 2);
         assertEq(issuer2Topics[0], CLAIM_TOPIC_KYC);
         assertEq(issuer2Topics[1], CLAIM_TOPIC_COUNTRY);
 
-        uint256[] memory issuer3Topics = trustedIssuersRegistry.getTrustedIssuerClaimTopics(IClaimIssuer(address(issuer3)));
+        uint256[] memory issuer3Topics =
+            trustedIssuersRegistry.getTrustedIssuerClaimTopics(IClaimIssuer(address(issuer3)));
         assertEq(issuer3Topics.length, 1);
         assertEq(issuer3Topics[0], CLAIM_TOPIC_AML);
     }
@@ -137,7 +139,7 @@ contract TrustedIssuersRegistryUtils is Test {
 
     function testRemoveTrustedIssuer_RevertsWhenNotTrustedIssuer() public {
         MockClaimIssuer newIssuer = new MockClaimIssuer();
-        
+
         vm.expectRevert(bytes("NOT a trusted issuer"));
         trustedIssuersRegistry.removeTrustedIssuer(IClaimIssuer(address(newIssuer)));
     }

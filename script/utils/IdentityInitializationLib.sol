@@ -43,9 +43,7 @@ library IdentityInitializationLib {
         IdentityInitResult[] identities;
     }
 
-    function prepareIdentityParams(
-        Vm vm
-    ) internal returns (IdentityInitParams[] memory params) {
+    function prepareIdentityParams(Vm vm) internal returns (IdentityInitParams[] memory params) {
         uint256 identityPrivateKey = vm.envOr("IDENTITY_PRIVATE_KEY", uint256(0));
         uint256 country = vm.envOr("COUNTRY_CODE", uint256(0));
         string memory defaultName = "identity1";
@@ -68,10 +66,10 @@ library IdentityInitializationLib {
         return params;
     }
 
-    function initializeIdentities(
-        Vm vm,
-        IdentityInitConfig memory config
-    ) internal returns (IdentityInitResult[] memory identities) {
+    function initializeIdentities(Vm vm, IdentityInitConfig memory config)
+        internal
+        returns (IdentityInitResult[] memory identities)
+    {
         if (config.claimKeyPrivateKey == uint256(0)) {
             revert("CLAIM_KEY_PRIVATE_KEY is required");
         }
@@ -80,54 +78,43 @@ library IdentityInitializationLib {
         // IdentityInitParams[] memory params = new IdentityInitParams[](0);
 
         identities = new IdentityInitResult[](params.length);
-        
+
         for (uint256 i = 0; i < params.length; i++) {
             console2.log("Initializing identity", i + 1, "of", params.length);
             console2.log("Identity management key", params[i].identityManagementKey);
             console2.log("Identity name", params[i].name);
 
             // Add key and claim
-            address identity = _addKeyAndClaim(
-                vm,
-                config,
-                params[i]
-            );
+            address identity = _addKeyAndClaim(vm, config, params[i]);
             identities[i] = IdentityInitResult({
-                identity: identity,
-                identityManagementKey: params[i].identityManagementKey,
-                country: params[i].country
+                identity: identity, identityManagementKey: params[i].identityManagementKey, country: params[i].country
             });
         }
     }
 
-    function _addKeyAndClaim(
-        Vm vm,
-        IdentityInitConfig memory config,
-        IdentityInitParams memory params
-    ) private returns (address) {
+    function _addKeyAndClaim(Vm vm, IdentityInitConfig memory config, IdentityInitParams memory params)
+        private
+        returns (address)
+    {
         // Create identity
         vm.startBroadcast();
-        address identity = config.identityIdFactory.createIdentity(
-            params.identityManagementKey,
-            params.name
-        );
+        address identity = config.identityIdFactory.createIdentity(params.identityManagementKey, params.name);
         vm.stopBroadcast();
         console2.log("Identity created successfully", identity);
 
-        bytes memory sig = _generateSignature(vm, identity, config.claimTopicKyc, config.claimKeyPrivateKey, params.data);
-        
+        bytes memory sig =
+            _generateSignature(vm, identity, config.claimTopicKyc, config.claimKeyPrivateKey, params.data);
+
         // Add claim
         vm.startBroadcast(params.identityManagementKey);
-        RWAIdentity(identity).addClaim(config.claimTopicKyc, params.claimSchemeEcdsa, config.claimIssuer, sig, params.data, params.uri);
+        RWAIdentity(identity)
+            .addClaim(config.claimTopicKyc, params.claimSchemeEcdsa, config.claimIssuer, sig, params.data, params.uri);
         vm.stopBroadcast();
 
         // Register identity
         vm.startBroadcast(config.deployer);
-        config.identityRegistry.registerIdentity(
-            params.identityManagementKey,
-            IIdentity(address(identity)),
-            uint16(params.country)
-        );
+        config.identityRegistry
+            .registerIdentity(params.identityManagementKey, IIdentity(address(identity)), uint16(params.country));
         vm.stopBroadcast();
         console2.log("Identity registered successfully");
         return identity;
@@ -142,7 +129,7 @@ library IdentityInitializationLib {
     ) private returns (bytes memory) {
         bytes32 dataHash = keccak256(abi.encode(identity, claimTopicKyc, data));
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
-        
+
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimIssuerPrivateKey, prefixedHash);
         return abi.encodePacked(r, s, v);
     }

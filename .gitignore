@@ -19,4 +19,4 @@ dist/
 
 config.json
 
-/deployment_results.json
+/deployments/deployment_results_31337_*.json

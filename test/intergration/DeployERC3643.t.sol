@@ -18,22 +18,16 @@ contract DeployERC3643Test is ERC3643TestBase {
     function test_AgentInitialization_Success() public view {
         // Check that suiteOwner is set
         assertNotEq(suiteOwner, address(0), "Suite owner should be set");
-        
+
         // Check Identity Registry agent
-        assertTrue(
-            identityRegistry.isAgent(suiteOwner),
-            "Suite owner should be an agent of Identity Registry"
-        );
-        
+        assertTrue(identityRegistry.isAgent(suiteOwner), "Suite owner should be an agent of Identity Registry");
+
         // Check Token agent
-        assertTrue(
-            rwaToken.isAgent(suiteOwner),
-            "Suite owner should be an agent of Token"
-        );
+        assertTrue(rwaToken.isAgent(suiteOwner), "Suite owner should be an agent of Token");
 
         // Check that suiteOwner is the owner of Token
         assertEq(rwaToken.owner(), suiteOwner, "Token owner should match suite owner");
-        
+
         // Check that suiteOwner is the owner of Identity Registry
         assertEq(identityRegistry.owner(), suiteOwner, "Identity Registry owner should match suite owner");
     }
@@ -197,7 +191,7 @@ contract DeployERC3643Test is ERC3643TestBase {
 
         // Add newWallet as a management key to the existing identity (used for lost wallet)
         bytes32 newWalletKeyHash = keccak256(abi.encode(newWallet));
-        
+
         vm.startPrank(identityManagementKey);
         identity.addKey(newWalletKeyHash, 1, 1);
         vm.stopPrank();
@@ -218,7 +212,7 @@ contract DeployERC3643Test is ERC3643TestBase {
 
     // // ============ Specific Logics ============
     // function test_DowngradeToERC20Success() public {
-        
+
     //     TREXFactory.TokenDetails memory tokenDetails = TREXFactory.TokenDetails({
     //         owner: suiteOwner,
     //         name: "TREX Token",
@@ -246,17 +240,17 @@ contract DeployERC3643Test is ERC3643TestBase {
     //     string memory salt = "test-identity-salt";
     //     uint256 signatureExpiry = 0;
     //     uint256 signerPrivateKey = uint256(0x1111111111111111111111111111111111111111111111111111111111111111);
-        
+
     //     // Ensure Gateway is the owner of IdFactory
     //     // if (identityIdFactory.owner() != address(identityGateway)) {
     //     //     vm.prank(identityIdFactory.owner());
     //     //     identityIdFactory.transferOwnership(address(identityGateway));
     //     // }
-        
+
     //     // Approve the signer in the Gateway
     //     vm.prank(identityGateway.owner());
     //     identityGateway.approveSigner(vm.addr(signerPrivateKey));
-        
+
     //     // Create and sign the message
     //     bytes32 messageHash = keccak256(
     //         abi.encode("Authorize ONCHAINID deployment", newIdentityOwner, salt, signatureExpiry)
@@ -266,7 +260,7 @@ contract DeployERC3643Test is ERC3643TestBase {
     //     );
     //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, ethSignedMessageHash);
     //     bytes memory signature = abi.encodePacked(r, s, v);
-        
+
     //     // Execute deployIdentityWithSalt
     //     address deployedIdentity = identityGateway.deployIdentityWithSalt(
     //         newIdentityOwner,
@@ -274,7 +268,7 @@ contract DeployERC3643Test is ERC3643TestBase {
     //         signatureExpiry,
     //         signature
     //     );
-        
+
     //     // Assertions
     //     assertNotEq(deployedIdentity, address(0), "Identity should be deployed");
     //     assertEq(identityIdFactory.getIdentity(newIdentityOwner), deployedIdentity, "Identity should be linked");
@@ -283,5 +277,4 @@ contract DeployERC3643Test is ERC3643TestBase {
     //         "Identity owner should be a management key"
     //     );
     // }
-
 }

@@ -63,7 +63,6 @@ contract MockModule is IModule {
         checkResult = _result;
     }
 
-
     function setCanBindResult(bool _value) external {
         canBindResult = _value;
     }

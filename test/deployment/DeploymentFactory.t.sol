@@ -27,10 +27,7 @@ contract DeploymentFactoryTest is Test {
     // ============ CREATE3 Tests ============
 
     function testDeploy3_Success() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address deployed = factory.deploy3(SALT, initCode);
 
@@ -41,10 +38,7 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testPredict3_ReturnsCorrectAddress() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict3(SALT);
         address deployed = factory.deploy3(SALT, initCode);
@@ -53,10 +47,7 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testDeploy3_DifferentSaltsProduceDifferentAddresses() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address addr1 = factory.deploy3(SALT, initCode);
         address addr2 = factory.deploy3(SALT2, initCode);
@@ -65,27 +56,21 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testDeploy3_SameSaltProducesSameAddress() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address addr1 = factory.deploy3(SALT, initCode);
-        
+
         // Deploy again with same salt should fail since contract already exists
         vm.expectRevert();
         factory.deploy3(SALT, initCode);
-        
+
         // Verify address is the same
         address predicted = factory.predict3(SALT);
         assertEq(addr1, predicted);
     }
 
     function testDeployIfNotExists3_DeploysWhenNotExists() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict3(SALT);
         assertEq(predicted.code.length, 0); // Verify it doesn't exist before
@@ -101,27 +86,21 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testDeployIfNotExists3_ReturnsExistingWhenAlreadyDeployed() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         (address firstDeploy, bool firstExists) = factory.deployIfNotExists3(SALT, initCode);
-        
+
         (address deployed, bool exists) = factory.deployIfNotExists3(SALT, initCode);
 
         assertEq(deployed, firstDeploy);
-        assertFalse(firstExists); 
+        assertFalse(firstExists);
         assertTrue(exists); // Returns true after deployment
     }
 
     // ============ CREATE2 Tests ============
 
     function testDeploy2_Success() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address deployed = factory.deploy2(SALT, initCode);
 
@@ -132,10 +111,7 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testPredict2_ReturnsCorrectAddress() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict2(SALT, initCode);
         address deployed = factory.deploy2(SALT, initCode);
@@ -144,10 +120,7 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testPredict2_MatchesCreate2ComputeAddress() public view {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict2(SALT, initCode);
         address computed = Create2.computeAddress(SALT, keccak256(initCode), address(factory));
@@ -156,10 +129,7 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testDeploy2_DifferentSaltsProduceDifferentAddresses() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address addr1 = factory.deploy2(SALT, initCode);
         address addr2 = factory.deploy2(SALT2, initCode);
@@ -168,14 +138,8 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testDeploy2_DifferentBytecodeProduceDifferentAddresses() public {
-        bytes memory initCode1 = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
-        bytes memory initCode2 = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE + 1)
-        );
+        bytes memory initCode1 = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
+        bytes memory initCode2 = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE + 1));
 
         address addr1 = factory.deploy2(SALT, initCode1);
         address addr2 = factory.deploy2(SALT, initCode2);
@@ -184,27 +148,21 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testDeploy2_SameSaltAndBytecodeProducesSameAddress() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address addr1 = factory.deploy2(SALT, initCode);
-        
+
         // Deploy again with same salt and bytecode should fail
         vm.expectRevert();
         factory.deploy2(SALT, initCode);
-        
+
         // Verify address is the same
         address predicted = factory.predict2(SALT, initCode);
         assertEq(addr1, predicted);
     }
 
     function testDeployIfNotExists2_DeploysWhenNotExists() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict2(SALT, initCode);
         assertEq(predicted.code.length, 0); // Verify it doesn't exist before
@@ -220,13 +178,10 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testDeployIfNotExists2_ReturnsExistingWhenAlreadyDeployed() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address firstDeploy = factory.deploy2(SALT, initCode);
-        
+
         (address deployed, bool exists) = factory.deployIfNotExists2(SALT, initCode);
 
         assertEq(deployed, firstDeploy);
@@ -236,10 +191,7 @@ contract DeploymentFactoryTest is Test {
     // ============ CREATE3 vs CREATE2 Tests ============
 
     function testDeploy3_AddressDifferentFromDeploy2() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address addr3 = factory.deploy3(SALT, initCode);
         address addr2 = factory.deploy2(SALT2, initCode);
@@ -251,41 +203,32 @@ contract DeploymentFactoryTest is Test {
 
     function testPredict3_WorksBeforeDeployment() public view {
         address predicted = factory.predict3(SALT);
-        
+
         assertTrue(predicted != address(0));
         assertEq(predicted.code.length, 0);
     }
 
     function testPredict2_WorksBeforeDeployment() public view {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict2(SALT, initCode);
-        
+
         assertTrue(predicted != address(0));
         assertEq(predicted.code.length, 0);
     }
 
     function testDeployIfNotExists3_PredictsCorrectlyBeforeDeployment() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict3(SALT);
         (address deployed, bool exists) = factory.deployIfNotExists3(SALT, initCode);
-        
+
         assertEq(predicted, deployed);
         assertFalse(exists);
     }
 
     function testDeployIfNotExists2_PredictsCorrectlyBeforeDeployment() public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(INIT_VALUE)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(INIT_VALUE));
 
         address predicted = factory.predict2(SALT, initCode);
         (address deployed, bool exists) = factory.deployIfNotExists2(SALT, initCode);
@@ -298,10 +241,7 @@ contract DeploymentFactoryTest is Test {
 
     function testFuzz_Deploy3_Predict3Consistency(bytes32 salt, uint256 value) public {
         // Build initCode with fuzzed `value`
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(value)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(value));
 
         address predicted = factory.predict3(salt);
         address deployed = factory.deploy3(salt, initCode);
@@ -312,10 +252,7 @@ contract DeploymentFactoryTest is Test {
     }
 
     function testFuzz_Deploy2_Predict2Consistency(bytes32 salt, uint256 value) public {
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(value)
-        );
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(value));
 
         address predicted = factory.predict2(salt, initCode);
         address deployed = factory.deploy2(salt, initCode);
@@ -327,11 +264,8 @@ contract DeploymentFactoryTest is Test {
 
     function testFuzz_DeployIfNotExists3_Idempotent(bytes32 salt, uint256 value, uint8 times) public {
         vm.assume(times > 0);
-        
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(value)
-        );
+
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(value));
 
         // First call should deploy
         (address firstDeployed, bool firstExists) = factory.deployIfNotExists3(salt, initCode);
@@ -343,16 +277,12 @@ contract DeploymentFactoryTest is Test {
             assertTrue(exists);
             assertEq(deployed, firstDeployed);
         }
-
     }
 
     function testFuzz_DeployIfNotExists2_Idempotent(bytes32 salt, uint256 value, uint8 times) public {
         vm.assume(times > 0);
-        
-        bytes memory initCode = abi.encodePacked(
-            type(SimpleContract).creationCode,
-            abi.encode(value)
-        );
+
+        bytes memory initCode = abi.encodePacked(type(SimpleContract).creationCode, abi.encode(value));
 
         // First call should deploy
         (address firstDeployed, bool firstExists) = factory.deployIfNotExists2(salt, initCode);

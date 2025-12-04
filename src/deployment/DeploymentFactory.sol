@@ -12,7 +12,7 @@ contract DeploymentFactory {
     function predict3(bytes32 salt) public view returns (address) {
         return CREATE3.predictDeterministicAddress(salt, address(this));
     }
-    
+
     function deploy2(bytes32 salt, bytes memory initCode) public returns (address) {
         return Create2.deploy(0, salt, initCode);
     }

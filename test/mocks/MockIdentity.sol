@@ -39,14 +39,12 @@ contract MockIdentity is IIdentity {
     }
 
     // IERC735 (Claim Holder) functions
-    function addClaim(
-        uint256,
-        uint256,
-        address,
-        bytes calldata,
-        bytes calldata,
-        string calldata
-    ) external virtual override returns (bytes32) {
+    function addClaim(uint256, uint256, address, bytes calldata, bytes calldata, string calldata)
+        external
+        virtual
+        override
+        returns (bytes32)
+    {
         return bytes32(0);
     }
 
@@ -58,14 +56,7 @@ contract MockIdentity is IIdentity {
         external
         view
         virtual
-        returns (
-            uint256,
-            uint256,
-            address,
-            bytes memory,
-            bytes memory,
-            string memory
-        )
+        returns (uint256, uint256, address, bytes memory, bytes memory, string memory)
     {
         return (0, 0, address(0), "", "", "");
     }
@@ -75,12 +66,7 @@ contract MockIdentity is IIdentity {
     }
 
     // IIdentity specific function
-    function isClaimValid(
-        IIdentity,
-        uint256,
-        bytes calldata,
-        bytes calldata
-    ) external pure override returns (bool) {
+    function isClaimValid(IIdentity, uint256, bytes calldata, bytes calldata) external pure override returns (bool) {
         return true;
     }
 }

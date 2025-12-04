@@ -32,21 +32,15 @@ contract MockClaimIssuer is IClaimIssuer {
         string calldata _uri
     ) external override returns (bytes32) {
         bytes32 claimId = keccak256(abi.encode(_issuer, _topic));
-        
+
         if (!claims[claimId].exists) {
             claimsByTopic[_topic].push(claimId);
         }
-        
+
         claims[claimId] = Claim({
-            topic: _topic,
-            scheme: _scheme,
-            issuer: _issuer,
-            signature: _signature,
-            data: _data,
-            uri: _uri,
-            exists: true
+            topic: _topic, scheme: _scheme, issuer: _issuer, signature: _signature, data: _data, uri: _uri, exists: true
         });
-        
+
         return claimId;
     }
 
@@ -54,7 +48,8 @@ contract MockClaimIssuer is IClaimIssuer {
         external
         view
         override
-        returns (uint256, uint256, address, bytes memory, bytes memory, string memory) {
+        returns (uint256, uint256, address, bytes memory, bytes memory, string memory)
+    {
         Claim memory claim = claims[_claimId];
         require(claim.exists, "Claim does not exist");
         return (claim.topic, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri);
@@ -63,7 +58,7 @@ contract MockClaimIssuer is IClaimIssuer {
     function removeClaim(bytes32 _claimId) external override returns (bool) {
         require(claims[_claimId].exists, "Claim does not exist");
         Claim memory claim = claims[_claimId];
-        
+
         // Remove from claimsByTopic array
         bytes32[] storage topicClaims = claimsByTopic[claim.topic];
         for (uint256 i = 0; i < topicClaims.length; i++) {
@@ -73,7 +68,7 @@ contract MockClaimIssuer is IClaimIssuer {
                 break;
             }
         }
-        
+
         delete claims[_claimId];
         return true;
     }
@@ -92,12 +87,7 @@ contract MockClaimIssuer is IClaimIssuer {
         return false;
     }
 
-    function isClaimValid(
-        IIdentity,
-        uint256,
-        bytes calldata,
-        bytes calldata
-    ) external pure override returns (bool) {
+    function isClaimValid(IIdentity, uint256, bytes calldata, bytes calldata) external pure override returns (bool) {
         return true;
     }
 
@@ -134,5 +124,4 @@ contract MockClaimIssuer is IClaimIssuer {
         return 0;
     }
 }
-
 

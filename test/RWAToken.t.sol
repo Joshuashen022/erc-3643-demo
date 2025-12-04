@@ -24,12 +24,7 @@ contract RWATokenTest is Test {
 
     function testInitSetsState() public {
         rwaToken.init(
-            address(identityRegistry),
-            address(compliance),
-            TOKEN_NAME,
-            TOKEN_SYMBOL,
-            TOKEN_DECIMALS,
-            ONCHAIN_ID
+            address(identityRegistry), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID
         );
 
         assertEq(rwaToken.owner(), address(this));
@@ -47,12 +42,7 @@ contract RWATokenTest is Test {
     // transferFrom tests
     function setUpTransferFrom() internal {
         rwaToken.init(
-            address(identityRegistry),
-            address(compliance),
-            TOKEN_NAME,
-            TOKEN_SYMBOL,
-            TOKEN_DECIMALS,
-            ONCHAIN_ID
+            address(identityRegistry), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID
         );
         // Add agent and unpause the token
         rwaToken.addAgent(address(this));
@@ -61,7 +51,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromSuccess() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -92,7 +82,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromRevertsWhenPaused() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -116,7 +106,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromRevertsWhenFromFrozen() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -140,7 +130,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromRevertsWhenToFrozen() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -164,7 +154,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromRevertsWhenInsufficientBalance() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -186,7 +176,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromRevertsWhenInsufficientBalanceDueToFrozenTokens() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -210,7 +200,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromRevertsWhenToNotVerified() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -230,7 +220,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromRevertsWhenComplianceDisallows() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -242,7 +232,7 @@ contract RWATokenTest is Test {
         rwaToken.mint(from, amount);
         vm.prank(from);
         rwaToken.approve(spender, amount);
-        
+
         // Set compliance to disallow transfer
         compliance.setCanTransfer(false);
 
@@ -254,7 +244,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromUpdatesAllowanceCorrectly() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);
@@ -282,7 +272,7 @@ contract RWATokenTest is Test {
 
     function testTransferFromCallsComplianceTransferred() public {
         setUpTransferFrom();
-        
+
         address from = address(0x1111);
         address to = address(0x2222);
         address spender = address(0x3333);

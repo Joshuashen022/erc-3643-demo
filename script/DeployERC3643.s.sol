@@ -34,7 +34,7 @@ contract DeployERC3643 is Script {
     TREXSuiteDeploymentLib.TREXSuiteResult public suiteResult;
 
     ITREXImplementationAuthority.Version public currentVersion;
-    
+
     // Batch claim issuer initialization result
     IdentityDeploymentLib.ClaimIssuerDeploymentResult[] claimIssuers;
 
@@ -54,19 +54,15 @@ contract DeployERC3643 is Script {
         // Deploy TREXFactory
         console2.log("\n===============================Deploying TREXFactory========================================\n");
         trexFactory = TREXDeploymentLib.deployTREXFactory(
-            vm,
-            trexImplementationAuthority,
-            identityDeployment.identityIdFactory,
-            msg.sender
+            vm, trexImplementationAuthority, identityDeployment.identityIdFactory, msg.sender
         );
 
         // Initialize ClaimIssuers
-        console2.log("\n===============================Initializing ClaimIssuers======================================\n");
-        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults = IdentityDeploymentLib.initializeClaimIssuer(
-            vm,
-            identityDeployment.claimIssuerIdFactory,
-            deploymentConfig
+        console2.log(
+            "\n===============================Initializing ClaimIssuers======================================\n"
         );
+        IdentityDeploymentLib.ClaimIssuerDeploymentResult[] memory claimIssuerResults =
+            IdentityDeploymentLib.initializeClaimIssuer(vm, identityDeployment.claimIssuerIdFactory, deploymentConfig);
 
         // Prepare claim details
         for (uint256 i = 0; i < claimIssuerResults.length; i++) {
@@ -74,24 +70,19 @@ contract DeployERC3643 is Script {
         }
 
         console2.log("\n===============================Preparing claim details======================================\n");
-        ITREXFactory.ClaimDetails memory claimDetails = TREXSuiteDeploymentLib.prepareClaimDetails(
-            vm,
-            claimIssuerResults,
-            deploymentConfig
-        );
-        ITREXFactory.TokenDetails memory tokenDetails = TREXSuiteDeploymentLib.prepareTokenDetails(vm, deploymentConfig, msg.sender);
-        suiteResult = TREXSuiteDeploymentLib.deployTREXSuite(
-            vm,
-            trexFactory,
-            deploymentConfig,
-            claimDetails,
-            tokenDetails
-        );
-        
+        ITREXFactory.ClaimDetails memory claimDetails =
+            TREXSuiteDeploymentLib.prepareClaimDetails(vm, claimIssuerResults, deploymentConfig);
+        ITREXFactory.TokenDetails memory tokenDetails =
+            TREXSuiteDeploymentLib.prepareTokenDetails(vm, deploymentConfig, msg.sender);
+        suiteResult =
+            TREXSuiteDeploymentLib.deployTREXSuite(vm, trexFactory, deploymentConfig, claimDetails, tokenDetails);
+
         console2.log("\n===============================Deploying TREX Gateway=======================================\n");
         trexGateway = TREXDeploymentLib.deployTREXGateway(vm, trexFactory);
 
-        console2.log("\n===============================Transferring contract ownerships==============================\n");
+        console2.log(
+            "\n===============================Transferring contract ownerships==============================\n"
+        );
         OwnershipTransferLib.transferAllOwnerships(
             vm,
             identityDeployment,
@@ -102,7 +93,9 @@ contract DeployERC3643 is Script {
             deploymentConfig.owners
         );
 
-        console2.log("\n===============================Serializing deployment results================================\n");
+        console2.log(
+            "\n===============================Serializing deployment results================================\n"
+        );
         DeploymentResultSerializerLib.serializeAndWriteDeploymentResults(
             trexFactory,
             trexGateway,
@@ -110,17 +103,15 @@ contract DeployERC3643 is Script {
             identityDeployment,
             suiteResult,
             currentVersion,
-            claimIssuers,
-            "deployment_results.json"
+            claimIssuers
         );
-        console2.log("Deployment results serialized and written to deployment_results.json");
         console2.log("Contract is paused, unpause it by calling unpause() function with agent role");
     }
 
     function identityIdFactory() external view returns (RWAIdentityIdFactory) {
         return identityDeployment.identityIdFactory;
     }
-    
+
     function identityGateway() external view returns (RWAIdentityGateway) {
         return identityDeployment.identityGateway;
     }
@@ -137,10 +128,13 @@ contract DeployERC3643 is Script {
         return claimIssuers;
     }
 
-    function getClaimIssuer(uint256 index) external view returns (IdentityDeploymentLib.ClaimIssuerDeploymentResult memory) {
+    function getClaimIssuer(uint256 index)
+        external
+        view
+        returns (IdentityDeploymentLib.ClaimIssuerDeploymentResult memory)
+    {
         require(index < claimIssuers.length, "ClaimIssuer index out of bounds");
         return claimIssuers[index];
     }
-    
 }
 

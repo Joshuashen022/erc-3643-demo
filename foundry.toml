@@ -15,7 +15,7 @@ remappings = [
 # File system permissions for scripts
 fs_permissions = [
     { access = "read", path = "./config.json" },
-    { access = "write", path = "./deployment_results.json"}
+    { access = "write", path = "./deployments"}
 ]
 
 # optimize solidity config for localhost deployment

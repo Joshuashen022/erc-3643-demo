@@ -18,14 +18,7 @@ contract MockIdentity2 is MockIdentity {
         external
         pure
         override
-        returns (
-            uint256,
-            uint256,
-            address,
-            bytes memory,
-            bytes memory,
-            string memory
-        )
+        returns (uint256, uint256, address, bytes memory, bytes memory, string memory)
     {
         return (1, 0, address(0x4444), "", "", "");
     }
@@ -36,7 +29,8 @@ contract MockClaimIssuer2 is MockClaimIssuer {
         external
         pure
         override
-        returns (uint256, uint256, address, bytes memory, bytes memory, string memory) {
+        returns (uint256, uint256, address, bytes memory, bytes memory, string memory)
+    {
         return (0, 0, address(0), "", "", "");
     }
 }
@@ -50,9 +44,9 @@ contract RWAIdentityRegistryTest is Test {
     event ClaimTopicsRegistrySet(address indexed claimTopicsRegistry);
     event IdentityStorageSet(address indexed identityStorage);
     event TrustedIssuersRegistrySet(address indexed trustedIssuersRegistry);
-    
+
     RWAIdentityRegistry public identityRegistry;
-    
+
     RWAIdentityRegistryStorage internal identityRegistryStorage;
     RWATrustedIssuersRegistry internal trustedIssuersRegistry;
     RWAClaimTopicsRegistry internal claimTopicsRegistry;
@@ -76,7 +70,7 @@ contract RWAIdentityRegistryTest is Test {
     address constant IDENTITY2_CLAIM_ISSUER_ADDRESS = address(0x5555);
     address constant IDENTITY3_CLAIM_ISSUER_ADDRESS = address(0x6666);
 
-    uint16 constant public COUNTRY_US = 840;
+    uint16 public constant COUNTRY_US = 840;
     uint16 constant COUNTRY_UK = 826;
     uint16 constant COUNTRY_FR = 250;
 
@@ -102,8 +96,10 @@ contract RWAIdentityRegistryTest is Test {
         vm.stopPrank();
 
         // Initialize IdentityRegistry
-        identityRegistry.init(address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage));
-        
+        identityRegistry.init(
+            address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage)
+        );
+
         // Set up test addresses and identities
         user1 = address(0xAAAA);
         user2 = address(0xBBBB);
@@ -123,7 +119,6 @@ contract RWAIdentityRegistryTest is Test {
         claimIssuer1 = MockClaimIssuer2(IDENTITY1_CLAIM_ISSUER_ADDRESS);
         claimIssuer2 = MockClaimIssuer2(IDENTITY2_CLAIM_ISSUER_ADDRESS);
         claimIssuer3 = MockClaimIssuer2(IDENTITY3_CLAIM_ISSUER_ADDRESS);
-
     }
 
     function testInit() public view {
@@ -509,7 +504,7 @@ contract RWAIdentityRegistryTest is Test {
         assertTrue(identityRegistry.contains(newUser));
     }
 
-    function testContains_ReturnsFalseWhenNotRegistered() public view{
+    function testContains_ReturnsFalseWhenNotRegistered() public view {
         address newUser = address(0x9999);
         assertFalse(identityRegistry.contains(newUser));
     }
@@ -539,7 +534,7 @@ contract RWAIdentityRegistryTest is Test {
         assertEq(address(identityRegistry.identity(newUser)), address(identity1));
     }
 
-    function testIdentity_ReturnsZeroWhenNotRegistered() public view{
+    function testIdentity_ReturnsZeroWhenNotRegistered() public view {
         address newUser = address(0x9999);
         assertEq(address(identityRegistry.identity(newUser)), address(0));
     }
@@ -569,7 +564,7 @@ contract RWAIdentityRegistryTest is Test {
         assertEq(identityRegistry.investorCountry(newUser), COUNTRY_US);
     }
 
-    function testInvestorCountry_ReturnsZeroWhenNotRegistered() public view{
+    function testInvestorCountry_ReturnsZeroWhenNotRegistered() public view {
         address newUser = address(0x9999);
         assertEq(identityRegistry.investorCountry(newUser), 0);
     }
@@ -607,7 +602,7 @@ contract RWAIdentityRegistryTest is Test {
         assertTrue(identityRegistry.isVerified(newUser));
     }
 
-    function testIsVerified_ReturnsFalseWhenNotRegistered() public view{
+    function testIsVerified_ReturnsFalseWhenNotRegistered() public view {
         address newUser = address(0x9999);
         assertFalse(identityRegistry.isVerified(newUser));
     }

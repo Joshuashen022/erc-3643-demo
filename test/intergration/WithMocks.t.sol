@@ -34,14 +34,14 @@ contract IntegrationTest is Test {
 
     MockModule internal mockModule;
 
-    uint16 constant public COUNTRY_US = 840;
-    uint256 constant public CLAIM_TOPIC_KYC = 1;
+    uint16 public constant COUNTRY_US = 840;
+    uint256 public constant CLAIM_TOPIC_KYC = 1;
 
     string private constant TOKEN_NAME = "Test Token";
     string private constant TOKEN_SYMBOL = "TT";
     uint8 private constant TOKEN_DECIMALS = 6;
     address private constant ONCHAIN_ID = address(0x123456);
-    
+
     uint256 internal claimIssuerKeyPrivateKey = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
     address internal claimIssuerKeyAddress;
     bytes32 internal claimKeyHash;
@@ -51,8 +51,8 @@ contract IntegrationTest is Test {
     uint256 constant PURPOSE_CLAIM = 3;
     uint256 constant KEY_TYPE_ECDSA = 1;
     uint256 constant CLAIM_SCHEME_ECDSA = 1;
-    function setUp() public {
 
+    function setUp() public {
         // Set up Compliance
         compliance = new RWACompliance();
         compliance.init();
@@ -69,7 +69,9 @@ contract IntegrationTest is Test {
 
         // Deploy IdentityRegistry
         identityRegistry = new RWAIdentityRegistry();
-        identityRegistry.init(address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage));
+        identityRegistry.init(
+            address(trustedIssuersRegistry), address(claimTopicsRegistry), address(identityRegistryStorage)
+        );
         {
             // for testing purposes, add the owner as an agent
             address owner = identityRegistry.owner();
@@ -84,24 +86,25 @@ contract IntegrationTest is Test {
 
         // Set up Token
         rwaToken = new RWAToken();
-        rwaToken.init(address(identityRegistry), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID);
-        {        
+        rwaToken.init(
+            address(identityRegistry), address(compliance), TOKEN_NAME, TOKEN_SYMBOL, TOKEN_DECIMALS, ONCHAIN_ID
+        );
+        {
             // for testing purposes, add this contract as an agent
             rwaToken.addAgent(address(this));
             rwaToken.unpause();
         }
-        
+
         // Add token contract as an agent of identity registry for recoveryAddress to work
         {
             address owner = identityRegistry.owner();
             vm.prank(owner);
             identityRegistry.addAgent(address(rwaToken));
         }
-        
+
         setUpIdentity();
         setUpTopics();
         setUpCompliance();
-
     }
 
     // set up identity and claim issuer with CLAIM_TOPIC_KYC
@@ -121,14 +124,13 @@ contract IntegrationTest is Test {
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(claimIssuerKeyPrivateKey, prefixedHash);
         bytes memory sig = abi.encodePacked(r, s, v);
-            
+
         vm.prank(identityKey);
         identity.addClaim(CLAIM_TOPIC_KYC, 1, address(claimIssuer), sig, data, "");
     }
 
     // set up claim topics and trusted issuer for CLAIM_TOPIC_KYC
     function setUpTopics() internal {
-        
         claimTopicsRegistry.addClaimTopic(CLAIM_TOPIC_KYC);
 
         // Add trusted issuer for claim topic 1 (KYC)
@@ -191,7 +193,7 @@ contract IntegrationTest is Test {
             vm.prank(newIdentityManagementKey);
             newIdentity.addClaim(CLAIM_TOPIC_KYC, claimSchemeEcdsa, address(claimIssuer), sig1, data, "");
         }
-        
+
         // Add claimIssuer's signature for new topic
         {
             bytes memory data = "";
@@ -493,7 +495,7 @@ contract IntegrationTest is Test {
         setUpRegisterIdentity(from);
         setUpRegisterIdentity(to);
         rwaToken.mint(from, totalBalance);
-        
+
         // Freeze some tokens
         rwaToken.freezePartialTokens(from, frozenAmount);
         assertEq(rwaToken.getFrozenTokens(from), frozenAmount);
@@ -538,7 +540,7 @@ contract IntegrationTest is Test {
         setUpRegisterIdentity(from);
         setUpRegisterIdentity(to);
         rwaToken.mint(from, totalBalance);
-        
+
         // Freeze some tokens
         rwaToken.freezePartialTokens(from, frozenAmount);
         assertEq(rwaToken.getFrozenTokens(from), frozenAmount);
@@ -583,5 +585,4 @@ contract IntegrationTest is Test {
         assertFalse(identityRegistry.isVerified(lostWallet));
         assertTrue(identityRegistry.isVerified(newWallet));
     }
-
 }

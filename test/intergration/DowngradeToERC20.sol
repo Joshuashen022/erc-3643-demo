@@ -23,7 +23,7 @@ contract MockIdentityRegistry {
 }
 
 // start as an ERC3643 token and downgrade to an ERC20 token
-// 1. deploy an ERC3643 token 
+// 1. deploy an ERC3643 token
 // 2. switch the compliance to a MockCompliance
 // 3. switch the identity registry to a MockIdentityRegistry
 // 4. check the token is an ERC20 token
@@ -52,7 +52,7 @@ contract DownToERC20Test is ERC3643TestBase {
         string memory name = rwaToken.name();
         string memory symbol = rwaToken.symbol();
         uint8 decimals = rwaToken.decimals();
-        
+
         assertEq(keccak256(abi.encodePacked(name)), keccak256(abi.encodePacked("TREX Token")));
         assertEq(keccak256(abi.encodePacked(symbol)), keccak256(abi.encodePacked("TREX")));
         assertEq(decimals, 18);
@@ -62,7 +62,7 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_InitialBalanceAndSupply() public view {
         uint256 totalSupply = rwaToken.totalSupply();
         uint256 ownerBalance = rwaToken.balanceOf(rwaToken.owner());
-        
+
         // Initially, there should be no tokens minted
         assertEq(totalSupply, 0);
         assertEq(ownerBalance, 0);
@@ -78,15 +78,15 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Mint() public {
         address owner = rwaToken.owner();
         address recipient = address(0x123);
-        uint256 mintAmount = 1000 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+
         uint256 initialSupply = rwaToken.totalSupply();
         uint256 initialBalance = rwaToken.balanceOf(recipient);
-        
+
         // Mint tokens as owner (who is also an agent)
         vm.prank(owner);
         rwaToken.mint(recipient, mintAmount);
-        
+
         assertEq(rwaToken.totalSupply(), initialSupply + mintAmount);
         assertEq(rwaToken.balanceOf(recipient), initialBalance + mintAmount);
     }
@@ -94,8 +94,8 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Mint_EmitsTransfer() public {
         address owner = rwaToken.owner();
         address recipient = address(0x123);
-        uint256 mintAmount = 1000 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
         emit Transfer(address(0), recipient, mintAmount);
@@ -105,8 +105,8 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Mint_RevertsIfNotAgent() public {
         address nonAgent = address(0x999);
         address recipient = address(0x123);
-        uint256 mintAmount = 1000 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+
         vm.prank(nonAgent);
         vm.expectRevert();
         rwaToken.mint(recipient, mintAmount);
@@ -117,20 +117,20 @@ contract DownToERC20Test is ERC3643TestBase {
         address owner = rwaToken.owner();
         address sender = address(0x111);
         address recipient = address(0x222);
-        uint256 mintAmount = 1000 * 10**18;
-        uint256 transferAmount = 500 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+        uint256 transferAmount = 500 * 10 ** 18;
+
         // First mint tokens to sender
         vm.prank(owner);
         rwaToken.mint(sender, mintAmount);
-        
+
         uint256 senderInitialBalance = rwaToken.balanceOf(sender);
         uint256 recipientInitialBalance = rwaToken.balanceOf(recipient);
-        
+
         // Transfer tokens
         vm.prank(sender);
         bool success = rwaToken.transfer(recipient, transferAmount);
-        
+
         assertTrue(success);
         assertEq(rwaToken.balanceOf(sender), senderInitialBalance - transferAmount);
         assertEq(rwaToken.balanceOf(recipient), recipientInitialBalance + transferAmount);
@@ -140,12 +140,12 @@ contract DownToERC20Test is ERC3643TestBase {
         address owner = rwaToken.owner();
         address sender = address(0x111);
         address recipient = address(0x222);
-        uint256 mintAmount = 1000 * 10**18;
-        uint256 transferAmount = 500 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+        uint256 transferAmount = 500 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.mint(sender, mintAmount);
-        
+
         vm.prank(sender);
         vm.expectEmit(true, true, false, true);
         emit Transfer(sender, recipient, transferAmount);
@@ -156,12 +156,12 @@ contract DownToERC20Test is ERC3643TestBase {
         address owner = rwaToken.owner();
         address sender = address(0x111);
         address recipient = address(0x222);
-        uint256 mintAmount = 100 * 10**18;
-        uint256 transferAmount = 200 * 10**18;
-        
+        uint256 mintAmount = 100 * 10 ** 18;
+        uint256 transferAmount = 200 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.mint(sender, mintAmount);
-        
+
         vm.prank(sender);
         vm.expectRevert();
         rwaToken.transfer(recipient, transferAmount);
@@ -171,17 +171,17 @@ contract DownToERC20Test is ERC3643TestBase {
         address owner = rwaToken.owner();
         address sender = address(0x111);
         address recipient = address(0x222);
-        uint256 mintAmount = 1000 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.mint(sender, mintAmount);
-        
+
         uint256 senderInitialBalance = rwaToken.balanceOf(sender);
         uint256 recipientInitialBalance = rwaToken.balanceOf(recipient);
-        
+
         vm.prank(sender);
         bool success = rwaToken.transfer(recipient, 0);
-        
+
         assertTrue(success);
         assertEq(rwaToken.balanceOf(sender), senderInitialBalance);
         assertEq(rwaToken.balanceOf(recipient), recipientInitialBalance);
@@ -191,11 +191,11 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Approve() public {
         address owner = rwaToken.owner();
         address spender = address(0x333);
-        uint256 approveAmount = 500 * 10**18;
-        
+        uint256 approveAmount = 500 * 10 ** 18;
+
         vm.prank(owner);
         bool success = rwaToken.approve(spender, approveAmount);
-        
+
         assertTrue(success);
         assertEq(rwaToken.allowance(owner, spender), approveAmount);
     }
@@ -203,8 +203,8 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Approve_EmitsApproval() public {
         address owner = rwaToken.owner();
         address spender = address(0x333);
-        uint256 approveAmount = 500 * 10**18;
-        
+        uint256 approveAmount = 500 * 10 ** 18;
+
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
         emit Approval(owner, spender, approveAmount);
@@ -214,13 +214,13 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Approve_CanUpdateAllowance() public {
         address owner = rwaToken.owner();
         address spender = address(0x333);
-        uint256 firstAmount = 500 * 10**18;
-        uint256 secondAmount = 1000 * 10**18;
-        
+        uint256 firstAmount = 500 * 10 ** 18;
+        uint256 secondAmount = 1000 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.approve(spender, firstAmount);
         assertEq(rwaToken.allowance(owner, spender), firstAmount);
-        
+
         vm.prank(owner);
         rwaToken.approve(spender, secondAmount);
         assertEq(rwaToken.allowance(owner, spender), secondAmount);
@@ -229,11 +229,11 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Approve_CanSetToZero() public {
         address owner = rwaToken.owner();
         address spender = address(0x333);
-        uint256 approveAmount = 500 * 10**18;
-        
+        uint256 approveAmount = 500 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.approve(spender, approveAmount);
-        
+
         vm.prank(owner);
         rwaToken.approve(spender, 0);
         assertEq(rwaToken.allowance(owner, spender), 0);
@@ -245,26 +245,26 @@ contract DownToERC20Test is ERC3643TestBase {
         address tokenOwner = address(0x111);
         address spender = address(0x222);
         address recipient = address(0x333);
-        uint256 mintAmount = 1000 * 10**18;
-        uint256 approveAmount = 500 * 10**18;
-        uint256 transferAmount = 300 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+        uint256 approveAmount = 500 * 10 ** 18;
+        uint256 transferAmount = 300 * 10 ** 18;
+
         // Mint tokens to tokenOwner
         vm.prank(owner);
         rwaToken.mint(tokenOwner, mintAmount);
-        
+
         // Approve spender
         vm.prank(tokenOwner);
         rwaToken.approve(spender, approveAmount);
-        
+
         uint256 tokenOwnerInitialBalance = rwaToken.balanceOf(tokenOwner);
         uint256 recipientInitialBalance = rwaToken.balanceOf(recipient);
         uint256 initialAllowance = rwaToken.allowance(tokenOwner, spender);
-        
+
         // TransferFrom
         vm.prank(spender);
         bool success = rwaToken.transferFrom(tokenOwner, recipient, transferAmount);
-        
+
         assertTrue(success);
         assertEq(rwaToken.balanceOf(tokenOwner), tokenOwnerInitialBalance - transferAmount);
         assertEq(rwaToken.balanceOf(recipient), recipientInitialBalance + transferAmount);
@@ -276,16 +276,16 @@ contract DownToERC20Test is ERC3643TestBase {
         address tokenOwner = address(0x111);
         address spender = address(0x222);
         address recipient = address(0x333);
-        uint256 mintAmount = 1000 * 10**18;
-        uint256 approveAmount = 500 * 10**18;
-        uint256 transferAmount = 300 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+        uint256 approveAmount = 500 * 10 ** 18;
+        uint256 transferAmount = 300 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.mint(tokenOwner, mintAmount);
-        
+
         vm.prank(tokenOwner);
         rwaToken.approve(spender, approveAmount);
-        
+
         vm.prank(spender);
         vm.expectEmit(true, true, false, true);
         emit Transfer(tokenOwner, recipient, transferAmount);
@@ -297,16 +297,16 @@ contract DownToERC20Test is ERC3643TestBase {
         address tokenOwner = address(0x111);
         address spender = address(0x222);
         address recipient = address(0x333);
-        uint256 mintAmount = 1000 * 10**18;
-        uint256 approveAmount = 200 * 10**18;
-        uint256 transferAmount = 500 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+        uint256 approveAmount = 200 * 10 ** 18;
+        uint256 transferAmount = 500 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.mint(tokenOwner, mintAmount);
-        
+
         vm.prank(tokenOwner);
         rwaToken.approve(spender, approveAmount);
-        
+
         vm.prank(spender);
         vm.expectRevert();
         rwaToken.transferFrom(tokenOwner, recipient, transferAmount);
@@ -317,16 +317,16 @@ contract DownToERC20Test is ERC3643TestBase {
         address tokenOwner = address(0x111);
         address spender = address(0x222);
         address recipient = address(0x333);
-        uint256 mintAmount = 100 * 10**18;
-        uint256 approveAmount = 500 * 10**18;
-        uint256 transferAmount = 200 * 10**18;
-        
+        uint256 mintAmount = 100 * 10 ** 18;
+        uint256 approveAmount = 500 * 10 ** 18;
+        uint256 transferAmount = 200 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.mint(tokenOwner, mintAmount);
-        
+
         vm.prank(tokenOwner);
         rwaToken.approve(spender, approveAmount);
-        
+
         vm.prank(spender);
         vm.expectRevert();
         rwaToken.transferFrom(tokenOwner, recipient, transferAmount);
@@ -336,18 +336,18 @@ contract DownToERC20Test is ERC3643TestBase {
     function test_ERC20_Allowance_InitialIsZero() public view {
         address owner = address(0x111);
         address spender = address(0x222);
-        
+
         assertEq(rwaToken.allowance(owner, spender), 0);
     }
 
     function test_ERC20_Allowance_AfterApproval() public {
         address owner = address(0x111);
         address spender = address(0x222);
-        uint256 approveAmount = 500 * 10**18;
-        
+        uint256 approveAmount = 500 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.approve(spender, approveAmount);
-        
+
         assertEq(rwaToken.allowance(owner, spender), approveAmount);
     }
 
@@ -356,15 +356,15 @@ contract DownToERC20Test is ERC3643TestBase {
         address owner = rwaToken.owner();
         address recipient1 = address(0x111);
         address recipient2 = address(0x222);
-        uint256 mintAmount1 = 1000 * 10**18;
-        uint256 mintAmount2 = 500 * 10**18;
-        
+        uint256 mintAmount1 = 1000 * 10 ** 18;
+        uint256 mintAmount2 = 500 * 10 ** 18;
+
         uint256 initialSupply = rwaToken.totalSupply();
-        
+
         vm.prank(owner);
         rwaToken.mint(recipient1, mintAmount1);
         assertEq(rwaToken.totalSupply(), initialSupply + mintAmount1);
-        
+
         vm.prank(owner);
         rwaToken.mint(recipient2, mintAmount2);
         assertEq(rwaToken.totalSupply(), initialSupply + mintAmount1 + mintAmount2);
@@ -374,17 +374,17 @@ contract DownToERC20Test is ERC3643TestBase {
         address owner = rwaToken.owner();
         address sender = address(0x111);
         address recipient = address(0x222);
-        uint256 mintAmount = 1000 * 10**18;
-        uint256 transferAmount = 500 * 10**18;
-        
+        uint256 mintAmount = 1000 * 10 ** 18;
+        uint256 transferAmount = 500 * 10 ** 18;
+
         vm.prank(owner);
         rwaToken.mint(sender, mintAmount);
-        
+
         uint256 supplyBeforeTransfer = rwaToken.totalSupply();
-        
+
         vm.prank(sender);
         rwaToken.transfer(recipient, transferAmount);
-        
+
         assertEq(rwaToken.totalSupply(), supplyBeforeTransfer);
     }
 
@@ -515,5 +515,4 @@ contract DownToERC20Test is ERC3643TestBase {
         assertEq(rwaToken.balanceOf(user), mintAmount - burnAmount);
         assertEq(rwaToken.totalSupply(), mintAmount - burnAmount);
     }
-
 }

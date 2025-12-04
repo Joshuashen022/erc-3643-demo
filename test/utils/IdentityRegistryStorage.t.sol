@@ -258,8 +258,8 @@ contract IdentityRegistryStorageUtils is Test {
         address[] memory registries = identityRegistryStorage.linkedIdentityRegistries();
         assertEq(registries.length, 2);
         assertTrue(
-            (registries[0] == identityRegistry1 && registries[1] == identityRegistry2) ||
-            (registries[0] == identityRegistry2 && registries[1] == identityRegistry1)
+            (registries[0] == identityRegistry1 && registries[1] == identityRegistry2)
+                || (registries[0] == identityRegistry2 && registries[1] == identityRegistry1)
         );
     }
 
@@ -355,7 +355,7 @@ contract IdentityRegistryStorageUtils is Test {
 
     // ============ linkedIdentityRegistries() tests ============
 
-    function testLinkedIdentityRegistries_ReturnsEmptyArray() public view{
+    function testLinkedIdentityRegistries_ReturnsEmptyArray() public view {
         address[] memory registries = identityRegistryStorage.linkedIdentityRegistries();
         assertEq(registries.length, 0);
     }
@@ -418,7 +418,7 @@ contract IdentityRegistryStorageUtils is Test {
 
     function testBoundRegistryCanAddIdentity() public {
         identityRegistryStorage.bindIdentityRegistry(identityRegistry1);
-        
+
         address newUser = address(0x9999);
         vm.prank(identityRegistry1);
         identityRegistryStorage.addIdentityToStorage(newUser, IIdentity(address(identity1)), COUNTRY_US);
@@ -426,5 +426,4 @@ contract IdentityRegistryStorageUtils is Test {
         assertEq(address(identityRegistryStorage.storedIdentity(newUser)), address(identity1));
     }
 }
-
 

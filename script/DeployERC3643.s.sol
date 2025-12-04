@@ -10,7 +10,6 @@ import {IdentityDeploymentLib} from "./utils/IdentityDeploymentLib.sol";
 import {TREXDeploymentLib} from "./utils/TREXDeploymentLib.sol";
 import {TREXSuiteDeploymentLib} from "./utils/TREXSuiteDeploymentLib.sol";
 import {ConfigReaderLib} from "./utils/ConfigReaderLib.sol";
-import {IdentityInitializationLib} from "./utils/IdentityInitializationLib.sol";
 import {RWAIdentityIdFactory, RWAIdentityGateway} from "../src/rwa/proxy/RWAIdentityIdFactory.sol";
 import {RWAClaimIssuerIdFactory, RWAClaimIssuerGateway} from "../src/rwa/proxy/RWAClaimIssuerIdFactory.sol";
 import {ITREXFactory} from "../lib/ERC-3643/contracts/factory/ITREXFactory.sol";

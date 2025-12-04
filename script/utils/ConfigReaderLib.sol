@@ -24,7 +24,7 @@ library ConfigReaderLib {
     }
 
     struct ClaimIssuerConfig {
-        uint256 privateKey;
+        address manageKey;  // Management key address (public key address)
         uint256[] claimTopics;
     }
 
@@ -47,6 +47,12 @@ library ConfigReaderLib {
     ///      JSON format:
     ///      {
     ///        "claimTopics": [1, 2],
+    ///        "claimIssuers": [
+    ///          {
+    ///            "manageKey": "0x...",  // Management key address (public key address)
+    ///            "claimTopics": [1]      // Optional, uses default if not specified
+    ///          }
+    ///        ],
     ///        "token": {
     ///          "name": "TREX Token",
     ///          "symbol": "TREX",
@@ -57,7 +63,7 @@ library ConfigReaderLib {
     ///          "tokenAgents": ["0x..."]  // optional array
     ///        }
     ///      }
-    ///      Note: suiteOwner is always msg.sender (deployer), not read from config
+    ///      Note: Private keys should be provided via environment variables for signing operations, not in config.json
     function readConfig(Vm vm, address defaultDeployer, DeploymentConfig storage config) public {
         // Read config.json file
         string memory configPath = string.concat(vm.projectRoot(), "/config.json");
@@ -156,10 +162,12 @@ library ConfigReaderLib {
         returns (ClaimIssuerConfig[] memory claimIssuers)
     {
         // First pass: count how many claim issuers are configured
+        // Check for manageKey (new format) or privateKey (old format for backward compatibility)
         uint256 count = 0;
         while (true) {
-            string memory jsonPath = string.concat(".claimIssuers[", _uint2str(count), "].privateKey");
-            if (stdJson.keyExists(json, jsonPath)) {
+            string memory manageKeyPath = string.concat(".claimIssuers[", _uint2str(count), "].manageKey");
+            string memory privateKeyPath = string.concat(".claimIssuers[", _uint2str(count), "].privateKey");
+            if (stdJson.keyExists(json, manageKeyPath) || stdJson.keyExists(json, privateKeyPath)) {
                 count++;
             } else {
                 break;
@@ -173,12 +181,22 @@ library ConfigReaderLib {
         // Second pass: parse each claim issuer configuration
         claimIssuers = new ClaimIssuerConfig[](count);
         for (uint256 i = 0; i < count; i++) {
+            // Try to read manageKey first (new format), fallback to privateKey (old format) for backward compatibility
+            string memory manageKeyPath = string.concat(".claimIssuers[", _uint2str(i), "].manageKey");
             string memory privateKeyPath = string.concat(".claimIssuers[", _uint2str(i), "].privateKey");
             string memory topicsPath = string.concat(".claimIssuers[", _uint2str(i), "].claimTopics");
 
-            // Read private key as string and parse it
-            string memory privateKeyStr = stdJson.readString(json, privateKeyPath);
-            uint256 privateKey = _parseUint256(privateKeyStr);
+            address manageKey;
+            if (stdJson.keyExists(json, manageKeyPath)) {
+                // New format: use manageKey (address)
+                string memory manageKeyStr = stdJson.readString(json, manageKeyPath);
+                manageKey = _parseAddress(manageKeyStr);
+            } else if (stdJson.keyExists(json, privateKeyPath)) {
+                // Old format: privateKey is deprecated, but we'll show a helpful error message
+                revert("Please use 'manageKey' (address) instead of 'privateKey' in config.json. The privateKey should be provided via environment variables for signing operations. To get the manageKey address from a privateKey, you can use: cast wallet address <privateKey>");
+            } else {
+                revert("'manageKey' must be specified for claimIssuer");
+            }
 
             // Read claim topics (optional, use default if not specified)
             uint256[] memory claimTopics;
@@ -192,7 +210,7 @@ library ConfigReaderLib {
                 claimTopics[0] = 1;
             }
 
-            claimIssuers[i] = ClaimIssuerConfig({privateKey: privateKey, claimTopics: claimTopics});
+            claimIssuers[i] = ClaimIssuerConfig({manageKey: manageKey, claimTopics: claimTopics});
         }
     }
 
@@ -339,7 +357,7 @@ library ConfigReaderLib {
         }
         console2.log("Claim issuers count:", config.claimIssuers.length);
         for (uint256 i = 0; i < config.claimIssuers.length; i++) {
-            console2.log("  Claim Issuer", i, "privateKey:", config.claimIssuers[i].privateKey);
+            console2.log("  Claim Issuer", i, "manageKey:", config.claimIssuers[i].manageKey);
             console2.log("    Claim topics count:", config.claimIssuers[i].claimTopics.length);
             for (uint256 j = 0; j < config.claimIssuers[i].claimTopics.length; j++) {
                 console2.log("      Topic", j, ":", config.claimIssuers[i].claimTopics[j]);

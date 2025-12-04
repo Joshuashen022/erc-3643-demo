@@ -23,7 +23,7 @@ library IdentityDeploymentLib {
     }
 
     struct ClaimIssuerDeploymentResult {
-        uint256 claimIssuerPrivateKey;
+        address claimIssuerManageKey;  // Management key address (public key address)
         address claimIssuer;
         address claimIssuerOwner;
         uint256[] claimTopics;
@@ -67,15 +67,18 @@ library IdentityDeploymentLib {
 
         vm.startBroadcast();
         for (uint256 i = 0; i < config.claimIssuers.length; i++) {
-            VmSafe.Wallet memory claimIssuerWallet = vm.createWallet(config.claimIssuers[i].privateKey);
+            // Use manageKey (address) directly instead of deriving from privateKey
+            address claimIssuerManageKey = config.claimIssuers[i].manageKey;
+            require(claimIssuerManageKey != address(0), "ClaimIssuer manageKey cannot be zero address");
+            
             string memory claimIssuerName = string(abi.encodePacked("claimissuer", _uint2str(i + 1)));
 
-            address claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerWallet.addr, claimIssuerName);
+            address claimIssuer = claimIssuerIdFactory.createIdentity(claimIssuerManageKey, claimIssuerName);
 
             claimIssuers[i] = ClaimIssuerDeploymentResult({
-                claimIssuerPrivateKey: config.claimIssuers[i].privateKey,
+                claimIssuerManageKey: claimIssuerManageKey,
                 claimIssuer: claimIssuer,
-                claimIssuerOwner: claimIssuerWallet.addr,
+                claimIssuerOwner: claimIssuerManageKey,  // Owner is the manageKey address
                 claimTopics: config.claimIssuers[i].claimTopics
             });
         }

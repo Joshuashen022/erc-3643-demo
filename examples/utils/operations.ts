@@ -9,7 +9,8 @@ export async function ensureAddressIsRegistered(
   config: ContractConfig,
   address: string,
   countryCode: number = 840,
-  rpcUrl?: string
+  rpcUrl?: string,
+  identityAddress?: string
 ): Promise<void> {
   console.log(`\n--- 检查地址是否已注册: ${address} ---`);
   
@@ -23,10 +24,23 @@ export async function ensureAddressIsRegistered(
   if (!isVerified) {
     console.log(`地址 ${address} 未注册，正在注册...`);
     
+    // 如果没有提供 identityAddress，从 identityIdFactory 获取
+    let identityAddr = identityAddress;
+    if (!identityAddr) {
+      try {
+        identityAddr = await config.identityIdFactory.getIdentity(address);
+        if (identityAddr === "0x0000000000000000000000000000000000000000") {
+          throw new Error("Identity address is zero - identity may not be deployed");
+        }
+      } catch (error: any) {
+        throw new Error(`Failed to get identity address: ${error.message}`);
+      }
+    }
+    
     await sendTransaction(
       config.identityRegistry,
       "registerIdentity",
-      [address, config.identityAddress, countryCode],
+      [address, identityAddr, countryCode],
       "注册身份",
       config.provider,
       rpcUrl
@@ -100,13 +114,7 @@ export async function approve(
   console.log(`授权数量: ${ethers.formatEther(amount)} tokens (${amount} wei)`);
   
   const wallet = fromWallet || config.wallet;
-  const token = new ethers.Contract(
-    config.tokenAddress,
-    config.tokenABI.length > 0 ? config.tokenABI : [
-      "function approve(address _spender, uint256 _amount) external returns (bool)",
-    ],
-    wallet
-  );
+  const token = config.token.connect(wallet) as ethers.Contract;
   
   return await sendTransaction(
     token,
@@ -133,13 +141,7 @@ export async function transfer(
   console.log(`Transfer 数量: ${ethers.formatEther(amount)} tokens (${amount} wei)`);
   
   const wallet = fromWallet || config.wallet;
-  const token = new ethers.Contract(
-    config.tokenAddress,
-    config.tokenABI.length > 0 ? config.tokenABI : [
-      "function transfer(address _to, uint256 _amount) external returns (bool)",
-    ],
-    wallet
-  );
+  const token = config.token.connect(wallet) as ethers.Contract;
   
   return await sendTransaction(
     token,
@@ -167,13 +169,7 @@ export async function transferFrom(
   console.log(`接收地址: ${toAddress}`);
   console.log(`TransferFrom 数量: ${ethers.formatEther(amount)} tokens (${amount} wei)`);
   
-  const token = new ethers.Contract(
-    config.tokenAddress,
-    config.tokenABI.length > 0 ? config.tokenABI : [
-      "function transferFrom(address _from, address _to, uint256 _amount) external returns (bool)",
-    ],
-    spenderWallet
-  );
+  const token = config.token.connect(spenderWallet) as ethers.Contract;
   
   return await sendTransaction(
     token,
@@ -192,5 +188,51 @@ export function parseAmount(amountStr: string, useWei: boolean = false): bigint 
   return useWei 
     ? ethers.parseUnits(amountStr, 18)
     : BigInt(amountStr);
+}
+
+/**
+ * 为 claim 创建签名
+ * @param identityAddress 身份合约地址
+ * @param claimTopic claim topic
+ * @param data claim data (默认为 "0x")
+ * @param claimIssuerWallet claim issuer 的钱包
+ * @returns 签名后的 bytes
+ */
+export async function signClaim(
+  identityAddress: string,
+  claimTopic: number,
+  claimIssuerWallet: ethers.Wallet,
+  data: string = "0x"
+): Promise<string> {
+  // 创建 data hash
+  const dataHash = ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ["address", "uint256", "bytes"],
+      [identityAddress, claimTopic, data]
+    )
+  );
+  console.log(`Data Hash: ${dataHash}`);
+
+  // 创建 prefixed hash
+  const messagePrefix = "\x19Ethereum Signed Message:\n32";
+  const prefixedHash = ethers.keccak256(
+    ethers.concat([
+      ethers.toUtf8Bytes(messagePrefix),
+      ethers.getBytes(dataHash)
+    ])
+  );
+  console.log(`Prefixed Hash: ${prefixedHash}`);
+
+  // 使用 claimIssuer 的私钥签名
+  const signature = await claimIssuerWallet.signingKey.sign(prefixedHash);
+  const vByte = signature.v >= 27 ? signature.v - 27 : signature.v;
+  const sigBytes = ethers.concat([
+    signature.r,
+    signature.s,
+    new Uint8Array([vByte])
+  ]);
+  console.log(`签名: ${sigBytes} (长度: ${sigBytes.length} 字节)`);
+
+  return sigBytes;
 }
 

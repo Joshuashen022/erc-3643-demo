@@ -2,91 +2,70 @@ import { ethers } from "ethers";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
-import { getContractAddresses, getContractABI } from "./utils/contracts";
+import { initializeContracts, DeploymentResults } from "./utils/contracts";
 
 dotenv.config();
 
 /**
- * 主函数：与合约交互
+ * 辅助函数：将地址转换为字符串并规范化
+ */
+const toAddressString = (addr: any): string => {
+  return ethers.getAddress(typeof addr === "string" ? addr : String(addr));
+};
+
+/**
+ * 验证合约 owner
+ */
+async function verifyOwner(
+  contract: ethers.Contract,
+  contractName: string,
+  expectedOwner: string,
+  deploymentResults: DeploymentResults
+): Promise<void> {
+  try {
+    const actualOwner = toAddressString(await contract.owner());
+    if (actualOwner.toLowerCase() !== expectedOwner.toLowerCase()) {
+      throw new Error(
+        `${contractName} owner mismatch. Expected: ${expectedOwner}, Got: ${actualOwner}`
+      );
+    }
+    console.log(`✓ ${contractName} Owner: ${actualOwner} (matches deploymentResults)`);
+  } catch (error: any) {
+    if (error.message.includes("owner mismatch")) {
+      throw error;
+    }
+    throw new Error(`Failed to verify ${contractName} owner: ${error.message}`);
+  }
+}
+
+/**
+ * 主函数：验证部署
  */
 async function main() {
-  // 连接到本地节点（Anvil）
   const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const privateKey = process.env.PRIVATE_KEY;
 
-  console.log(`连接到 RPC: ${rpcUrl}`);
-
-  // 获取网络信息
-  const network = await provider.getNetwork();
-  console.log(`网络: ${network.name} (Chain ID: ${network.chainId})`);
-
-  const accounts = await provider.listAccounts();
-  const defaultAccount = accounts.length > 0 
-    ? (typeof accounts[0] === "string" ? accounts[0] : accounts[0].address)
-    : "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-  
-  if (accounts.length > 0) {
-    const balance = await provider.getBalance(defaultAccount);
-    console.log(`账户 ${defaultAccount} 余额: ${ethers.formatEther(balance)} ETH`);
+  if (!privateKey) {
+    throw new Error("请设置 PRIVATE_KEY 环境变量");
   }
 
-  const addresses = getContractAddresses(Number(network.chainId));
-  const suiteOwner = ethers.getAddress(process.env.SUITE_OWNER || defaultAccount);
-  
-  if (suiteOwner === "0x0000000000000000000000000000000000000000") {
-    throw new Error("Suite owner should be set");
-  }
+  // 使用 initializeContracts 获取所有合约实例
+  const contracts = await initializeContracts(rpcUrl, privateKey);
+  const { deploymentResults, provider } = contracts;
+  const suiteOwner = ethers.getAddress(deploymentResults.suiteOwner);
 
   console.log(`\n使用 Suite Owner: ${suiteOwner}`);
 
-  // 从 TREXFactory 获取 token 地址
-  const salt = process.env.SALT || "trex-suite-1";
-  console.log(`\n使用 Salt: ${salt}`);
-  
-  const trexFactoryABI = getContractABI("TREXFactory");
-  const trexFactoryAddress = ethers.getAddress(addresses["TREXFactory"]);
-  const trexFactory = new ethers.Contract(
-    trexFactoryAddress,
-    trexFactoryABI.length > 0 ? trexFactoryABI : [
-      "function getToken(string memory) view returns (address)",
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
-
-  let tokenAddress: string;
-  try {
-    const tokenAddressRaw = await trexFactory.getToken(salt);
-    tokenAddress = ethers.getAddress(String(tokenAddressRaw));
-  } catch (error) {
-    throw new Error(`Failed to get token address: ${error}`);
-  }
-  
+  // 获取 Token 地址（从 deploymentResults）
+  const tokenAddress = ethers.getAddress(deploymentResults.token);
   console.log(`Token address: ${tokenAddress}`);
-
-  if (tokenAddress === "0x0000000000000000000000000000000000000000") {
-    throw new Error("Token address is zero - token may not be deployed with this salt");
-  }
-
-  // 获取 Token 合约
-  const tokenABI = getContractABI("RWAToken");
-  const token = new ethers.Contract(
-    tokenAddress, // 已经规范化
-    tokenABI.length > 0 ? tokenABI : [
-      "function compliance() view returns (address)",
-      "function identityRegistry() view returns (address)",
-      "function isAgent(address) view returns (bool)",
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
 
   // 获取相关合约地址
   let complianceAddress: string;
   let identityRegistryAddress: string;
   try {
-    complianceAddress = ethers.getAddress(String(await token.compliance()));
-    identityRegistryAddress = ethers.getAddress(String(await token.identityRegistry()));
+    complianceAddress = toAddressString(await contracts.token.compliance());
+    identityRegistryAddress = toAddressString(await contracts.token.identityRegistry());
   } catch (error) {
     throw new Error(`Failed to get contract addresses: ${error}`);
   }
@@ -94,28 +73,21 @@ async function main() {
   console.log(`Compliance address: ${complianceAddress}`);
   console.log(`Identity Registry address: ${identityRegistryAddress}`);
 
-  // 获取 IdentityRegistry 合约
-  const identityRegistryABI = getContractABI("RWAIdentityRegistry");
-  const identityRegistry = new ethers.Contract(
-    identityRegistryAddress, // 已经规范化
-    identityRegistryABI.length > 0 ? identityRegistryABI : [
-      "function identityStorage() view returns (address)",
-      "function issuersRegistry() view returns (address)",
-      "function topicsRegistry() view returns (address)",
-      "function isAgent(address) view returns (bool)",
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
+  // 验证 Compliance 地址是否匹配
+  if (complianceAddress.toLowerCase() !== deploymentResults.compliance.toLowerCase()) {
+    throw new Error(
+      `Compliance address mismatch. Expected: ${deploymentResults.compliance}, Got: ${complianceAddress}`
+    );
+  }
 
   // 获取子注册表地址
   let identityRegistryStorageAddress: string;
   let trustedIssuersRegistryAddress: string;
   let claimTopicsRegistryAddress: string;
   try {
-    identityRegistryStorageAddress = ethers.getAddress(String(await identityRegistry.identityStorage()));
-    trustedIssuersRegistryAddress = ethers.getAddress(String(await identityRegistry.issuersRegistry()));
-    claimTopicsRegistryAddress = ethers.getAddress(String(await identityRegistry.topicsRegistry()));
+    identityRegistryStorageAddress = toAddressString(await contracts.identityRegistry.identityStorage());
+    trustedIssuersRegistryAddress = toAddressString(await contracts.identityRegistry.issuersRegistry());
+    claimTopicsRegistryAddress = toAddressString(await contracts.identityRegistry.topicsRegistry());
   } catch (error) {
     throw new Error(`Failed to get registry addresses: ${error}`);
   }
@@ -124,13 +96,30 @@ async function main() {
   console.log(`Trusted Issuers Registry address: ${trustedIssuersRegistryAddress}`);
   console.log(`Claim Topics Registry address: ${claimTopicsRegistryAddress}`);
 
+  // 验证地址是否匹配 deploymentResults
+  if (identityRegistryStorageAddress.toLowerCase() !== deploymentResults.identityRegistryStorage.toLowerCase()) {
+    throw new Error(
+      `Identity Registry Storage address mismatch. Expected: ${deploymentResults.identityRegistryStorage}, Got: ${identityRegistryStorageAddress}`
+    );
+  }
+  if (trustedIssuersRegistryAddress.toLowerCase() !== deploymentResults.trustedIssuersRegistry.toLowerCase()) {
+    throw new Error(
+      `Trusted Issuers Registry address mismatch. Expected: ${deploymentResults.trustedIssuersRegistry}, Got: ${trustedIssuersRegistryAddress}`
+    );
+  }
+  if (claimTopicsRegistryAddress.toLowerCase() !== deploymentResults.claimTopicsRegistry.toLowerCase()) {
+    throw new Error(
+      `Claim Topics Registry address mismatch. Expected: ${deploymentResults.claimTopicsRegistry}, Got: ${claimTopicsRegistryAddress}`
+    );
+  }
+
   // 验证逻辑
-  console.log("\n=== 开始验证 ===");
+  console.log("\n=== 开始验证 Owner 关系 ===");
 
   // 验证 Identity Registry agent
   let isIdentityRegistryAgent: boolean;
   try {
-    isIdentityRegistryAgent = await identityRegistry.isAgent(suiteOwner);
+    isIdentityRegistryAgent = await contracts.identityRegistry.isAgent(suiteOwner);
   } catch (error) {
     throw new Error(`Failed to check Identity Registry agent: ${error}`);
   }
@@ -142,7 +131,7 @@ async function main() {
   // 验证 Token agent
   let isTokenAgent: boolean;
   try {
-    isTokenAgent = await token.isAgent(suiteOwner);
+    isTokenAgent = await contracts.token.isAgent(suiteOwner);
   } catch (error) {
     throw new Error(`Failed to check Token agent: ${error}`);
   }
@@ -151,177 +140,62 @@ async function main() {
   }
   console.log(`✓ Token Agent: ${suiteOwner}`);
 
-  const toAddressString = (addr: any): string => {
-    return typeof addr === "string" ? addr : String(addr);
-  };
+  // 验证所有合约的 owner 是否与 deploymentResults 中的 owner 匹配
+  await verifyOwner(contracts.token, "Token", deploymentResults.tokenOwner, deploymentResults);
+  await verifyOwner(contracts.identityRegistry, "Identity Registry", deploymentResults.identityRegistryOwner, deploymentResults);
+  await verifyOwner(contracts.compliance, "Compliance", deploymentResults.suiteOwner, deploymentResults);
+  await verifyOwner(contracts.trustedIssuersRegistry, "Trusted Issuers Registry", deploymentResults.trustedIssuersRegistryOwner, deploymentResults);
+  await verifyOwner(contracts.claimTopicsRegistry, "Claim Topics Registry", deploymentResults.claimTopicsRegistryOwner, deploymentResults);
+  await verifyOwner(contracts.trexFactory, "TREX Factory", deploymentResults.trexFactoryOwner, deploymentResults);
+  await verifyOwner(contracts.identityIdFactory, "Identity Id Factory", deploymentResults.identityIdFactoryOwner, deploymentResults);
+  await verifyOwner(contracts.identityGateway, "Identity Gateway", deploymentResults.identityGatewayOwner, deploymentResults);
+  await verifyOwner(contracts.claimIssuerIdFactory, "Claim Issuer Id Factory", deploymentResults.claimIssuerIdFactoryOwner, deploymentResults);
+  await verifyOwner(contracts.claimIssuerGateway, "Claim Issuer Gateway", deploymentResults.claimIssuerGatewayOwner, deploymentResults);
 
-  const tokenOwner = toAddressString(await token.owner());
-  if (tokenOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Token owner should match suite owner. Expected: ${suiteOwner}, Got: ${tokenOwner}`);
-  }
-  console.log(`✓ Token Owner: ${tokenOwner}`);
+  const claimIssuersCount = deploymentResults.claimIssuersCount || 0;
 
-  // 验证 Identity Registry owner
-  const identityRegistryOwner = toAddressString(await identityRegistry.owner());
-  if (identityRegistryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Identity Registry owner should match suite owner. Expected: ${suiteOwner}, Got: ${identityRegistryOwner}`);
-  }
-  console.log(`✓ Identity Registry Owner: ${identityRegistryOwner}`);
-
-  // 验证 Compliance owner
-  const complianceABI = getContractABI("RWACompliance");
-  const compliance = new ethers.Contract(
-    complianceAddress, // 已经规范化
-    complianceABI.length > 0 ? complianceABI : [
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
-  const complianceOwner = toAddressString(await compliance.owner());
-  if (complianceOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Compliance owner should match suite owner. Expected: ${suiteOwner}, Got: ${complianceOwner}`);
-  }
-  console.log(`✓ Compliance Owner: ${complianceOwner}`);
-
-  // 验证 Trusted Issuers Registry owner
-  const trustedIssuersRegistryABI = getContractABI("RWATrustedIssuersRegistry");
-  const trustedIssuersRegistry = new ethers.Contract(
-    trustedIssuersRegistryAddress, // 已经规范化
-    trustedIssuersRegistryABI.length > 0 ? trustedIssuersRegistryABI : [
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
-  const trustedIssuersRegistryOwner = toAddressString(await trustedIssuersRegistry.owner());
-  if (trustedIssuersRegistryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Trusted Issuers Registry owner should match suite owner. Expected: ${suiteOwner}, Got: ${trustedIssuersRegistryOwner}`);
-  }
-  console.log(`✓ Trusted Issuers Registry Owner: ${trustedIssuersRegistryOwner}`);
-
-  // 验证 Claim Topics Registry owner
-  const claimTopicsRegistryABI = getContractABI("RWAClaimTopicsRegistry");
-  const claimTopicsRegistry = new ethers.Contract(
-    claimTopicsRegistryAddress,
-    claimTopicsRegistryABI.length > 0 ? claimTopicsRegistryABI : [
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
-  const claimTopicsRegistryOwner = toAddressString(await claimTopicsRegistry.owner());
-  if (claimTopicsRegistryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Claim Topics Registry owner should match suite owner. Expected: ${suiteOwner}, Got: ${claimTopicsRegistryOwner}`);
-  }
-  console.log(`✓ Claim Topics Registry Owner: ${claimTopicsRegistryOwner}`);
-
-  // 验证 TREX Factory owner
-  const trexFactoryOwner = toAddressString(await trexFactory.owner());
-  if (trexFactoryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`TREX Factory owner should match suite owner. Expected: ${suiteOwner}, Got: ${trexFactoryOwner}`);
-  }
-  console.log(`✓ TREX Factory Owner: ${trexFactoryOwner}`);
-
-  const identityIdFactoryABI = getContractABI("RWAIdentityIdFactory");
-  const identityIdFactory = new ethers.Contract(
-    addresses["RWAIdentityIdFactory"],
-    identityIdFactoryABI.length > 0 ? identityIdFactoryABI : [
-      "function owner() view returns (address)",
-      "function getIdentity(address _wallet) external view returns (address)",
-    ],
-    provider
-  );
-  const identityIdFactoryOwner = toAddressString(await identityIdFactory.owner());
-  if (identityIdFactoryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Identity Id Factory owner should match suite owner. Expected: ${suiteOwner}, Got: ${identityIdFactoryOwner}`);
-  }
-  console.log(`✓ Identity Id Factory Owner: ${identityIdFactoryOwner}`);
-
-  const identityGatewayABI = getContractABI("RWAIdentityGateway");
-  const identityGateway = new ethers.Contract(
-    addresses["RWAIdentityGateway"],
-    identityGatewayABI.length > 0 ? identityGatewayABI : [
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
-  const identityGatewayOwner = toAddressString(await identityGateway.owner());
-  if (identityGatewayOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Identity Gateway owner should match suite owner. Expected: ${suiteOwner}, Got: ${identityGatewayOwner}`);
-  }
-  console.log(`✓ Identity Gateway Owner: ${identityGatewayOwner}`);
-
-  const claimIssuerIdFactoryABI = getContractABI("RWAClaimIssuerIdFactory");
-  const claimIssuerIdFactory = new ethers.Contract(
-    addresses["RWAClaimIssuerIdFactory"],
-    claimIssuerIdFactoryABI.length > 0 ? claimIssuerIdFactoryABI : [
-      "function owner() view returns (address)",
-      "function getIdentity(address _wallet) external view returns (address)",
-    ],
-    provider
-  );
-  const claimIssuerIdFactoryOwner = toAddressString(await claimIssuerIdFactory.owner());
-  if (claimIssuerIdFactoryOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Claim Issuer Id Factory owner should match suite owner. Expected: ${suiteOwner}, Got: ${claimIssuerIdFactoryOwner}`);
-  }
-  console.log(`✓ Claim Issuer Id Factory Owner: ${claimIssuerIdFactoryOwner}`);
-
-  const claimIssuerGatewayABI = getContractABI("RWAClaimIssuerGateway");
-  const claimIssuerGateway = new ethers.Contract(
-    addresses["RWAClaimIssuerGateway"],
-    claimIssuerGatewayABI.length > 0 ? claimIssuerGatewayABI : [
-      "function owner() view returns (address)",
-    ],
-    provider
-  );
-  const claimIssuerGatewayOwner = toAddressString(await claimIssuerGateway.owner());
-  if (claimIssuerGatewayOwner.toLowerCase() !== suiteOwner.toLowerCase()) {
-    throw new Error(`Claim Issuer Gateway owner should match suite owner. Expected: ${suiteOwner}, Got: ${claimIssuerGatewayOwner}`);
-  }
-  console.log(`✓ Claim Issuer Gateway Owner: ${claimIssuerGatewayOwner}`);
-  const identityAddress = await identityIdFactory.getIdentity(suiteOwner);
-  const claimIssuerAddress = await claimIssuerIdFactory.getIdentity(suiteOwner);
-  // const identity = new ethers.Contract(
-  //   identityAddress,
-  //   [
-  //     "function keyHasPurpose(bytes32 _key, uint256 _purpose) public view override returns(bool result)",
-  //   ],
-  //   provider
-  // );
-  // const claimIssuer = new ethers.Contract(
-  //   claimIssuerAddress,
-  //   ["function keyHasPurpose(bytes32 _key, uint256 _purpose) public view override returns(bool result)"],
-  //   provider
-  // );
-  // const hasManagementKey = await identity.keyHasPurpose(
-  //   ethers.keccak256(suiteOwner), 1
-  // );
-  // const hasClaimKey = await claimIssuer.keyHasPurpose(
-  //   ethers.keccak256(suiteOwner), 3
-  // );
-  // if (!hasClaimKey) {
-  //   throw new Error(`Claim Issuer should have claim key. Expected: ${suiteOwner}, Got: ${claimIssuerAddress}`);
-  // }
-  // if (!hasManagementKey) {
-  //   throw new Error(`Identity should have management key. Expected: ${suiteOwner}, Got: ${identityAddress}`);
-  // }
   // 打印所有信息（与部署脚本格式一致）
   console.log("\n=== 合约信息汇总 ===");
-  console.log(`Token: ${tokenAddress} Agent ${suiteOwner}`);
-  console.log(`Identity Registry: ${identityRegistryAddress} Agent ${suiteOwner}`);
-  console.log(`Token: ${tokenAddress} Owner ${suiteOwner}`);
-  console.log(`Identity Registry: ${identityRegistryAddress} Owner ${suiteOwner}`);
-  console.log(`Compliance: ${complianceAddress} Owner ${suiteOwner}`);
-  console.log(`Trusted Issuers Registry: ${trustedIssuersRegistryAddress} Owner ${suiteOwner}`);
-  console.log(`Claim Topics Registry: ${claimTopicsRegistryAddress} Owner ${suiteOwner}`);
-  console.log(`TREX Factory: ${addresses["TREXFactory"]} Owner ${suiteOwner}`);
-  console.log(`Identity Id Factory: ${addresses["RWAIdentityIdFactory"]} Owner ${suiteOwner}`);
-  console.log(`Identity Gateway: ${addresses["RWAIdentityGateway"]} Owner ${suiteOwner}`);
-  console.log(`Claim Issuer Id Factory: ${addresses["RWAClaimIssuerIdFactory"]} Owner ${suiteOwner}`);
-  console.log(`Claim Issuer Gateway: ${addresses["RWAClaimIssuerGateway"]} Owner ${suiteOwner}`);
-  console.log(`Identity: ${identityAddress}`);
-  console.log(`Claim Issuer: ${claimIssuerAddress}`);
+  console.log(`Token: ${tokenAddress} Owner ${deploymentResults.tokenOwner}`);
+  console.log(`Identity Registry: ${identityRegistryAddress} Owner ${deploymentResults.identityRegistryOwner}`);
+  console.log(`Compliance: ${complianceAddress} Owner ${deploymentResults.suiteOwner}`);
+  console.log(`Trusted Issuers Registry: ${trustedIssuersRegistryAddress} Owner ${deploymentResults.trustedIssuersRegistryOwner}`);
+  console.log(`Claim Topics Registry: ${claimTopicsRegistryAddress} Owner ${deploymentResults.claimTopicsRegistryOwner}`);
+  console.log(`TREX Factory: ${deploymentResults.trexFactory} Owner ${deploymentResults.trexFactoryOwner}`);
+  console.log(`Identity Id Factory: ${deploymentResults.identityIdFactory} Owner ${deploymentResults.identityIdFactoryOwner}`);
+  console.log(`Identity Gateway: ${deploymentResults.identityGateway} Owner ${deploymentResults.identityGatewayOwner}`);
+  console.log(`Claim Issuer Id Factory: ${deploymentResults.claimIssuerIdFactory} Owner ${deploymentResults.claimIssuerIdFactoryOwner}`);
+  console.log(`Claim Issuer Gateway: ${deploymentResults.claimIssuerGateway} Owner ${deploymentResults.claimIssuerGatewayOwner}`);
+
+  // 打印所有 Claim Issuers 的信息
+  console.log("\n=== Claim Issuers 信息汇总 ===");
+  for (let i = 0; i < claimIssuersCount; i++) {
+    const claimIssuerKey = `claimIssuer${i}_claimIssuer` as keyof DeploymentResults;
+    const claimIssuerOwnerKey = `claimIssuer${i}_claimIssuerOwner` as keyof DeploymentResults;
+    const claimTopicsKey = `claimIssuer${i}_claimTopics` as keyof DeploymentResults;
+
+    const claimIssuerAddress = toAddressString(deploymentResults[claimIssuerKey] as string);
+    const claimIssuerOwner = toAddressString(deploymentResults[claimIssuerOwnerKey] as string);
+    const claimTopics = deploymentResults[claimTopicsKey] as number[];
+
+    console.log(
+      `Claim Issuer ${i}: ${claimIssuerAddress} Owner ${claimIssuerOwner} Claim Topics [${claimTopics.join(', ')}]`
+    );
+  }
+
   console.log("\n✓ 所有验证通过！");
 
+  // 获取网络信息用于生成 .env 文件
+  const network = await provider.getNetwork();
+
   // 生成 .env 文件
+  let claimIssuersEnvSection = '';
+  for (let i = 0; i < claimIssuersCount; i++) {
+    const claimIssuerKey = `claimIssuer${i}_claimIssuer` as keyof DeploymentResults;
+    const claimIssuerAddress = toAddressString(deploymentResults[claimIssuerKey] as string);
+    claimIssuersEnvSection += `VITE_CLAIM_ISSUER_${i}=${claimIssuerAddress}\n`;
+  }
+
   const envContent = `# RPC Configuration
 # this file is generated by validateDeployment.ts, do not modify it manually
 
@@ -335,17 +209,19 @@ VITE_IDENTITY_REGISTRY=${identityRegistryAddress}
 VITE_IDENTITY_REGISTRY_STORAGE=${identityRegistryStorageAddress}
 VITE_TRUSTED_ISSUERS_REGISTRY=${trustedIssuersRegistryAddress}
 VITE_CLAIM_TOPICS_REGISTRY=${claimTopicsRegistryAddress}
-VITE_RWA_CLAIM_ISSUER_ID_FACTORY=${addresses["RWAClaimIssuerIdFactory"]}
-VITE_RWA_CLAIM_ISSUER_GATEWAY=${addresses["RWAClaimIssuerGateway"]}
-VITE_RWA_IDENTITY_ID_FACTORY=${addresses["RWAIdentityIdFactory"]}
-VITE_RWA_IDENTITY_GATEWAY=${addresses["RWAIdentityGateway"]}
-# Suite Owner (for reference)
+VITE_RWA_CLAIM_ISSUER_ID_FACTORY=${deploymentResults.claimIssuerIdFactory}
+VITE_RWA_CLAIM_ISSUER_GATEWAY=${deploymentResults.claimIssuerGateway}
+VITE_RWA_IDENTITY_ID_FACTORY=${deploymentResults.identityIdFactory}
+VITE_RWA_IDENTITY_GATEWAY=${deploymentResults.identityGateway}
+# Claim Issuers
+${claimIssuersEnvSection}# Suite Owner (for reference)
 SUITE_OWNER=${suiteOwner}
 `;
 
-  const envPath = path.join(__dirname, "frontend", ".env");
-  fs.writeFileSync(envPath, envContent, "utf-8");
-  console.log(`\n✓ 已生成 .env 文件: ${envPath}`);
+  console.log(envContent);
+  // const envPath = path.join(__dirname, "frontend", ".env");
+  // fs.writeFileSync(envPath, envContent, "utf-8");
+  // console.log(`\n✓ 已生成 .env 文件: ${envPath}`);
 }
 
 main()

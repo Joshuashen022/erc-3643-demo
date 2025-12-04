@@ -11,7 +11,10 @@ const countryCode = 840;
 async function main() {
   const config = await initializeContracts(rpcUrl);
 
-  const transferFromPrivateKey = process.env.TRANSFER_FROM_PRIVATE_KEY || config.privateKey;
+  const transferFromPrivateKey = process.env.TRANSFER_FROM_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
+  if (!transferFromPrivateKey) {
+    throw new Error("请设置 TRANSFER_FROM_PRIVATE_KEY 或 PRIVATE_KEY 环境变量");
+  }
   const transferFromToAddress = process.env.TRANSFER_FROM_TO_ADDRESS || "0x1111111111111111111111111111111111111111";
   const spenderPrivateKey = process.env.SPENDER_PRIVATE_KEY || "";
   

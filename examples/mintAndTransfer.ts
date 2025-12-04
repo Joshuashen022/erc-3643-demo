@@ -123,7 +123,10 @@ async function main() {
   // 执行 Transfer 操作
   let transferWallet = config.wallet;
   if (mintToAddress.toLowerCase() !== config.wallet.address.toLowerCase()) {
-    const transferFromPrivateKey = process.env.TRANSFER_FROM_PRIVATE_KEY || config.privateKey;
+    const transferFromPrivateKey = process.env.TRANSFER_FROM_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
+    if (!transferFromPrivateKey) {
+      throw new Error("请设置 TRANSFER_FROM_PRIVATE_KEY 或 PRIVATE_KEY 环境变量");
+    }
     transferWallet = new ethers.Wallet(transferFromPrivateKey, config.provider);
   }
   

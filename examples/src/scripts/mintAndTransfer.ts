@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import { initializeContracts } from "./utils/contracts";
-import { ensureAddressIsRegistered, mint, transfer, parseAmount } from "./utils/operations";
-import { sendTransaction } from "./utils/transactions";
+import { initializeContracts } from "../utils/contracts.js";
+import { ensureAddressIsRegistered, mint, transfer, parseAmount } from "../utils/operations.js";
+import { sendTransaction } from "../utils/transactions.js";
 
 dotenv.config();
 

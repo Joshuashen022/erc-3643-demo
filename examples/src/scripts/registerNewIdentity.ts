@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import { initializeContracts, getContractABI } from "./utils/contracts";
-import { registerIdentity, signClaim } from "./utils/operations";
-import { sendTransaction } from "./utils/transactions";
+import { initializeContracts, getContractABI } from "../utils/contracts.js";
+import { registerIdentity, signClaim } from "../utils/operations.js";
+import { sendTransaction } from "../utils/transactions.js";
 
 dotenv.config();
 

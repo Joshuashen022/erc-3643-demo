@@ -1,8 +1,6 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import * as fs from "fs";
-import * as path from "path";
-import { initializeContracts, DeploymentResults } from "./utils/contracts";
+import { initializeContracts, DeploymentResults } from "../utils/contracts.js";
 
 dotenv.config();
 
@@ -19,8 +17,7 @@ const toAddressString = (addr: any): string => {
 async function verifyOwner(
   contract: ethers.Contract,
   contractName: string,
-  expectedOwner: string,
-  deploymentResults: DeploymentResults
+  expectedOwner: string
 ): Promise<void> {
   try {
     const actualOwner = toAddressString(await contract.owner());
@@ -52,7 +49,11 @@ async function main() {
   // 使用 initializeContracts 获取所有合约实例
   const contracts = await initializeContracts(rpcUrl, privateKey);
   const { deploymentResults, provider } = contracts;
-  const suiteOwner = ethers.getAddress(deploymentResults.suiteOwner);
+  
+  // suiteOwner 可能是可选的，如果没有则使用 tokenOwner 作为 fallback
+  const suiteOwner = deploymentResults.suiteOwner 
+    ? ethers.getAddress(deploymentResults.suiteOwner)
+    : ethers.getAddress(deploymentResults.tokenOwner);
 
   console.log(`\n使用 Suite Owner: ${suiteOwner}`);
 
@@ -141,16 +142,16 @@ async function main() {
   console.log(`✓ Token Agent: ${suiteOwner}`);
 
   // 验证所有合约的 owner 是否与 deploymentResults 中的 owner 匹配
-  await verifyOwner(contracts.token, "Token", deploymentResults.tokenOwner, deploymentResults);
-  await verifyOwner(contracts.identityRegistry, "Identity Registry", deploymentResults.identityRegistryOwner, deploymentResults);
-  await verifyOwner(contracts.compliance, "Compliance", deploymentResults.suiteOwner, deploymentResults);
-  await verifyOwner(contracts.trustedIssuersRegistry, "Trusted Issuers Registry", deploymentResults.trustedIssuersRegistryOwner, deploymentResults);
-  await verifyOwner(contracts.claimTopicsRegistry, "Claim Topics Registry", deploymentResults.claimTopicsRegistryOwner, deploymentResults);
-  await verifyOwner(contracts.trexFactory, "TREX Factory", deploymentResults.trexFactoryOwner, deploymentResults);
-  await verifyOwner(contracts.identityIdFactory, "Identity Id Factory", deploymentResults.identityIdFactoryOwner, deploymentResults);
-  await verifyOwner(contracts.identityGateway, "Identity Gateway", deploymentResults.identityGatewayOwner, deploymentResults);
-  await verifyOwner(contracts.claimIssuerIdFactory, "Claim Issuer Id Factory", deploymentResults.claimIssuerIdFactoryOwner, deploymentResults);
-  await verifyOwner(contracts.claimIssuerGateway, "Claim Issuer Gateway", deploymentResults.claimIssuerGatewayOwner, deploymentResults);
+  await verifyOwner(contracts.token, "Token", deploymentResults.tokenOwner);
+  await verifyOwner(contracts.identityRegistry, "Identity Registry", deploymentResults.identityRegistryOwner);
+  await verifyOwner(contracts.compliance, "Compliance", suiteOwner);
+  await verifyOwner(contracts.trustedIssuersRegistry, "Trusted Issuers Registry", deploymentResults.trustedIssuersRegistryOwner);
+  await verifyOwner(contracts.claimTopicsRegistry, "Claim Topics Registry", deploymentResults.claimTopicsRegistryOwner);
+  await verifyOwner(contracts.trexFactory, "TREX Factory", deploymentResults.trexFactoryOwner);
+  await verifyOwner(contracts.identityIdFactory, "Identity Id Factory", deploymentResults.identityIdFactoryOwner);
+  await verifyOwner(contracts.identityGateway, "Identity Gateway", deploymentResults.identityGatewayOwner);
+  await verifyOwner(contracts.claimIssuerIdFactory, "Claim Issuer Id Factory", deploymentResults.claimIssuerIdFactoryOwner);
+  await verifyOwner(contracts.claimIssuerGateway, "Claim Issuer Gateway", deploymentResults.claimIssuerGatewayOwner);
 
   const claimIssuersCount = deploymentResults.claimIssuersCount || 0;
 
@@ -158,7 +159,7 @@ async function main() {
   console.log("\n=== 合约信息汇总 ===");
   console.log(`Token: ${tokenAddress} Owner ${deploymentResults.tokenOwner}`);
   console.log(`Identity Registry: ${identityRegistryAddress} Owner ${deploymentResults.identityRegistryOwner}`);
-  console.log(`Compliance: ${complianceAddress} Owner ${deploymentResults.suiteOwner}`);
+  console.log(`Compliance: ${complianceAddress} Owner ${suiteOwner}`);
   console.log(`Trusted Issuers Registry: ${trustedIssuersRegistryAddress} Owner ${deploymentResults.trustedIssuersRegistryOwner}`);
   console.log(`Claim Topics Registry: ${claimTopicsRegistryAddress} Owner ${deploymentResults.claimTopicsRegistryOwner}`);
   console.log(`TREX Factory: ${deploymentResults.trexFactory} Owner ${deploymentResults.trexFactoryOwner}`);

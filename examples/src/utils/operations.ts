@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import { ContractConfig } from "./contracts";
-import { sendTransaction } from "./transactions";
+import { ContractConfig } from "./contracts.js";
+import { sendTransaction } from "./transactions.js";
 
 /**
  * 确保地址已注册

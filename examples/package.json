@@ -1,0 +1,30 @@
+{
+  "name": "erc3643-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Foundry project with TypeScript and ethers.js support",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "build:scripts": "tsc --project tsconfig.scripts.json",
+    "dev:scripts": "ts-node --esm scripts/interact.ts",
+    "typechain": "typechain --target ethers-v6 --out-dir types 'out/**/*.json'"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "ethers": "^6.9.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
+  }
+}

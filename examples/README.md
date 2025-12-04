@@ -1,107 +1,96 @@
-# TypeScript 脚本说明
+# ERC-3643 权限管理前端界面
 
-这个目录包含用于与合约交互的 TypeScript 脚本。
+这是一个基于 React + Vite + ethers.js 的简易前端界面，用于管理 ERC-3643 合约的权限。
 
-## 设置
+## 功能特性
+
+### Owner 角色
+- **声明主题管理** (ClaimTopicsRegistry)
+  - 添加/移除声明主题
+  - 查询所有声明主题
+  
+- **可信发行者管理** (TrustedIssuersRegistry)
+  - 添加/移除可信发行者
+  - 查询所有发行者
+  
+- **合规模块管理** (ModularCompliance)
+  - 添加/移除模块
+  - 调用模块函数
+  - 查询模块列表
+
+### Agent 角色
+- **身份管理** (IdentityRegistry)
+  - 注册/更新/删除用户身份
+  - 查询用户验证状态
+  
+- **代币管理** (Token)
+  - 铸造/销毁代币
+  - 强制转账
+  - 冻结/解冻地址
+  - 冻结/解冻部分代币
+
+### 普通用户
+- **查询功能**
+  - 查询声明主题
+  - 查询用户身份信息
+  - 查询可信发行者
+  - 查询代币余额和信息
+  - 查询合规模块
+  
+- **代币操作**
+  - 转账
+  - 授权
+
+## 安装和运行
 
 1. 安装依赖：
 ```bash
-yarn install
+cd examples/frontend
+npm install
 ```
 
-2. 配置环境变量（可选）：
+2. 配置合约地址：
+编辑 `src/utils/config.ts`，填入实际部署的合约地址。
+
+3. 配置 RPC URL：
+创建 `.env` 文件（可选）：
+```
+VITE_RPC_URL=http://127.0.0.1:8545
+```
+
+4. 运行开发服务器：
 ```bash
-cp .env.example .env
-# 编辑 .env 文件，添加你的配置
+npm run dev
 ```
 
-## 运行脚本
-
-### 基本交互脚本
-
+5. 构建生产版本：
 ```bash
-# 使用 ts-node 直接运行
-yarn dev
-
-# 或者编译后运行
-yarn build
-node dist/scripts/interact.js
+npm run build
 ```
 
-## 脚本说明
+## 使用说明
 
-### validateDeployment.ts
+1. **连接钱包**：点击"连接钱包"按钮，使用 MetaMask 或其他 Web3 钱包连接。
 
-验证部署后的合约配置和权限设置：
+2. **选择角色**：连接钱包后，在右上角选择你的角色（Owner/Agent/普通用户）。
 
-- 连接到本地节点（Anvil）
-- 从 Foundry 部署日志中读取合约地址
-- 验证所有合约的 owner 和 agent 设置
-- 确认部署配置正确
-
-### registerNewIdentity.ts
-
-注册新的身份到 Identity Registry：
-
-- 创建新的 Identity 合约
-- 配置 claim key 和 claim
-- 注册到 Identity Registry
-- 完整的新用户注册流程
-
-### mintTokens.ts
-
-执行 mint 操作，向指定地址铸造代币：
-
-- 检查并注册地址到 Identity Registry（如需要）
-- 执行 mint 操作
-- 验证余额和总供应量
-
-使用方法：
-```bash
-# 设置环境变量
-export PRIVATE_KEY=<your_private_key>
-export MINT_TO_ADDRESS=0x1111111111111111111111111111111111111111  # 可选，默认为 0x1111...
-export MINT_AMOUNT=1000  # 可选，默认为 1000
-
-# 运行脚本
-npx ts-node examples/mintTokens.ts
-```
-
-## 使用示例
-
-### 读取合约状态
-
-```typescript
-import { ethers } from "ethers";
-
-const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-const contract = new ethers.Contract(
-  "0x...", // 合约地址
-  abi,     // ABI
-  provider
-);
-
-const value = await contract.someViewFunction();
-console.log(value);
-```
-
-### 发送交易
-
-```typescript
-import { ethers } from "ethers";
-
-const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
-const contract = new ethers.Contract(address, abi, wallet);
-
-const tx = await contract.someStateChangingFunction(...args);
-await tx.wait();
-console.log(`交易哈希: ${tx.hash}`);
-```
+3. **执行操作**：
+   - Owner：可以管理模块、topics、claimIssuer
+   - Agent：可以管理身份和代币
+   - 普通用户：可以查询信息和执行转账等公开操作
 
 ## 注意事项
 
-1. 确保在运行脚本之前已经部署了合约
-2. 如果使用本地节点（Anvil），确保节点正在运行
-3. 私钥应该存储在 `.env` 文件中，不要提交到版本控制
+- 确保已正确配置所有合约地址
+- 确保钱包有足够的权限执行相应操作
+- 某些操作需要 Owner 或 Agent 权限，普通用户无法执行
+- 建议在测试网络上先测试
+
+## 技术栈
+
+- React 18
+- TypeScript
+- Vite
+- ethers.js v6
+- CSS3
 

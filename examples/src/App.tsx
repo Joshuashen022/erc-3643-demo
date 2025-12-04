@@ -149,7 +149,7 @@ function App() {
 
   // 检查网络状态
   const updateNetworkStatus = async () => {
-    const status = await checkNetwork();
+    const status = await checkNetwork(CHAIN_ID);
     setNetworkStatus(status);
   };
 
@@ -253,7 +253,7 @@ function App() {
                     <button 
                       onClick={async () => {
                         try {
-                          await switchToTargetNetwork();
+                          await switchToTargetNetwork(CHAIN_ID);
                           await updateNetworkStatus();
                         } catch (error: any) {
                           alert(`切换网络失败: ${error.message}`);

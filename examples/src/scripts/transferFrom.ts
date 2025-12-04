@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import { initializeContracts } from "./utils/contracts";
-import { ensureAddressIsRegistered, approve, transferFrom as transferFromOp, parseAmount } from "./utils/operations";
+import { initializeContracts } from "../utils/contracts.js";
+import { ensureAddressIsRegistered, approve, transferFrom as transferFromOp, parseAmount } from "../utils/operations.js";
 
 dotenv.config();
 
@@ -47,7 +47,7 @@ async function main() {
   const balanceBefore = await config.token.balanceOf(transferFromWallet.address);
   if (balanceBefore < transferFromAmount) {
     console.log(`发送地址余额不足，需要先 mint 更多代币`);
-    const { mint } = await import("./utils/operations");
+    const { mint } = await import("../utils/operations.js");
     await mint(config, transferFromWallet.address, transferFromAmount - balanceBefore, rpcUrl);
   }
 

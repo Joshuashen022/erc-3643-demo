@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { getProvider, connectWallet, checkNetwork, switchToTargetNetwork } from "./utils/contracts";
 import { RPC_URL, UserRole, CHAIN_ID } from "./utils/config";
+import { validateDeployment, ValidationResult } from "./utils/validateDeployment";
 import OwnerPanel from "./components/OwnerPanel";
 import AgentPanel from "./components/AgentPanel";
 import PublicPanel from "./components/PublicPanel";
@@ -11,8 +12,11 @@ import LegalPanel from "./components/LegalPanel";
 import UserPanel from "./components/UserPanel";
 import "./App.css";
 
+// 非 null 角色类型（用于 ROLE_MODULES）
+type NonNullUserRole = Exclude<UserRole, null>;
+
 // 角色模块配置
-const ROLE_MODULES: Record<UserRole, { name: string; modules: string[]; description: string }> = {
+const ROLE_MODULES: Record<NonNullUserRole, { name: string; modules: string[]; description: string }> = {
   owner: {
     name: "合约管理者",
     description: "管理所有合约的升级和子模块",
@@ -142,10 +146,14 @@ function App() {
   const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
   const [wallet, setWallet] = useState<ethers.Signer | null>(null);
   const [account, setAccount] = useState<string>("");
-  const [role, setRole] = useState<UserRole>("public");
+  const [role, setRole] = useState<UserRole | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(false);
   const [networkStatus, setNetworkStatus] = useState<{ correct: boolean; currentChainId?: number } | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [showValidationResult, setShowValidationResult] = useState(false);
+  const [conneded, setConneded] = useState(false);
 
   // 检查网络状态
   const updateNetworkStatus = async () => {
@@ -194,12 +202,13 @@ function App() {
         setWallet(connectedWallet);
         const address = await connectedWallet.getAddress();
         setAccount(address);
-        // 如果已选择角色，设置角色
+        setConneded(true);
+        // 连接后更新网络状态
+        await updateNetworkStatus();
+        // 如果之前已选择角色，连接钱包后自动应用该角色
         if (selectedRole) {
           setRole(selectedRole);
         }
-        // 连接后更新网络状态
-        await updateNetworkStatus();
       } else {
         alert("请安装 MetaMask 或使用其他 Web3 钱包");
       }
@@ -219,28 +228,72 @@ function App() {
     }
   };
 
-  const handleRoleSelect = (selectedRole: UserRole) => {
-    setSelectedRole(selectedRole);
-    if (account) {
-      setRole(selectedRole);
+  const handleRoleSelect = (roleKey: UserRole) => {
+    // 如果点击的是已选中的角色，则取消选择并回到角色选择界面
+    if (selectedRole === roleKey) {
+      setSelectedRole(null);
+      setRole(null);
+    } else {
+      setSelectedRole(roleKey);
+      // 只有在连接钱包后才设置 role，否则只设置 selectedRole
+      if (account) {
+        setRole(roleKey);
+      }
     }
   };
 
   const handleBackToMain = () => {
     // 断开钱包连接，回到主界面
     setWallet(null);
+    setConneded(false);
     setAccount("");
-    setRole("public");
+    setRole(null);
     setSelectedRole(null);
     setNetworkStatus(null);
+    setValidationResult(null);
+    setShowValidationResult(false);
   };
+
+  const handleValidateDeployment = async () => {
+    if (!provider || !wallet) {
+      alert("请先连接钱包");
+      return;
+    }
+
+    setValidating(true);
+    setValidationResult(null);
+    setShowValidationResult(true);
+
+    try {
+      const result = await validateDeployment(provider, wallet);
+      setValidationResult(result);
+      
+      // 在控制台也输出结果
+      console.log("=== 验证结果 ===");
+      result.messages.forEach(msg => console.log(msg));
+      if (result.errors.length > 0) {
+        console.error("=== 错误信息 ===");
+        result.errors.forEach(err => console.error(err));
+      }
+    } catch (error: any) {
+      const errorResult: ValidationResult = {
+        success: false,
+        messages: [],
+        errors: [`验证失败: ${error.message}`]
+      };
+      setValidationResult(errorResult);
+      console.error("验证失败:", error);
+    } finally {
+      setValidating(false);
+    }
+  }; 
 
   return (
     <div className="app">
       <header className="app-header">
         <h1>ERC-3643 权限管理界面</h1>
         <div className="wallet-section">
-          {account ? (
+          {conneded ? (
             <div className="wallet-info">
               <span>已连接: {account.slice(0, 6)}...{account.slice(-4)}</span>
               <span style={{ marginLeft: "1rem", fontSize: "0.875rem", color: networkStatus?.correct ? "#28a745" : "#dc3545" }}>
@@ -259,42 +312,19 @@ function App() {
                           alert(`切换网络失败: ${error.message}`);
                         }
                       }}
-                      style={{
-                        marginLeft: "0.5rem",
-                        padding: "0.25rem 0.5rem",
-                        backgroundColor: "#007bff",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.75rem"
-                      }}
+                      className="switch-network-button"
                     >
                       切换到 {CHAIN_ID}
                     </button>
                   </>
                 ) : null}
               </span>
-              <select 
-                value={role} 
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="role-selector"
-                style={{ marginLeft: "1rem" }}
-              >
-                <option value="public">普通用户</option>
-                <option value="user">身份管理</option>
-                <option value="agent">财务管理</option>
-                <option value="owner">合约管理</option>
-                <option value="backend">后端管理</option>
-                <option value="compliance">监管管理</option>
-                <option value="legal">法务管理</option>
-              </select>
               <button 
                 onClick={handleBackToMain}
                 className="back-to-main-button"
                 style={{ marginLeft: "1rem" }}
               >
-                回到主界面
+                断开钱包
               </button>
             </div>
           ) : (
@@ -304,17 +334,62 @@ function App() {
           )}
         </div>
       </header>
+        
+      <header className="app-header2">
+      <button className="validate-button" onClick={handleValidateDeployment} disabled={validating}>
+          {validating ? "验证中..." : "验证部署"}
+          </button>
+      </header>
 
       <main className="app-main">
-        {!account ? (
+        {showValidationResult && validationResult && (
+          <div className="validation-result-modal">
+            <div className="validation-result-content">
+              <button
+                onClick={() => setShowValidationResult(false)}
+                className="validation-result-close-button"
+              >
+                ×
+              </button>
+              <h2 className={`validation-result-title ${validationResult.success ? "success" : "error"}`}>
+                {validationResult.success ? "✓ 验证通过" : "✗ 验证失败"}
+              </h2>
+              <div className="validation-result-body">
+                {validationResult.messages.length > 0 && (
+                  <div>
+                    <h3>验证信息：</h3>
+                    <pre className="validation-result-pre">
+                      {validationResult.messages.join("\n")}
+                    </pre>
+                  </div>
+                )}
+                {validationResult.errors.length > 0 && (
+                  <div className="validation-result-section">
+                    <h3>错误信息：</h3>
+                    <pre className="validation-result-pre error">
+                      {validationResult.errors.join("\n")}
+                    </pre>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowValidationResult(false)}
+                className="validation-result-close-btn"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        )}
+        {!role || (!account && !selectedRole) ? (
           <div className="welcome">
             <h2>欢迎使用 ERC-3643 权限管理界面</h2>
-            <p>请先选择角色，然后连接钱包以开始使用</p>
+            <p>{account ? "钱包已经链接，请选择角色以开始使用" : "请先选择角色，然后连接钱包以开始使用"}</p>
             
             <div className="role-selection">
               <h3>选择角色</h3>
               <div className="role-cards">
-                {(Object.keys(ROLE_MODULES) as UserRole[]).map((roleKey) => {
+                {(Object.keys(ROLE_MODULES) as NonNullUserRole[]).map((roleKey) => {
                   const roleInfo = ROLE_MODULES[roleKey];
                   return (
                     <div
@@ -327,7 +402,7 @@ function App() {
                       <div className="role-modules">
                         <strong>包含模块：</strong>
                         <ul>
-                          {roleInfo.modules.map((module, index) => (
+                          {roleInfo.modules.map((module: string, index: number) => (
                             <li key={index}>{module}</li>
                           ))}
                         </ul>
@@ -337,12 +412,18 @@ function App() {
                 })}
               </div>
               
-              {selectedRole && (
+              {selectedRole && !account && (
                 <div className="role-selected-info">
-                  <p>已选择角色：<strong>{ROLE_MODULES[selectedRole].name}</strong></p>
+                  <p>已选择角色：<strong>{ROLE_MODULES[selectedRole]?.name}</strong></p>
                   <button onClick={handleConnectWallet} disabled={loading} className="connect-button">
                     {loading ? "连接中..." : "连接钱包并进入"}
                   </button>
+                </div>
+              )}
+              {selectedRole && account && (
+                <div className="role-selected-info">
+                  <p>已选择角色：<strong>{ROLE_MODULES[selectedRole]?.name}</strong></p>
+                  <p style={{ color: "#28a745", marginTop: "0.5rem" }}>✓ 钱包已连接，点击上方角色卡片可切换角色</p>
                 </div>
               )}
             </div>
@@ -361,7 +442,7 @@ function App() {
           <UserPanel provider={provider!} wallet={wallet!} account={account} />
         ) : (
           <PublicPanel provider={provider!} account={account} />
-        )}
+        ) }
       </main>
     </div>
   );

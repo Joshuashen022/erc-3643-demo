@@ -6,6 +6,7 @@
 import { getDeploymentResults, DeploymentResults } from "./contracts";
 
 export type UserRole = 
+  | null
   | "owner" 
   | "agent" 
   | "backend" 
@@ -37,12 +38,10 @@ export interface ContractAddresses {
 }
 
 // Read RPC URL from environment variable, default to localhost
-export const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
+export const RPC_URL = "https://sepolia.base.org";
 
 // Read Chain ID from environment variable, default to 31337 (Anvil)
-export const CHAIN_ID = import.meta.env.VITE_CHAIN_ID 
-  ? Number(import.meta.env.VITE_CHAIN_ID) 
-  : 84532;
+export const CHAIN_ID = 84532;
 
 /**
  * Get contract addresses from deployment results via contracts.ts

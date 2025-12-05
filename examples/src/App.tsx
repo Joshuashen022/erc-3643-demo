@@ -146,14 +146,14 @@ function App() {
   const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
   const [wallet, setWallet] = useState<ethers.Signer | null>(null);
   const [account, setAccount] = useState<string>("");
-  const [role, setRole] = useState<UserRole | null>(null);
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [role, setRole] = useState<UserRole>("public");
+  const [roleChoose, setRoleChoose] = useState(false);
+  
   const [loading, setLoading] = useState(false);
   const [networkStatus, setNetworkStatus] = useState<{ correct: boolean; currentChainId?: number } | null>(null);
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [showValidationResult, setShowValidationResult] = useState(false);
-  const [conneded, setConneded] = useState(false);
 
   // 检查网络状态
   const updateNetworkStatus = async () => {
@@ -202,13 +202,8 @@ function App() {
         setWallet(connectedWallet);
         const address = await connectedWallet.getAddress();
         setAccount(address);
-        setConneded(true);
         // 连接后更新网络状态
         await updateNetworkStatus();
-        // 如果之前已选择角色，连接钱包后自动应用该角色
-        if (selectedRole) {
-          setRole(selectedRole);
-        }
       } else {
         alert("请安装 MetaMask 或使用其他 Web3 钱包");
       }
@@ -230,11 +225,11 @@ function App() {
 
   const handleRoleSelect = (roleKey: UserRole) => {
     // 如果点击的是已选中的角色，则取消选择并回到角色选择界面
-    if (selectedRole === roleKey) {
-      setSelectedRole(null);
-      setRole(null);
+    if (roleChoose === true) {
+      setRoleChoose(false);
+      setRole("public");
     } else {
-      setSelectedRole(roleKey);
+      setRoleChoose(true);
       // 只有在连接钱包后才设置 role，否则只设置 selectedRole
       if (account) {
         setRole(roleKey);
@@ -245,13 +240,10 @@ function App() {
   const handleBackToMain = () => {
     // 断开钱包连接，回到主界面
     setWallet(null);
-    setConneded(false);
     setAccount("");
-    setRole(null);
-    setSelectedRole(null);
+    setRole("public");
+    setRoleChoose(false);
     setNetworkStatus(null);
-    setValidationResult(null);
-    setShowValidationResult(false);
   };
 
   const handleValidateDeployment = async () => {
@@ -293,7 +285,7 @@ function App() {
       <header className="app-header">
         <h1>ERC-3643 权限管理界面</h1>
         <div className="wallet-section">
-          {conneded ? (
+          {account ? (
             <div className="wallet-info">
               <span>已连接: {account.slice(0, 6)}...{account.slice(-4)}</span>
               <span style={{ marginLeft: "1rem", fontSize: "0.875rem", color: networkStatus?.correct ? "#28a745" : "#dc3545" }}>
@@ -381,7 +373,7 @@ function App() {
             </div>
           </div>
         )}
-        {!role || (!account && !selectedRole) ? (
+        {!roleChoose || !account ? (
           <div className="welcome">
             <h2>欢迎使用 ERC-3643 权限管理界面</h2>
             <p>{account ? "钱包已经链接，请选择角色以开始使用" : "请先选择角色，然后连接钱包以开始使用"}</p>
@@ -394,7 +386,7 @@ function App() {
                   return (
                     <div
                       key={roleKey}
-                      className={`role-card ${selectedRole === roleKey ? "selected" : ""}`}
+                      className={`role-card ${role === roleKey ? "selected" : ""}`}
                       onClick={() => handleRoleSelect(roleKey)}
                     >
                       <h4>{roleInfo.name}</h4>
@@ -412,17 +404,17 @@ function App() {
                 })}
               </div>
               
-              {selectedRole && !account && (
+              {roleChoose && !account && (
                 <div className="role-selected-info">
-                  <p>已选择角色：<strong>{ROLE_MODULES[selectedRole]?.name}</strong></p>
+                  <p>已选择角色：<strong>{ROLE_MODULES[role]?.name}</strong></p>
                   <button onClick={handleConnectWallet} disabled={loading} className="connect-button">
                     {loading ? "连接中..." : "连接钱包并进入"}
                   </button>
                 </div>
               )}
-              {selectedRole && account && (
+              {roleChoose && account && (
                 <div className="role-selected-info">
-                  <p>已选择角色：<strong>{ROLE_MODULES[selectedRole]?.name}</strong></p>
+                  <p>已选择角色：<strong>{ROLE_MODULES[role]?.name}</strong></p>
                   <p style={{ color: "#28a745", marginTop: "0.5rem" }}>✓ 钱包已连接，点击上方角色卡片可切换角色</p>
                 </div>
               )}

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import mermaid from "mermaid";
 import "../styles/components/DocumentViewer.css";
 
 type DocItem = {
@@ -49,6 +50,7 @@ interface DocumentViewerProps {
 export default function DocumentViewer({ onClose }: DocumentViewerProps) {
   const [keyword, setKeyword] = useState("");
   const [selectedDocId, setSelectedDocId] = useState<string>(DOC_ITEMS[0]?.id ?? "");
+  const markdownContainerRef = useRef<HTMLDivElement | null>(null);
 
   const filteredDocs = useMemo(() => {
     const lower = keyword.toLowerCase().trim();
@@ -78,6 +80,40 @@ export default function DocumentViewer({ onClose }: DocumentViewerProps) {
       return acc;
     }, {});
   }, [filteredDocs]);
+
+  // 初始化并在文档变更时渲染 Mermaid
+  useEffect(() => {
+    if (!selectedDoc) return;
+    mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
+    const timer = requestAnimationFrame(() => {
+      const container = markdownContainerRef.current;
+      if (!container) return;
+      // 清理旧的渲染结果，避免节点错位
+      container.querySelectorAll(".mermaid-rendered").forEach((node) => node.remove());
+
+      const mermaidBlocks = container.querySelectorAll<HTMLElement>("code.language-mermaid");
+      mermaidBlocks.forEach((block) => {
+        const parent = block.parentElement;
+        if (!parent) return;
+        const code = block.textContent || "";
+        const renderTarget = document.createElement("div");
+        renderTarget.className = "mermaid mermaid-rendered";
+        // 将渲染结果放在原 pre 后面，保留原节点以避免 React diff 冲突
+        parent.insertAdjacentElement("afterend", renderTarget);
+        // 隐藏原始 pre
+        (parent as HTMLElement).style.display = "none";
+        mermaid
+          .render(`mermaid-${Math.random().toString(36).slice(2, 8)}`, code)
+          .then(({ svg }) => {
+            renderTarget.innerHTML = svg;
+          })
+          .catch((err) => {
+            renderTarget.innerHTML = `<pre class="mermaid-error">${String(err)}</pre>`;
+          });
+      });
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [selectedDoc]);
 
   return (
     <div className="doc-viewer-overlay">
@@ -134,9 +170,11 @@ export default function DocumentViewer({ onClose }: DocumentViewerProps) {
                     <div className="doc-file-path">{selectedDoc.path}</div>
                   </div>
                 </div>
-                {console.log(selectedDoc.content)}
-                <div className="doc-markdown">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedDoc.content}</ReactMarkdown>
+            
+                <div className="doc-markdown" ref={markdownContainerRef}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}
+                  >{selectedDoc.content}
+                  </ReactMarkdown>
                 </div>
               </>
             ) : (

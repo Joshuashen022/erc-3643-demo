@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import { initializeContracts, getContractABI } from "../utils/contracts.js";
+import { createContractConfig, getContractABI } from "../utils/contracts.js";
 import { registerIdentity, signClaim } from "../utils/operations.js";
 import { sendTransaction } from "../utils/transactions.js";
 
@@ -14,8 +14,14 @@ async function main() {
     throw new Error("请设置 PRIVATE_KEY 环境变量");
   }
 
-  const config = await initializeContracts(rpcUrl, privateKey);
-  const { deploymentResults, provider } = config;
+  // 创建 provider 和 wallet
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(privateKey, provider);
+
+  // 初始化合约配置（使用 Claim Issuer 各自的私钥）
+  const config = await createContractConfig(provider, wallet, {
+    useClaimIssuerPrivateKeys: true,
+  });
 
   console.log("\n=== 开始注册新身份 ===");
 
@@ -56,7 +62,7 @@ async function main() {
 
   console.log(`新身份创建成功, 地址: ${newIdentityAddress}`);
   
-  // 获取 claimIssuer 地址和私钥（使用 initializeContracts 返回的配置）
+  // 获取 claimIssuer 地址和私钥（使用 createContractConfig 返回的配置）
   console.log("\n--- 获取 ClaimIssuer 信息 ---");
   const claimSchemeEcdsa = 1;
   

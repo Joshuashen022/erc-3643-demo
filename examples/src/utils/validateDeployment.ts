@@ -1,15 +1,5 @@
 import { ethers } from "ethers";
-import { getDeploymentResults, DeploymentResults, getContract } from "./contracts";
-import tokenABI from "../../../out/RWAToken.sol/RWAToken.json";
-import identityRegistryABI from "../../../out/IdentityRegistry.sol/RWAIdentityRegistry.json";
-import identityIdFactoryABI from "../../../out/RWAIdentityIdFactory.sol/RWAIdentityIdFactory.json";
-import identityGatewayABI from "../../../out/RWAIdentityIdFactory.sol/RWAIdentityGateway.json";
-import claimIssuerIdFactoryABI from "../../../out/RWAClaimIssuerIdFactory.sol/RWAClaimIssuerIdFactory.json";
-import claimIssuerGatewayABI from "../../../out/RWAClaimIssuerIdFactory.sol/RWAClaimIssuerGateway.json";
-import claimTopicsRegistryABI from "../../../out/IdentityRegistry.sol/RWAClaimTopicsRegistry.json";
-import trustedIssuersRegistryABI from "../../../out/IdentityRegistry.sol/RWATrustedIssuersRegistry.json";
-import complianceABI from "../../../out/RWACompliance.sol/RWACompliance.json";
-import trexFactoryABI from "../../../out/TREXFactory.sol/TREXFactory.json";
+import { DeploymentResults, ContractConfig } from "./contracts";
 
 /**
  * 辅助函数：将地址转换为字符串并规范化
@@ -60,7 +50,7 @@ async function verifyOwner(
  */
 export async function validateDeployment(
   provider: ethers.JsonRpcProvider,
-  signer: ethers.Signer
+  contractConfig: ContractConfig
 ): Promise<ValidationResult> {
   const result: ValidationResult = {
     success: true,
@@ -73,8 +63,8 @@ export async function validateDeployment(
     const network = await provider.getNetwork();
     const chainId = Number(network.chainId);
     
-    // 从 deployment_results JSON 文件读取所有合约地址
-    const deploymentResults = getDeploymentResults(chainId);
+    // 从 ContractConfig 读取 deploymentResults
+    const deploymentResults = contractConfig.deploymentResults;
     result.messages.push(`\n使用 Chain ID: ${chainId}`);
     result.messages.push(`部署结果文件读取成功`);
 
@@ -85,57 +75,21 @@ export async function validateDeployment(
 
     result.messages.push(`\n使用 Suite Owner: ${suiteOwner}`);
 
-    // 获取 Token 地址（从 deploymentResults）
-    const tokenAddress = ethers.getAddress(deploymentResults.token);
-    result.messages.push(`Token address: ${tokenAddress}`);
+    // 从 ContractConfig 读取合约实例
+    const token = contractConfig.token;
+    const identityRegistry = contractConfig.identityRegistry;
+    const compliance = contractConfig.compliance;
+    const trustedIssuersRegistry = contractConfig.trustedIssuersRegistry;
+    const claimTopicsRegistry = contractConfig.claimTopicsRegistry;
+    const trexFactory = contractConfig.trexFactory;
+    const identityIdFactory = contractConfig.identityIdFactory;
+    const identityGateway = contractConfig.identityGateway;
+    const claimIssuerIdFactory = contractConfig.claimIssuerIdFactory;
+    const claimIssuerGateway = contractConfig.claimIssuerGateway;
 
-    // 创建合约实例
-    const token = getContract(tokenAddress, tokenABI.abi, signer);
-    const identityRegistry = getContract(
-      ethers.getAddress(deploymentResults.identityRegistry),
-      identityRegistryABI.abi,
-      signer
-    );
-    const compliance = getContract(
-      ethers.getAddress(deploymentResults.compliance),
-      complianceABI.abi,
-      signer
-    );
-    const trustedIssuersRegistry = getContract(
-      ethers.getAddress(deploymentResults.trustedIssuersRegistry),
-      trustedIssuersRegistryABI.abi,
-      signer
-    );
-    const claimTopicsRegistry = getContract(
-      ethers.getAddress(deploymentResults.claimTopicsRegistry),
-      claimTopicsRegistryABI.abi,
-      signer
-    );
-    const trexFactory = getContract(
-      ethers.getAddress(deploymentResults.trexFactory),
-      trexFactoryABI.abi,
-      signer
-    );
-    const identityIdFactory = getContract(
-      ethers.getAddress(deploymentResults.identityIdFactory),
-      identityIdFactoryABI.abi,
-      signer
-    );
-    const identityGateway = getContract(
-      ethers.getAddress(deploymentResults.identityGateway),
-      identityGatewayABI.abi,
-      signer
-    );
-    const claimIssuerIdFactory = getContract(
-      ethers.getAddress(deploymentResults.claimIssuerIdFactory),
-      claimIssuerIdFactoryABI.abi,
-      signer
-    );
-    const claimIssuerGateway = getContract(
-      ethers.getAddress(deploymentResults.claimIssuerGateway),
-      claimIssuerGatewayABI.abi,
-      signer
-    );
+    // 获取 Token 地址
+    const tokenAddress = ethers.getAddress(token.target as string);
+    result.messages.push(`Token address: ${tokenAddress}`);
 
     // 获取相关合约地址
     let complianceAddress: string;

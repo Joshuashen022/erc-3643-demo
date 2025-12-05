@@ -5,9 +5,10 @@ import { CONTRACT_ADDRESSES } from "../utils/config";
 interface PublicPanelProps {
   provider: ethers.JsonRpcProvider;
   account: string;
+  setRoleChoose: (value: boolean) => void;
 }
 
-export default function PublicPanel({ provider, account }: PublicPanelProps) {
+export default function PublicPanel({ provider, account, setRoleChoose }: PublicPanelProps) {
   const [loading, setLoading] = useState(false);
   
   // 每个模块独立的结果状态
@@ -318,7 +319,16 @@ export default function PublicPanel({ provider, account }: PublicPanelProps) {
 
   return (
     <div className="panel">
-      <h2>普通用户面板</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <h2>普通用户面板</h2>
+        <button 
+          onClick={() => setRoleChoose(false)} 
+          className="btn-secondary"
+          style={{ marginLeft: "auto" }}
+        >
+          返回角色选择
+        </button>
+      </div>
 
       {/* ClaimTopicsRegistry 查询 */}
       <div className="section">

@@ -106,15 +106,15 @@ export async function approve(
   config: ContractConfig,
   spenderAddress: string,
   amount: bigint,
-  fromWallet?: ethers.Wallet,
+  fromSigner?: ethers.Signer,
   rpcUrl?: string
 ): Promise<ethers.ContractTransactionReceipt> {
   console.log(`\n--- 执行 Approve 操作 ---`);
   console.log(`授权地址: ${spenderAddress}`);
   console.log(`授权数量: ${ethers.formatEther(amount)} tokens (${amount} wei)`);
   
-  const wallet = fromWallet || config.wallet;
-  const token = config.token.connect(wallet) as ethers.Contract;
+  const signer = fromSigner || config.signer;
+  const token = config.token.connect(signer) as ethers.Contract;
   
   return await sendTransaction(
     token,
@@ -133,15 +133,15 @@ export async function transfer(
   config: ContractConfig,
   toAddress: string,
   amount: bigint,
-  fromWallet?: ethers.Wallet,
+  fromSigner?: ethers.Signer,
   rpcUrl?: string
 ): Promise<ethers.ContractTransactionReceipt> {
   console.log(`\n--- 执行 Transfer 操作 ---`);
   console.log(`接收地址: ${toAddress}`);
   console.log(`Transfer 数量: ${ethers.formatEther(amount)} tokens (${amount} wei)`);
   
-  const wallet = fromWallet || config.wallet;
-  const token = config.token.connect(wallet) as ethers.Contract;
+  const signer = fromSigner || config.signer;
+  const token = config.token.connect(signer) as ethers.Contract;
   
   return await sendTransaction(
     token,

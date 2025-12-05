@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { getProvider, connectWallet, checkNetwork, switchToTargetNetwork } from "./utils/contracts";
+import { getProvider, connectWallet, checkNetwork, switchToTargetNetwork, createContractConfig } from "./utils/contracts";
 import { RPC_URL, UserRole, CHAIN_ID } from "./utils/config";
 import { validateDeployment, ValidationResult } from "./utils/validateDeployment";
 import OwnerPanel from "./components/OwnerPanel";
@@ -144,7 +144,7 @@ const ROLE_MODULES: Record<NonNullUserRole, { name: string; modules: string[]; d
 
 function App() {
   const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
-  const [wallet, setWallet] = useState<ethers.Signer | null>(null);
+  const [signer, setSigner] = useState<ethers.Signer | null>(null);
   const [account, setAccount] = useState<string>("");
   const [role, setRole] = useState<UserRole>("public");
   const [roleChoose, setRoleChoose] = useState(false);
@@ -199,7 +199,7 @@ function App() {
     try {
       const connectedWallet = await connectWallet(provider);
       if (connectedWallet) {
-        setWallet(connectedWallet);
+        setSigner(connectedWallet);
         const address = await connectedWallet.getAddress();
         setAccount(address);
         // 连接后更新网络状态
@@ -237,7 +237,7 @@ function App() {
 
   const handleBackToMain = () => {
     // 断开钱包连接，回到主界面
-    setWallet(null);
+    setSigner(null);
     setAccount("");
     setRole("public");
     setRoleChoose(false);
@@ -245,7 +245,7 @@ function App() {
   };
 
   const handleValidateDeployment = async () => {
-    if (!provider || !wallet) {
+    if (!provider || !signer) {
       alert("请先连接钱包");
       return;
     }
@@ -255,7 +255,11 @@ function App() {
     setShowValidationResult(true);
 
     try {
-      const result = await validateDeployment(provider, wallet);
+      // 从 signer 初始化合约配置（前端场景，Claim Issuers 使用统一的 signer）
+      const contractConfig = await createContractConfig(provider, signer, {
+        useClaimIssuerPrivateKeys: false,
+      });
+      const result = await validateDeployment(provider, contractConfig);
       setValidationResult(result);
       
       // 在控制台也输出结果
@@ -419,19 +423,19 @@ function App() {
             </div>
           </div>
         ) : role === "owner" ? (
-          <OwnerPanel provider={provider!} wallet={wallet!} account={account} />
+          <OwnerPanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "agent" ? (
-          <AgentPanel provider={provider!} wallet={wallet!} account={account} />
+          <AgentPanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "backend" ? (
-          <BackendPanel provider={provider!} wallet={wallet!} account={account} />
+          <BackendPanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "compliance" ? (
-          <CompliancePanel provider={provider!} wallet={wallet!} account={account} />
+          <CompliancePanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "legal" ? (
-          <LegalPanel provider={provider!} wallet={wallet!} account={account} />
+          <LegalPanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "user" ? (
-          <UserPanel provider={provider!} wallet={wallet!} account={account} />
+          <UserPanel provider={provider!} wallet={signer!} account={account} />
         ) : (
-          <PublicPanel provider={provider!} account={account} />
+          <PublicPanel provider={provider!} account={account} setRoleChoose={setRoleChoose} />
         ) }
       </main>
     </div>

@@ -140,7 +140,7 @@ export function getContractABI(contractName: string): any[] {
  */
 export interface ContractConfig {
   provider: ethers.JsonRpcProvider;
-  wallet: ethers.Wallet;
+  signer: ethers.Signer;
   
   // Token
   token: ethers.Contract;
@@ -184,136 +184,147 @@ export function getConfig(): Config {
 }
 
 /**
- * 初始化合约和配置
+ * 统一的合约配置创建接口
+ * @param provider - JSON RPC Provider
+ * @param signerOrWallet - Signer 或 Wallet 实例
+ * @param options - 配置选项
+ * @param options.useClaimIssuerPrivateKeys - 是否使用 Claim Issuer 各自的私钥（后端场景），默认为 false（前端场景）
  */
-export async function initializeContracts(
-  rpcUrl: string,
-  privateKey?: string
+export async function createContractConfig(
+  provider: ethers.JsonRpcProvider,
+  signer: ethers.Signer,
+  options: { useClaimIssuerPrivateKeys?: boolean } = {}
 ): Promise<ContractConfig> {
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  console.log(`连接到 RPC: ${rpcUrl}`);
-
+  const useClaimIssuerPrivateKeys = options.useClaimIssuerPrivateKeys ?? false;
   const network = await provider.getNetwork();
-  console.log(`网络: ${network.name} (Chain ID: ${network.chainId})`);
+  const chainId = Number(network.chainId);
 
   // 从 deployment_results JSON 文件读取所有合约地址
-  const deploymentResults = getDeploymentResults(Number(network.chainId));
-  console.log(`\n部署结果文件读取成功`);
+  const deploymentResults = getDeploymentResults(chainId);
 
   // 读取 config.json
   const config = getConfig();
-  console.log(`\n配置文件读取成功\n`);
 
-  // 获取私钥
-  const pk = privateKey || process.env.PRIVATE_KEY;
-  if (!pk) {
-    throw new Error("请设置 PRIVATE_KEY 环境变量");
-  }
-  const wallet = new ethers.Wallet(pk, provider);
-  console.log(`使用钱包地址: ${wallet.address}`);
+  // 创建所有主要合约实例
+  const token = new ethers.Contract(
+    ethers.getAddress(deploymentResults.token),
+    tokenABI.abi,
+    signer
+  );
 
-  // Token
-  const tokenAddress = ethers.getAddress(deploymentResults.token);
-  console.log(`Token address: ${tokenAddress}`);
-  const token = new ethers.Contract(tokenAddress, tokenABI.abi, wallet);
+  const identityRegistry = new ethers.Contract(
+    ethers.getAddress(deploymentResults.identityRegistry),
+    identityRegistryABI.abi,
+    signer
+  );
 
-  // Identity Registry
-  const identityRegistryAddress = ethers.getAddress(deploymentResults.identityRegistry);
-  console.log(`Identity Registry address: ${identityRegistryAddress}`);
-  const identityRegistry = new ethers.Contract(identityRegistryAddress, identityRegistryABI.abi, wallet);
+  const identityIdFactory = new ethers.Contract(
+    ethers.getAddress(deploymentResults.identityIdFactory),
+    identityIdFactoryABI.abi,
+    signer
+  );
 
-  // Identity Factory & Gateway
-  const identityIdFactoryAddress = ethers.getAddress(deploymentResults.identityIdFactory);
-  console.log(`Identity Id Factory address: ${identityIdFactoryAddress}`);
-  const identityIdFactory = new ethers.Contract(identityIdFactoryAddress, identityIdFactoryABI.abi, wallet);
+  const identityGateway = new ethers.Contract(
+    ethers.getAddress(deploymentResults.identityGateway),
+    identityGatewayABI.abi,
+    signer
+  );
 
-  const identityGatewayAddress = ethers.getAddress(deploymentResults.identityGateway);
-  const identityGateway = new ethers.Contract(identityGatewayAddress, identityGatewayABI.abi, wallet);
+  const claimIssuerIdFactory = new ethers.Contract(
+    ethers.getAddress(deploymentResults.claimIssuerIdFactory),
+    claimIssuerIdFactoryABI.abi,
+    signer
+  );
 
-  // Claim Issuer Factory & Gateway
-  const claimIssuerIdFactoryAddress = ethers.getAddress(deploymentResults.claimIssuerIdFactory);
-  const claimIssuerIdFactory = new ethers.Contract(claimIssuerIdFactoryAddress, claimIssuerIdFactoryABI.abi, wallet);
+  const claimIssuerGateway = new ethers.Contract(
+    ethers.getAddress(deploymentResults.claimIssuerGateway),
+    claimIssuerGatewayABI.abi,
+    signer
+  );
 
-  const claimIssuerGatewayAddress = ethers.getAddress(deploymentResults.claimIssuerGateway);
-  const claimIssuerGateway = new ethers.Contract(claimIssuerGatewayAddress, claimIssuerGatewayABI.abi, wallet);
+  const claimTopicsRegistry = new ethers.Contract(
+    ethers.getAddress(deploymentResults.claimTopicsRegistry),
+    claimTopicsRegistryABI.abi,
+    signer
+  );
 
-  // Registries
-  const claimTopicsRegistryAddress = ethers.getAddress(deploymentResults.claimTopicsRegistry);
-  const claimTopicsRegistry = new ethers.Contract(claimTopicsRegistryAddress, claimTopicsRegistryABI.abi, wallet);
+  const trustedIssuersRegistry = new ethers.Contract(
+    ethers.getAddress(deploymentResults.trustedIssuersRegistry),
+    trustedIssuersRegistryABI.abi,
+    signer
+  );
 
-  const trustedIssuersRegistryAddress = ethers.getAddress(deploymentResults.trustedIssuersRegistry);  
-  const trustedIssuersRegistry = new ethers.Contract(trustedIssuersRegistryAddress, trustedIssuersRegistryABI.abi, wallet);
+  const compliance = new ethers.Contract(
+    ethers.getAddress(deploymentResults.compliance),
+    complianceABI.abi,
+    signer
+  );
 
-  // Compliance
-  const complianceAddress = ethers.getAddress(deploymentResults.compliance);
-  const compliance = new ethers.Contract(complianceAddress, complianceABI.abi, wallet);
+  const trexFactory = new ethers.Contract(
+    ethers.getAddress(deploymentResults.trexFactory),
+    trexFactoryABI.abi,
+    signer
+  );
 
-  // TREX Factory & Gateway
-  const trexFactoryAddress = ethers.getAddress(deploymentResults.trexFactory);
-  const trexFactory = new ethers.Contract(trexFactoryAddress, trexFactoryABI.abi, wallet);
+  const trexGateway = new ethers.Contract(
+    ethers.getAddress(deploymentResults.trexGateway),
+    trexGatewayABI.abi,
+    signer
+  );
 
-  const trexGatewayAddress = ethers.getAddress(deploymentResults.trexGateway);
-  const trexGateway = new ethers.Contract(trexGatewayAddress, trexGatewayABI.abi, wallet);
-
-  // Claim Issuers - 从 config.json 读取配置，从 deployment_results 读取地址
+  // Claim Issuers - 根据 useClaimIssuerPrivateKeys 决定使用各自的私钥还是统一的 signer
   const claimIssuers: ethers.Contract[] = [];
   
   if (!config.claimIssuers || !Array.isArray(config.claimIssuers)) {
-    throw new Error("config.json 中未找到 claimIssuers 配置");
-  }
-
-  for (let i = 0; i < config.claimIssuers.length; i++) {
-    const claimIssuerKey = `claimIssuer${i}_claimIssuer` as keyof DeploymentResults;
-    const claimIssuerAddressValue = deploymentResults[claimIssuerKey];
-    if (!claimIssuerAddressValue || typeof claimIssuerAddressValue !== 'string') {
-      throw new Error(`部署结果中未找到 ${claimIssuerKey}`);
+    if (useClaimIssuerPrivateKeys) {
+      throw new Error("config.json 中未找到 claimIssuers 配置");
     }
-    const claimIssuerAddress = ethers.getAddress(claimIssuerAddressValue);
-    const claimIssuerPrivateKey = config.claimIssuers[i].privateKey;
-    const claimIssuerWallet = new ethers.Wallet(claimIssuerPrivateKey, provider);
-    const claimIssuer = new ethers.Contract(claimIssuerAddress, claimIssuerABI.abi, claimIssuerWallet);
-    
-    claimIssuers.push(claimIssuer);
-    console.log(`Claim Issuer ${i} address: ${claimIssuerAddress}`);
+  } else {
+    for (let i = 0; i < config.claimIssuers.length; i++) {
+      const claimIssuerKey = `claimIssuer${i}_claimIssuer` as keyof DeploymentResults;
+      const claimIssuerAddressValue = deploymentResults[claimIssuerKey];
+      if (!claimIssuerAddressValue || typeof claimIssuerAddressValue !== 'string') {
+        if (useClaimIssuerPrivateKeys) {
+          throw new Error(`部署结果中未找到 ${claimIssuerKey}`);
+        }
+        continue;
+      }
+      
+      const claimIssuerAddress = ethers.getAddress(claimIssuerAddressValue);
+      let claimIssuerSigner: ethers.Signer | ethers.Wallet;
+      
+      if (useClaimIssuerPrivateKeys) {
+        const claimIssuerPrivateKey = config.claimIssuers[i].privateKey;
+        claimIssuerSigner = new ethers.Wallet(claimIssuerPrivateKey, provider);
+      } else {
+        claimIssuerSigner = signer;
+      }
+      
+      const claimIssuer = new ethers.Contract(claimIssuerAddress, claimIssuerABI.abi, claimIssuerSigner);
+      claimIssuers.push(claimIssuer);
+    }
   }
 
   return {
     provider,
-    wallet,
-    
-    // Token
+    signer,
     token,
-    
-    // Identity Registry
     identityRegistry,
-    
-    // Identity Factory & Gateway
     identityIdFactory,
     identityGateway,
-    
-    // Claim Issuer Factory & Gateway
     claimIssuerIdFactory,
     claimIssuerGateway,
-    
-    // Registries
     claimTopicsRegistry,
     trustedIssuersRegistry,
-    
-    // Compliance
     compliance,
-    
-    // TREX Factory & Gateway
     trexFactory,
     trexGateway,
-    
-    // Claim Issuers
     claimIssuers,
-    
-    // Deployment metadata
     deploymentResults,
     config,
   };
 }
+
 
 /**
  * 前端工具函数：创建 Provider

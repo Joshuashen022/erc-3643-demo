@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import { initializeContracts } from "../utils/contracts.js";
+import { createContractConfig } from "../utils/contracts.js";
 import { ensureAddressIsRegistered, approve, transferFrom as transferFromOp, parseAmount } from "../utils/operations.js";
 
 dotenv.config();
@@ -9,7 +9,20 @@ const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
 const countryCode = 840;
 
 async function main() {
-  const config = await initializeContracts(rpcUrl);
+  // 获取私钥
+  const privateKey = process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("请设置 PRIVATE_KEY 环境变量");
+  }
+
+  // 创建 provider 和 wallet
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(privateKey, provider);
+
+  // 初始化合约配置（使用 Claim Issuer 各自的私钥）
+  const config = await createContractConfig(provider, wallet, {
+    useClaimIssuerPrivateKeys: true,
+  });
 
   const transferFromPrivateKey = process.env.TRANSFER_FROM_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
   if (!transferFromPrivateKey) {

@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
-import { initializeContracts } from "../utils/contracts.js";
+import { createContractConfig } from "../utils/contracts.js";
 import { ensureAddressIsRegistered, mint, transfer, parseAmount } from "../utils/operations.js";
 import { sendTransaction } from "../utils/transactions.js";
 
@@ -10,10 +10,23 @@ const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
 const countryCode = 840;
 
 async function main() {
-  const config = await initializeContracts(rpcUrl);
+  // 获取私钥
+  const privateKey = process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("请设置 PRIVATE_KEY 环境变量");
+  }
+
+  // 创建 provider 和 wallet
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(privateKey, provider);
+
+  // 初始化合约配置（使用 Claim Issuer 各自的私钥）
+  const config = await createContractConfig(provider, wallet, {
+    useClaimIssuerPrivateKeys: true,
+  });
 
   const useWei = process.env.USE_WEI === "true";
-  const mintToAddress = process.env.MINT_TO_ADDRESS || config.wallet.address;
+  const mintToAddress = process.env.MINT_TO_ADDRESS || (await config.signer.getAddress());
   const amountStr = process.env.MINT_AMOUNT || "10000000";
   const amount = parseAmount(amountStr, useWei);
 

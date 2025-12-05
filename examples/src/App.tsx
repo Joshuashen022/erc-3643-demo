@@ -227,11 +227,9 @@ function App() {
     // 如果点击的是已选中的角色，则取消选择并回到角色选择界面
     if (roleChoose === true) {
       setRoleChoose(false);
-      setRole("public");
     } else {
-      setRoleChoose(true);
-      // 只有在连接钱包后才设置 role，否则只设置 selectedRole
       if (account) {
+        setRoleChoose(true);
         setRole(roleKey);
       }
     }
@@ -386,7 +384,7 @@ function App() {
                   return (
                     <div
                       key={roleKey}
-                      className={`role-card ${role === roleKey ? "selected" : ""}`}
+                      className={`role-card ${role === roleKey && roleChoose ? "selected" : ""}`}
                       onClick={() => handleRoleSelect(roleKey)}
                     >
                       <h4>{roleInfo.name}</h4>

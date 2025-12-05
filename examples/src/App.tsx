@@ -4,13 +4,16 @@ import { getProvider, connectWallet, checkNetwork, switchToTargetNetwork, create
 import { RPC_URL, UserRole, CHAIN_ID } from "./utils/config";
 import { validateDeployment, ValidationResult } from "./utils/validateDeployment";
 import OwnerPanel from "./components/OwnerPanel";
-import AgentPanel from "./components/AgentPanel";
+import FinancePanel from "./components/FinancePanel";
 import PublicPanel from "./components/PublicPanel";
 import BackendPanel from "./components/BackendPanel";
 import CompliancePanel from "./components/CompliancePanel";
 import LegalPanel from "./components/LegalPanel";
 import UserPanel from "./components/UserPanel";
-import "./App.css";
+import DocumentViewer from "./components/DocumentViewer";
+import "./styles/global.css";
+import "./styles/common.css";
+import "./styles/App.css";
 
 // 非 null 角色类型（用于 ROLE_MODULES）
 type NonNullUserRole = Exclude<UserRole, null>;
@@ -36,7 +39,7 @@ const ROLE_MODULES: Record<NonNullUserRole, { name: string; modules: string[]; d
       "  • getImplementationAuthority() / getIdFactory() / getToken(string _salt)",
     ],
   },
-  agent: {
+  finance: {
     name: "财务管理",
     description: "处理代币资金管理相关操作",
     modules: [
@@ -154,6 +157,7 @@ function App() {
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [showValidationResult, setShowValidationResult] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
 
   // 检查网络状态
   const updateNetworkStatus = async () => {
@@ -284,9 +288,13 @@ function App() {
 
   return (
     <div className="app">
+      {showDocs && <DocumentViewer onClose={() => setShowDocs(false)} />}
       <header className="app-header">
         <h1>ERC-3643 权限管理界面</h1>
         <div className="wallet-section">
+          <button className="docs-button" onClick={() => setShowDocs(true)}>
+            查看文档
+          </button>
           {account ? (
             <div className="wallet-info">
               <span>已连接: {account.slice(0, 6)}...{account.slice(-4)}</span>
@@ -393,14 +401,14 @@ function App() {
                     >
                       <h4>{roleInfo.name}</h4>
                       <p className="role-description">{roleInfo.description}</p>
-                      <div className="role-modules">
+                      {/* <div className="role-modules">
                         <strong>包含模块：</strong>
                         <ul>
                           {roleInfo.modules.map((module: string, index: number) => (
                             <li key={index}>{module}</li>
                           ))}
                         </ul>
-                      </div>
+                      </div> */}
                     </div>
                   );
                 })}
@@ -424,8 +432,8 @@ function App() {
           </div>
         ) : role === "owner" ? (
           <OwnerPanel provider={provider!} wallet={signer!} account={account} />
-        ) : role === "agent" ? (
-          <AgentPanel provider={provider!} wallet={signer!} account={account} />
+        ) : role === "finance" ? (
+          <FinancePanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "backend" ? (
           <BackendPanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "compliance" ? (

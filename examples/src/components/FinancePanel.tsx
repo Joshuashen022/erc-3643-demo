@@ -3,13 +3,13 @@ import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES, CHAIN_ID } from "../utils/config";
 import { checkNetwork, switchToTargetNetwork } from "../utils/contracts";
 
-interface AgentPanelProps {
+interface FinancePanelProps {
   provider: ethers.JsonRpcProvider;
   wallet: ethers.Signer;
   account: string;
 }
 
-export default function AgentPanel({ provider, wallet, account }: AgentPanelProps) {
+export default function FinancePanel({ provider, wallet, account }: FinancePanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
   const [isTokenAgent, setIsTokenAgent] = useState<boolean | null>(null);
@@ -61,7 +61,7 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
     const networkCheck = await checkNetwork();
     if (!networkCheck.correct) {
       try {
-        await switchToTargetNetwork();
+        await switchToTargetNetwork(CHAIN_ID);
         // 等待一下让网络切换完成
         await new Promise(resolve => setTimeout(resolve, 500));
         const newNetworkCheck = await checkNetwork();
@@ -118,7 +118,7 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
   };
 
   const handleBurn = async () => {
-    if (!userAddress || !amount || !CONTRACT_ADDRESSES.token) {
+    if (!toAddress || !amount || !CONTRACT_ADDRESSES.token) {
       showResult("burn", "请填写所有字段并配置合约地址");
       return;
     }
@@ -132,10 +132,10 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
         ],
         wallet
       );
-      const tx = await contract.burn(userAddress, amount);
+      const tx = await contract.burn(toAddress, amount);
       await tx.wait();
       showResult("burn", `成功销毁代币，交易哈希: ${tx.hash}`);
-      setUserAddress("");
+      setToAddress("");
       setAmount("");
     } catch (error: any) {
       showResult("burn", `错误: ${error.message}`);
@@ -254,7 +254,7 @@ export default function AgentPanel({ provider, wallet, account }: AgentPanelProp
 
   return (
     <div className="panel">
-      <h2>Agent 管理面板</h2>
+      <h2>财务模块管理面板</h2>
 
       {/* Token 操作 */}
       <div className="section">

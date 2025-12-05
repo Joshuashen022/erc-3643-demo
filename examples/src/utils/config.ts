@@ -7,7 +7,7 @@ import { getDeploymentResults, DeploymentResults } from "./contracts";
 
 export type UserRole = 
   | "owner" 
-  | "agent" 
+  | "finance" 
   | "backend" 
   | "compliance" 
   | "legal" 

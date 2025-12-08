@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import { ContractConfig } from "./contracts.js";
 import { sendTransaction } from "./transactions.js";
+import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
 
 /**
  * 确保地址已注册
@@ -234,5 +235,177 @@ export async function signClaim(
   console.log(`签名: ${sigBytes} (长度: ${sigBytes.length} 字节)`);
 
   return sigBytes;
+}
+
+/**
+ * 创建新身份的结果接口
+ */
+export interface CreateNewIdentityResult {
+  newManagementKey: string;
+  newManagementKeyPrivateKey: string;
+  newIdentityAddress: string;
+  newManagementKeyWallet: ethers.HDNodeWallet | ethers.Wallet;
+  identitySalt: string;
+}
+
+/**
+ * 注册结果接口
+ */
+export interface RegisterNewIdentityResult {
+  success: boolean;
+  messages: string[];
+  errors: string[];
+  newManagementKey?: string;
+  newManagementKeyPrivateKey?: string;
+  newIdentityAddress?: string;
+  countryCode?: number;
+}
+
+/**
+ * 注册新身份
+ * 接收已创建的身份信息，添加 claims 并注册到 Identity Registry
+ * 参考 validateDeployment 的结构，将所有注册逻辑提取到单独的函数中
+ */
+export async function registerNewIdentity(
+  config: ContractConfig,
+  newIdentitySigner: ethers.Signer,
+  countryCode: number = 840,
+  identitySalt: string,
+  rpcUrl?: string
+): Promise<RegisterNewIdentityResult> {
+  const result: RegisterNewIdentityResult = {
+    success: true,
+    messages: [],
+    errors: [],
+  };
+
+  try {
+    result.messages.push("\n=== 开始注册新身份 ===");
+
+    const newManagementKey = await newIdentitySigner.getAddress();
+    
+    // 使用 staticCall 预测身份地址
+    const createIdentityResult = await (config.identityIdFactory as any).createIdentity.staticCall(newManagementKey, identitySalt);
+    const newIdentityAddress = ethers.getAddress(String(createIdentityResult));
+  
+
+    // 执行创建身份交易
+    await sendTransaction(
+      config.identityIdFactory,
+      "createIdentity",
+      [newManagementKey, identitySalt],
+      "创建身份",
+      config.provider,
+      rpcUrl
+    );
+
+    
+    // 获取 claimIssuer 地址和私钥（使用 createContractConfig 返回的配置）
+    result.messages.push("\n--- 获取 ClaimIssuer 信息 ---");
+    const claimSchemeEcdsa = 1;
+    
+    const newIdentity = new ethers.Contract(
+      newIdentityAddress,
+      rwaIdentityABI.abi.length > 0 ? rwaIdentityABI.abi : [
+        "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external"
+      ],
+      newIdentitySigner
+    );
+    
+    // 遍历所有 claim issuers，对每个 issuer 支持的所有 topics 都签名并添加 claim
+    for (let i = 0; i < config.config.claimIssuers.length; i++) {
+      const claimIssuerKey = `claimIssuer${i}_claimIssuer` as keyof typeof config.deploymentResults;
+      const claimIssuerAddressValue = config.deploymentResults[claimIssuerKey];
+      if (!claimIssuerAddressValue || typeof claimIssuerAddressValue !== 'string') {
+        result.messages.push(`跳过 Claim Issuer ${i}：未找到地址`);
+        continue;
+      }
+      
+      const claimIssuerAddress = ethers.getAddress(claimIssuerAddressValue);
+      const claimIssuerPrivateKey = config.config.claimIssuers[i].privateKey;
+      const claimIssuerWallet = new ethers.Wallet(claimIssuerPrivateKey, config.provider);
+      const claimTopics = config.config.claimIssuers[i].claimTopics || [];
+      
+      result.messages.push(`\n处理 Claim Issuer ${i}`);
+      result.messages.push(`ClaimIssuer 地址: ${claimIssuerAddress}`);
+      result.messages.push(`ClaimIssuer 钱包地址: ${claimIssuerWallet.address}`);
+      result.messages.push(`支持的 Topics: ${claimTopics.join(', ')}`);
+      
+      // 对该 issuer 支持的所有 topics 都执行签名和添加 claim
+      for (const claimTopic of claimTopics) {
+        result.messages.push(`\n--- 为 topic ${claimTopic} 创建并签名 claim ---`);
+        const data = "0x";
+        
+        // 使用独立的签名函数
+        const sigBytes = await signClaim(
+          newIdentityAddress,
+          claimTopic,
+          claimIssuerWallet,
+          data
+        );
+        
+        // 添加 claim 到新身份（使用 newManagementKey 的 wallet）
+        result.messages.push(`\n--- 添加 topic ${claimTopic} 的 claim 到新身份 ---`);
+        try {
+          await sendTransaction(
+            newIdentity,
+            "addClaim",
+            [claimTopic, claimSchemeEcdsa, claimIssuerAddress, sigBytes, data, ""],
+            `添加 topic ${claimTopic} 的 claim`,
+            config.provider,
+            rpcUrl
+          );
+          result.messages.push(`✓ Topic ${claimTopic} 的 Claim 已添加到新身份`);
+        } catch (error: any) {
+          result.success = false;
+          result.errors.push(`添加 topic ${claimTopic} 的 claim 失败: ${error.message}`);
+          return result;
+        }
+      }
+    }
+    
+    // 注册新身份到 Identity Registry
+    result.messages.push("\n--- 注册新身份到 Identity Registry ---");
+    
+    try {
+      await registerIdentity(config, newManagementKey, newIdentityAddress, countryCode, rpcUrl);
+      result.messages.push("✓ 身份已注册到 Identity Registry");
+      result.countryCode = countryCode;
+    } catch (error: any) {
+      result.success = false;
+      result.errors.push(`注册身份失败: ${error.message}`);
+      return result;
+    }
+    
+    // 验证身份是否已注册
+    result.messages.push("\n--- 验证身份注册状态 ---");
+    try {
+      const isVerified = await config.identityRegistry.isVerified(newManagementKey);
+      if (isVerified) {
+        result.messages.push("✓ 身份验证成功！");
+        result.messages.push(`用户地址: ${newManagementKey}`);
+        result.messages.push(`身份合约地址: ${newIdentityAddress}`);
+      } else {
+        result.success = false;
+        result.errors.push("身份验证失败");
+        return result;
+      }
+    } catch (error: any) {
+      result.success = false;
+      result.errors.push(`验证身份失败: ${error.message}`);
+      return result;
+    }
+
+    result.messages.push("\n=== 注册新身份完成 ===");
+    result.messages.push(`新管理密钥地址: ${newManagementKey}`);
+    result.messages.push(`新身份合约地址: ${newIdentityAddress}`);
+    result.messages.push(`国家代码: ${countryCode}`);
+
+  } catch (error: any) {
+    result.success = false;
+    result.errors.push(`注册新身份过程出错: ${error.message}`);
+  }
+
+  return result;
 }
 

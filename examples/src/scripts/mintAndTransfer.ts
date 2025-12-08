@@ -134,8 +134,8 @@ async function main() {
   console.log(`Transfer 前总供应量: ${ethers.formatEther(totalSupplyBeforeTransfer)}`);
 
   // 执行 Transfer 操作
-  let transferWallet = config.wallet;
-  if (mintToAddress.toLowerCase() !== config.wallet.address.toLowerCase()) {
+  let transferWallet = config.signer;
+  if (mintToAddress.toLowerCase() !== (await config.signer.getAddress()).toLowerCase()) {
     const transferFromPrivateKey = process.env.TRANSFER_FROM_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
     if (!transferFromPrivateKey) {
       throw new Error("请设置 TRANSFER_FROM_PRIVATE_KEY 或 PRIVATE_KEY 环境变量");

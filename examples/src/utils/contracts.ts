@@ -14,6 +14,7 @@ import complianceABI from "../../../out/RWACompliance.sol/RWACompliance.json";
 import trexFactoryABI from "../../../out/TREXFactory.sol/TREXFactory.json";
 import trexGatewayABI from "../../../out/TREXGateway.sol/TREXGateway.json";
 import claimIssuerABI from "../../../out/Identity.sol/RWAClaimIssuer.json";
+import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
 // import identityRegistryStorageABI from "../../../out/IdentityRegistry.sol/RWAIdentityRegistryStorage.json";
 
 

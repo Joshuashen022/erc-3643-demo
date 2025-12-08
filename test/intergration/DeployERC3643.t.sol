@@ -6,6 +6,7 @@ import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "../../lib/solidity/contracts/interface/IClaimIssuer.sol";
 import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
 import {console2} from "forge-std/console2.sol";
+import {MockModule} from "../mocks/MockModule.sol";
 contract DeployERC3643Test is ERC3643TestBase {
     // Event definition for testing
     event RecoverySuccess(address indexed _lostWallet, address indexed _newWallet, address indexed _investorOnchainID);
@@ -144,6 +145,62 @@ contract DeployERC3643Test is ERC3643TestBase {
 
         // Compliance should allow transfers when no modules are added
         assertTrue(compliance.canTransfer(from, to, amount));
+    }
+
+    /// @notice Should allow suite owner to add a new module
+    function test_AddMockModule_Success() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 amount = 1000;
+        MockModule module = new MockModule();
+        address moduleAddress = address(module);
+
+        // Pre-checks
+        assertFalse(compliance.isModuleBound(moduleAddress));
+        uint256 beforeLength = compliance.getModules().length;
+
+        // Add module
+        vm.prank(compliance.owner());
+        compliance.addModule(moduleAddress);
+
+        // Post-checks
+        assertTrue(compliance.isModuleBound(moduleAddress));
+        assertEq(compliance.getModules().length, beforeLength + 1);
+        assertTrue(compliance.canTransfer(from, to, amount));
+        assertTrue(identityRegistry.isVerified(identityManagementKey));
+    }
+
+    /// @notice Should allow suite owner to remove an existing module
+    function test_RemoveMockModule_Success() public {
+        address from = address(0x1111);
+        address to = address(0x2222);
+        uint256 amount = 1000;
+        MockModule module = new MockModule();
+        address moduleAddress = address(module);
+
+        // Add module first
+        vm.prank(compliance.owner());
+        compliance.addModule(moduleAddress);
+        assertTrue(compliance.isModuleBound(moduleAddress));
+
+        // Remove module
+        vm.prank(compliance.owner());
+        compliance.removeModule(moduleAddress);
+
+        // Post-checks
+        assertFalse(compliance.isModuleBound(moduleAddress));
+
+        address[] memory modules = compliance.getModules();
+        bool found;
+        for (uint256 i = 0; i < modules.length; i++) {
+            if (modules[i] == moduleAddress) {
+                found = true;
+                break;
+            }
+        }
+        assertFalse(found);
+        assertTrue(compliance.canTransfer(from, to, amount));
+        assertTrue(identityRegistry.isVerified(identityManagementKey));
     }
 
     // ============ forcedTransfer tests ============

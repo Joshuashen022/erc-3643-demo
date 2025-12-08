@@ -147,13 +147,17 @@ abstract contract ERC3643TestBase is Test {
 
         for (uint256 i = 0; i < allClaimIssuers.length; i++) {
             IdentityDeploymentLib.ClaimIssuerDeploymentResult memory issuer = allClaimIssuers[i];
-            require(issuer.claimIssuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
+            
+            // Read private key from environment variable based on index
+            string memory envVarName = string.concat("CLAIM_ISSUER_", vm.toString(i), "_PRIVATE_KEY");
+            uint256 issuerPrivateKey = vm.envUint(envVarName);
+            require(issuerPrivateKey != 0, "CLAIM_ISSUER_PRIVATE_KEY must be set");
 
             // Add claim for each topic of this issuer
             for (uint256 j = 0; j < issuer.claimTopics.length; j++) {
                 uint256 topic = issuer.claimTopics[j];
                 _addClaimWithIssuer(
-                    newIdentity, newIdentityManagementKey, topic, issuer.claimIssuerPrivateKey, issuer.claimIssuer, data
+                    newIdentity, newIdentityManagementKey, topic, issuerPrivateKey, issuer.claimIssuer, data
                 );
             }
         }

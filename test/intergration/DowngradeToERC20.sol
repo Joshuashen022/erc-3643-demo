@@ -458,10 +458,8 @@ contract DownToERC20Test is ERC3643TestBase {
         uint256 amount = 1000;
 
         // Setup
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        initializeIdentity(from, string(abi.encodePacked(from)));
+        initializeIdentity(to, string(abi.encodePacked(to)));
         vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 
@@ -482,8 +480,7 @@ contract DownToERC20Test is ERC3643TestBase {
         uint256 amount = 1000;
 
         // Setup: verify address
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        initializeIdentity(to, string(abi.encodePacked(to)));
 
         // Execute mint
         vm.prank(suiteOwner);
@@ -502,11 +499,9 @@ contract DownToERC20Test is ERC3643TestBase {
         uint256 burnAmount = 500;
 
         // Setup
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(user, IIdentity(address(identity)), 840);
+        initializeIdentity(user, string(abi.encodePacked(user)));
         vm.prank(suiteOwner);
         rwaToken.mint(user, mintAmount);
-
         // Execute burn
         vm.prank(suiteOwner);
         rwaToken.burn(user, burnAmount);

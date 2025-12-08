@@ -5,7 +5,7 @@ import {ERC3643TestBase} from "../lib/ERC3643TestBase.sol";
 import {IIdentity} from "../../lib/solidity/contracts/interface/IIdentity.sol";
 import {IClaimIssuer} from "../../lib/solidity/contracts/interface/IClaimIssuer.sol";
 import {RWAClaimIssuer, RWAIdentity} from "../../src/rwa/identity/Identity.sol";
-
+import {console2} from "forge-std/console2.sol";
 contract DeployERC3643Test is ERC3643TestBase {
     // Event definition for testing
     event RecoverySuccess(address indexed _lostWallet, address indexed _newWallet, address indexed _investorOnchainID);
@@ -57,12 +57,9 @@ contract DeployERC3643Test is ERC3643TestBase {
         address spender = address(0x3333);
         uint256 amount = 1000;
         uint256 allowance = 2000;
-
-        // Setup: verify addresses, mint tokens to from, approve spender
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        
+        initializeIdentity(from, string(abi.encodePacked(from)));
+        initializeIdentity(to, string(abi.encodePacked(to)));
         vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 
@@ -87,10 +84,8 @@ contract DeployERC3643Test is ERC3643TestBase {
         uint256 amount = 1000;
 
         // Setup
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        initializeIdentity(from, string(abi.encodePacked(from)));
+        initializeIdentity(to, string(abi.encodePacked(to)));
         vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 
@@ -110,8 +105,7 @@ contract DeployERC3643Test is ERC3643TestBase {
         uint256 amount = 1000;
 
         // Setup: verify address
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        initializeIdentity(to, string(abi.encodePacked(to)));
 
         // Execute mint
         vm.prank(suiteOwner);
@@ -129,8 +123,7 @@ contract DeployERC3643Test is ERC3643TestBase {
         uint256 burnAmount = 500;
 
         // Setup
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(user, IIdentity(address(identity)), 840);
+        initializeIdentity(user, string(abi.encodePacked(user)));
         vm.prank(suiteOwner);
         rwaToken.mint(user, mintAmount);
 
@@ -160,10 +153,8 @@ contract DeployERC3643Test is ERC3643TestBase {
         uint256 amount = 1000;
 
         // Setup: verify addresses, mint tokens to from
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(from, IIdentity(address(identity)), 840);
-        vm.prank(suiteOwner);
-        identityRegistry.registerIdentity(to, IIdentity(address(identity)), 840);
+        initializeIdentity(from, string(abi.encodePacked(from)));
+        initializeIdentity(to, string(abi.encodePacked(to)));
         vm.prank(suiteOwner);
         rwaToken.mint(from, amount * 2);
 

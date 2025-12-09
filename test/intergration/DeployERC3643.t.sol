@@ -33,13 +33,6 @@ contract DeployERC3643Test is ERC3643TestBase {
         assertEq(identityRegistry.owner(), suiteOwner, "Identity Registry owner should match suite owner");
     }
 
-    // ============ Register Identity Tests ============
-    function test_InitializeIdentity_Success() public {
-        address newIdentityManagementKey = address(0x213141);
-        RWAIdentity newIdentity = initializeIdentity(newIdentityManagementKey, "testtesttest");
-        assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
-    }
-
     /// @notice Basic deployment test
     function test_DeployERC3643_Success() public view {
         assertNotEq(address(trexImplementationAuthority), address(0));
@@ -51,6 +44,100 @@ contract DeployERC3643Test is ERC3643TestBase {
         assertTrue(identityRegistry.isVerified(identityManagementKey));
     }
 
+    // ============ Register Identity Tests ============
+    function test_InitializeIdentity_Success() public {
+        address newIdentityManagementKey = address(0x213141);
+        RWAIdentity newIdentity = initializeIdentity(newIdentityManagementKey, "testtesttest");
+        assertTrue(identityRegistry.isVerified(newIdentityManagementKey));
+    }
+
+    /// @notice Add a new trusted issuer and claim topic, then verify identity
+    function test_AddNewIssuerAndTopic3_KeepsIdentityVerified() public {
+        uint256 newTopic = 3;
+        uint256 issuerPrivateKey = 0xBEEF;
+        vm.prank(claimIssuerIdFactory.owner());
+        address newIssuerAddress = claimIssuerIdFactory.createIdentity(vm.addr(issuerPrivateKey), "testtesttest");
+        RWAClaimIssuer newIssuer = RWAClaimIssuer(newIssuerAddress);
+
+        // Add claim topic 3 if it doesn't exist
+        uint256[] memory existingTopics = claimTopicsRegistry.getClaimTopics();
+        bool topicExists;
+        for (uint256 i = 0; i < existingTopics.length; i++) {
+            if (existingTopics[i] == newTopic) {
+                topicExists = true;
+                break;
+            }
+        }
+        if (!topicExists) {
+            vm.prank(claimTopicsRegistry.owner());
+            claimTopicsRegistry.addClaimTopic(newTopic);
+        }
+
+        // Trust the new issuer for topic 3
+        uint256[] memory issuerTopics = new uint256[](1);
+        issuerTopics[0] = newTopic;
+        vm.prank(trustedIssuersRegistry.owner());
+        trustedIssuersRegistry.addTrustedIssuer(newIssuer, issuerTopics);
+
+        // Add the new claim to the existing identity
+        _addClaimWithIssuer(address(identity), identityManagementKey, newTopic, issuerPrivateKey, address(newIssuer), "");
+
+        assertTrue(identityRegistry.isVerified(identityManagementKey));
+    }
+
+    /// @notice Add topic 3 then remove it and ensure it is gone
+    function test_RemoveTopic3_AfterAdding() public {
+        uint256 newTopic = 3;
+        uint256 issuerPrivateKey = 0xCAFE;
+        address issuerManagementKey = vm.addr(issuerPrivateKey);
+        vm.prank(claimIssuerIdFactory.owner());
+        address newIssuerAddress = claimIssuerIdFactory.createIdentity(issuerManagementKey, "testtesttest");
+        RWAClaimIssuer newIssuer = RWAClaimIssuer(newIssuerAddress);
+
+        // Add claim topic 3 if it doesn't exist
+        uint256[] memory existingTopics = claimTopicsRegistry.getClaimTopics();
+        bool topicExists;
+        for (uint256 i = 0; i < existingTopics.length; i++) {
+            if (existingTopics[i] == newTopic) {
+                topicExists = true;
+                break;
+            }
+        }
+        if (!topicExists) {
+            vm.prank(claimTopicsRegistry.owner());
+            claimTopicsRegistry.addClaimTopic(newTopic);
+        }
+
+        // Trust the new issuer for topic 3
+        uint256[] memory issuerTopics = new uint256[](1);
+        issuerTopics[0] = newTopic;
+        vm.prank(trustedIssuersRegistry.owner());
+        trustedIssuersRegistry.addTrustedIssuer(newIssuer, issuerTopics);
+
+        // Add the new claim to the existing identity
+        _addClaimWithIssuer(address(identity), identityManagementKey, newTopic, issuerPrivateKey, address(newIssuer), "");
+        assertTrue(identityRegistry.isVerified(identityManagementKey));
+
+        // Remove topic 3
+        vm.prank(claimTopicsRegistry.owner());
+        claimTopicsRegistry.removeClaimTopic(newTopic);
+
+        // Ensure topic 3 is removed
+        uint256[] memory topicsAfterRemoval = claimTopicsRegistry.getClaimTopics();
+        bool stillExists;
+        for (uint256 i = 0; i < topicsAfterRemoval.length; i++) {
+            if (topicsAfterRemoval[i] == newTopic) {
+                stillExists = true;
+                break;
+            }
+        }
+        assertFalse(stillExists);
+
+        // Identity should remain verified for existing topics
+        assertTrue(identityRegistry.isVerified(identityManagementKey));
+    }
+
+    // ============ Transfer Tests ============
     /// @notice Test transferFrom functionality
     function test_TransferFromSuccess() public {
         address from = address(0x1111);

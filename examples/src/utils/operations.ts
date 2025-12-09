@@ -284,6 +284,13 @@ export async function registerNewIdentity(
 
     const newManagementKey = await newIdentitySigner.getAddress();
     
+    // 检查地址是否已经注册
+    if (await config.identityRegistry.isVerified(newManagementKey)) {
+      result.success = false;
+      result.errors.push(`Error: 地址 ${newManagementKey} 已经注册`);
+      return result;
+    }
+    
     // 使用 staticCall 预测身份地址
     const createIdentityResult = await (config.identityIdFactory as any).createIdentity.staticCall(newManagementKey, identitySalt);
     const newIdentityAddress = ethers.getAddress(String(createIdentityResult));

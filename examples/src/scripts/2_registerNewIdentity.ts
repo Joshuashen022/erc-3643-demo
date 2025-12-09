@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
 import { createContractConfig } from "../utils/contracts.js";
-import { createNewIdentity, registerNewIdentity } from "../utils/operations.js";
+import { registerNewIdentity } from "../utils/operations.js";
 
 dotenv.config();
 
@@ -32,28 +32,34 @@ async function main() {
     useClaimIssuerPrivateKeys: true,
   });
 
-  const newManagementKeyWallet = ethers.Wallet.createRandom().connect(contractConfig.provider);
-  const newManagementKey = newManagementKeyWallet.address;
-  const newManagementKeyPrivateKey = newManagementKeyWallet.privateKey;
+  let newManagementKeyWallet;
+  if (process.env.NEW_IDENTITY_KEY_PRIVATE_KEY) {
+    newManagementKeyWallet = new ethers.Wallet(process.env.NEW_IDENTITY_KEY_PRIVATE_KEY, provider);
+    console.log(`使用新管理密钥私钥: ${newManagementKeyWallet.address}`);
+  } else {
+    console.log(`创建新管理密钥`);
+    newManagementKeyWallet = ethers.Wallet.createRandom().connect(contractConfig.provider)
+    const newManagementKey = newManagementKeyWallet.address;
+    const newManagementKeyPrivateKey = newManagementKeyWallet.privateKey;
   
-  console.log(`新管理密钥地址: ${newManagementKey}`);
-  console.log(`新管理密钥私钥: ${newManagementKeyPrivateKey}`);
+    console.log(`新管理密钥地址: ${newManagementKey}`);
+    console.log(`新管理密钥私钥: ${newManagementKeyPrivateKey}`);
 
-  const fundingAmount = "0.0001";
-  const tx = await wallet.sendTransaction({
-    to: newManagementKey,
-    value: ethers.parseEther(fundingAmount),
-    
-  });
-  await tx.wait();
-  console.log(`发送 ETH 到新管理密钥地址: ${newManagementKey}`);
-
+    const fundingAmount = "0.0001";
+    const tx = await wallet.sendTransaction({
+      to: newManagementKey,
+      value: ethers.parseEther(fundingAmount),
+    });
+    await tx.wait();
+    console.log(`发送 ETH 到新管理密钥地址: ${newManagementKey}`);
+  }
+  
   // 使用工具函数进行注册（传入已创建的身份信息）
   const registrationResult = await registerNewIdentity(
     contractConfig,
     newManagementKeyWallet,
     840, // countryCode
-    "1234567890", // identitySalt
+    `${Date.now()}`, // identitySalt
     rpcUrl
   );
 

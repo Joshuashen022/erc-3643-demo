@@ -2,16 +2,18 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
 import { createContractConfig } from "../utils/contracts";
-import { deployMockModule, addAndRemoveModule } from "../utils/operations";
+import { deployMockModule } from "../utils/operations";
+import { sendTransaction } from "../utils/transactions";
 import { RPC_URL } from "../utils/config";
 
 interface CompliancePanelProps {
   provider: ethers.JsonRpcProvider;
   wallet: ethers.Signer;
   account: string;
+  setRoleChoose: (value: boolean) => void;
 }
 
-export default function CompliancePanel({ provider, wallet, account }: CompliancePanelProps) {
+export default function CompliancePanel({ provider, wallet, account, setRoleChoose }: CompliancePanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
   
@@ -248,12 +250,109 @@ export default function CompliancePanel({ provider, wallet, account }: Complianc
       const moduleAddress = deployResult.moduleAddress;
       showResult("callModuleExample", `步骤 1/2 完成: MockModule 已部署，地址: ${moduleAddress}\n\n步骤 2/2: 正在添加并移除模块...`);
 
-      // 第二步：添加并移除模块
+      // 第二步：添加并移除模块（内联实现逻辑）
       const contractConfig = await createContractConfig(provider, wallet, {
         useClaimIssuerPrivateKeys: true,
       });
 
-      const addRemoveResult = await addAndRemoveModule(contractConfig, moduleAddress, RPC_URL);
+      const runAddRemoveModule = async () => {
+        const addRemoveResult = {
+          success: true,
+          messages: [] as string[],
+          errors: [] as string[],
+        };
+
+        try {
+          addRemoveResult.messages.push("\n=== 开始添加并移除模块 ===");
+          addRemoveResult.messages.push(`模块地址: ${moduleAddress}`);
+
+          // 检查模块是否已绑定
+          const isBoundBefore = await contractConfig.compliance.isModuleBound(moduleAddress);
+          addRemoveResult.messages.push(`模块绑定状态: ${isBoundBefore ? "已绑定" : "未绑定"}`);
+
+          // 如果模块尚未绑定，先绑定一次
+          if (!isBoundBefore) {
+            addRemoveResult.messages.push("\n--- 添加模块 ---");
+            try {
+              await sendTransaction(
+                contractConfig.compliance,
+                "addModule",
+                [moduleAddress],
+                "AddModule",
+                contractConfig.provider,
+                RPC_URL
+              );
+              addRemoveResult.messages.push("✓ 模块添加成功");
+            } catch (error: any) {
+              addRemoveResult.success = false;
+              addRemoveResult.errors.push(`添加模块失败: ${error.message}`);
+              return addRemoveResult;
+            }
+          } else {
+            addRemoveResult.messages.push("模块已绑定，跳过添加步骤");
+          }
+
+          // 检查 canTransfer（在移除前）
+          try {
+            const canTransfer = await contractConfig.compliance.canTransfer(
+              "0x0000000000000000000000000000000000001111",
+              "0x0000000000000000000000000000000000002222",
+              ethers.parseEther("1")
+            );
+            addRemoveResult.messages.push(`移除前 canTransfer: ${canTransfer}`);
+          } catch (error: any) {
+            addRemoveResult.messages.push(`检查 canTransfer 失败: ${error.message}`);
+          }
+
+          // 移除模块
+          addRemoveResult.messages.push("\n--- 移除模块 ---");
+          try {
+            await sendTransaction(
+              contractConfig.compliance,
+              "removeModule",
+              [moduleAddress],
+              "RemoveModule",
+              contractConfig.provider,
+              RPC_URL
+            );
+            addRemoveResult.messages.push("✓ 模块移除成功");
+          } catch (error: any) {
+            addRemoveResult.success = false;
+            addRemoveResult.errors.push(`移除模块失败: ${error.message}`);
+            return addRemoveResult;
+          }
+
+          // Post-checks
+          const isBoundAfter = await contractConfig.compliance.isModuleBound(moduleAddress);
+          const modules = await contractConfig.compliance.getModules();
+          const found = modules.map((m: string) => ethers.getAddress(m)).includes(moduleAddress);
+
+          addRemoveResult.messages.push(`\n--- 验证移除结果 ---`);
+          addRemoveResult.messages.push(`模块已移除: ${!isBoundAfter && !found}`);
+          addRemoveResult.messages.push(`当前模块列表: ${modules.join(", ") || "空"}`);
+
+          // 检查 canTransfer（移除后）
+          try {
+            const canTransferAfter = await contractConfig.compliance.canTransfer(
+              "0x0000000000000000000000000000000000001111",
+              "0x0000000000000000000000000000000000002222",
+              ethers.parseEther("1")
+            );
+            addRemoveResult.messages.push(`移除后 canTransfer: ${canTransferAfter}`);
+          } catch (error: any) {
+            addRemoveResult.messages.push(`检查 canTransfer 失败: ${error.message}`);
+          }
+
+          addRemoveResult.messages.push("\n=== 添加并移除模块完成 ===");
+        } catch (error: any) {
+          addRemoveResult.success = false;
+          addRemoveResult.errors.push(`添加并移除模块过程出错: ${error.message}`);
+        }
+
+        return addRemoveResult;
+      };
+
+      const addRemoveResult = await runAddRemoveModule();
 
       if (!addRemoveResult.success) {
         const errorMsg = addRemoveResult.errors.length > 0 
@@ -283,14 +382,22 @@ export default function CompliancePanel({ provider, wallet, account }: Complianc
     <div className="panel">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
         <h2 style={{ margin: 0 }}>监管管理面板</h2>
-        <button
-          onClick={handleCallModuleExample}
-          disabled={loading}
-          className="example-button"
-        >
-          <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
-          <span>运行示例</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={() => setRoleChoose(false)}
+            className="btn-secondary"
+          >
+            返回角色选择
+          </button>
+          <button
+            onClick={handleCallModuleExample}
+            disabled={loading}
+            className="example-button"
+          >
+            <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+            <span>运行示例</span>
+          </button>
+        </div>
       </div>
 
       {/* 示例执行结果 */}

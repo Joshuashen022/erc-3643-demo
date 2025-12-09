@@ -8,9 +8,10 @@ interface FinancePanelProps {
   provider: ethers.JsonRpcProvider;
   wallet: ethers.Signer;
   account: string;
+  setRoleChoose: (value: boolean) => void;
 }
 
-export default function FinancePanel({ provider, wallet, account }: FinancePanelProps) {
+export default function FinancePanel({ provider, wallet, account, setRoleChoose }: FinancePanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
   const [isTokenAgent, setIsTokenAgent] = useState<boolean | null>(null);
@@ -340,14 +341,22 @@ export default function FinancePanel({ provider, wallet, account }: FinancePanel
     <div className="panel">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
         <h2 style={{ margin: 0 }}>财务模块管理面板</h2>
-        <button
-          onClick={handleMintAndBurnExample}
-          disabled={loading}
-          className="example-button"
-        >
-          <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
-          <span>运行示例</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={() => setRoleChoose(false)}
+            className="btn-secondary"
+          >
+            返回角色选择
+          </button>
+          <button
+            onClick={handleMintAndBurnExample}
+            disabled={loading}
+            className="example-button"
+          >
+            <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+            <span>运行示例</span>
+          </button>
+        </div>
       </div>
       {/* Token 操作 */}
       <div className="section">

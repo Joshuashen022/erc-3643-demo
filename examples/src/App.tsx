@@ -431,15 +431,15 @@ function App() {
             </div>
           </div>
         ) : role === "owner" ? (
-          <OwnerPanel provider={provider!} wallet={signer!} account={account} />
+          <OwnerPanel provider={provider!} wallet={signer!} account={account} setRoleChoose={setRoleChoose} />
         ) : role === "finance" ? (
-          <FinancePanel provider={provider!} wallet={signer!} account={account} />
+          <FinancePanel provider={provider!} wallet={signer!} account={account} setRoleChoose={setRoleChoose} />
         ) : role === "backend" ? (
-          <BackendPanel provider={provider!} wallet={signer!} account={account} />
+          <BackendPanel provider={provider!} wallet={signer!} account={account} setRoleChoose={setRoleChoose} />
         ) : role === "compliance" ? (
-          <CompliancePanel provider={provider!} wallet={signer!} account={account} />
+          <CompliancePanel provider={provider!} wallet={signer!} account={account} setRoleChoose={setRoleChoose} />
         ) : role === "legal" ? (
-          <LegalPanel provider={provider!} wallet={signer!} account={account} />
+          <LegalPanel provider={provider!} wallet={signer!} account={account} setRoleChoose={setRoleChoose} />
         // ) : role === "user" ? (
         //   <UserPanel provider={provider!} wallet={signer!} account={account} />
         ) : (

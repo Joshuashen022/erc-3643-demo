@@ -2,15 +2,17 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
 import { createContractConfig } from "../utils/contracts";
-import { registerNewIdentity, RegisterNewIdentityResult } from "../utils/operations";
+import { RegisterNewIdentityResult, registerIdentity, signClaim } from "../utils/operations";
+import { sendTransaction } from "../utils/transactions";
 
 interface BackendPanelProps {
   provider: ethers.JsonRpcProvider;
   wallet: ethers.Signer;
   account: string;
+  setRoleChoose: (value: boolean) => void;
 }
 
-export default function BackendPanel({ provider, wallet, account }: BackendPanelProps) {
+export default function BackendPanel({ provider, wallet, account, setRoleChoose }: BackendPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
   const [callFactoryResult, setCallFactoryResult] = useState<RegisterNewIdentityResult | null>(null);
@@ -559,20 +561,167 @@ export default function BackendPanel({ provider, wallet, account }: BackendPanel
         useClaimIssuerPrivateKeys: true,
       });
 
-      let newManagementKeyWallet: ethers.Wallet | ethers.HDNodeWallet;
-      newManagementKeyWallet = ethers.Wallet.createRandom().connect(contractConfig.provider);
-      const tx = await wallet.sendTransaction({
-        to: await newManagementKeyWallet.getAddress(),
+      const registrationResult: RegisterNewIdentityResult = {
+        success: true,
+        messages: [],
+        errors: [],
+      };
+
+      // 1) 创建新的管理密钥并预估身份地址
+      const newManagementKeyWallet = ethers.Wallet.createRandom().connect(contractConfig.provider);
+      const newManagementKey = await newManagementKeyWallet.getAddress();
+      const identitySalt = `${Date.now()}`;
+
+      registrationResult.messages.push("\n=== 开始注册新身份 ===");
+      registrationResult.messages.push(`新管理密钥地址: ${newManagementKey}`);
+      registrationResult.messages.push(`使用的 salt: ${identitySalt}`);
+
+      // 为新钱包充值少量 gas
+      const fundTx = await wallet.sendTransaction({
+        to: newManagementKey,
         value: ethers.parseEther("0.0001"),
       });
-      await tx.wait();
+      await fundTx.wait();
 
-      const registrationResult = await registerNewIdentity(
-        contractConfig,
-        newManagementKeyWallet,
-        840,
-        `${Date.now()}`,
+
+      // 预测身份地址
+      const createIdentityResult = await (contractConfig.identityIdFactory as any).createIdentity.staticCall(
+        newManagementKey,
+        identitySalt
       );
+      const newIdentityAddress = ethers.getAddress(String(createIdentityResult));
+      registrationResult.messages.push(`预测的身份合约地址: ${newIdentityAddress}`);
+      
+      updateCallFactoryResult({...registrationResult});
+      
+      // 2) 创建身份
+      await sendTransaction(
+        contractConfig.identityIdFactory,
+        "createIdentity",
+        [newManagementKey, identitySalt],
+        "创建身份",
+        contractConfig.provider
+      );
+      registrationResult.messages.push("✓ 身份创建交易已提交");
+      
+      updateCallFactoryResult({...registrationResult});
+
+      // 3) 为身份添加 claims
+      registrationResult.messages.push("\n--- 获取 ClaimIssuer 信息 ---");
+      const claimSchemeEcdsa = 1;
+      const newIdentity = new ethers.Contract(
+        newIdentityAddress,
+        [
+          "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external"
+        ],
+        newManagementKeyWallet
+      );
+
+      for (let i = 0; i < contractConfig.config.claimIssuers.length; i++) {
+        const claimIssuerKey = `claimIssuer${i}_claimIssuer` as keyof typeof contractConfig.deploymentResults;
+        const claimIssuerAddressValue = contractConfig.deploymentResults[claimIssuerKey];
+        if (!claimIssuerAddressValue || typeof claimIssuerAddressValue !== "string") {
+          registrationResult.messages.push(`跳过 Claim Issuer ${i}：未找到地址`);
+          continue;
+        }
+
+        const claimIssuerAddress = ethers.getAddress(claimIssuerAddressValue);
+        const claimIssuerPrivateKey = contractConfig.config.claimIssuers[i].privateKey;
+        const claimIssuerWallet = new ethers.Wallet(claimIssuerPrivateKey, contractConfig.provider);
+        const claimTopics = contractConfig.config.claimIssuers[i].claimTopics || [];
+
+        registrationResult.messages.push(`\n处理 Claim Issuer ${i}`);
+        registrationResult.messages.push(`ClaimIssuer 地址: ${claimIssuerAddress}`);
+        registrationResult.messages.push(`ClaimIssuer 钱包地址: ${claimIssuerWallet.address}`);
+        registrationResult.messages.push(`支持的 Topics: ${claimTopics.join(", ")}`);
+
+        for (const claimTopic of claimTopics) {
+          registrationResult.messages.push(`\n--- 为 topic ${claimTopic} 创建并签名 claim ---`);
+          const data = "0x";
+          const sigBytes = await signClaim(newIdentityAddress, claimTopic, claimIssuerWallet, data);
+
+          registrationResult.messages.push(`\n--- 添加 topic ${claimTopic} 的 claim 到新身份 ---`);
+          try {
+            await sendTransaction(
+              newIdentity,
+              "addClaim",
+              [claimTopic, claimSchemeEcdsa, claimIssuerAddress, sigBytes, data, ""],
+              `添加 topic ${claimTopic} 的 claim`,
+              contractConfig.provider
+            );
+            registrationResult.messages.push(`✓ Topic ${claimTopic} 的 Claim 已添加到新身份`);
+          } catch (error: any) {
+            registrationResult.success = false;
+            registrationResult.errors.push(`添加 topic ${claimTopic} 的 claim 失败: ${error.message}`);
+            updateCallFactoryResult({
+              ...registrationResult,
+              newManagementKey,
+              newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
+              newIdentityAddress,
+            });
+            showResult("callFactoryExample", registrationResult.errors.join("\n"));
+            return;
+          }
+        }
+      }
+      updateCallFactoryResult({...registrationResult});
+      // 4) 注册到 Identity Registry
+      registrationResult.messages.push("\n--- 注册新身份到 Identity Registry ---");
+      try {
+        await registerIdentity(contractConfig, newManagementKey, newIdentityAddress, 840);
+        registrationResult.messages.push("✓ 身份已注册到 Identity Registry");
+        registrationResult.countryCode = 840;
+        updateCallFactoryResult({...registrationResult});
+      } catch (error: any) {
+        registrationResult.success = false;
+        registrationResult.errors.push(`注册身份失败: ${error.message}`);
+        updateCallFactoryResult({
+          ...registrationResult,
+          newManagementKey,
+          newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
+          newIdentityAddress,
+        });
+        showResult("callFactoryExample", registrationResult.errors.join("\n"));
+        return;
+      }
+
+      // 5) 验证注册状态
+      registrationResult.messages.push("\n--- 验证身份注册状态 ---");
+      try {
+        const isVerified = await contractConfig.identityRegistry.isVerified(newManagementKey);
+        if (isVerified) {
+          registrationResult.messages.push("✓ 身份验证成功！");
+          registrationResult.messages.push(`用户地址: ${newManagementKey}`);
+          registrationResult.messages.push(`身份合约地址: ${newIdentityAddress}`);
+        } else {
+          registrationResult.success = false;
+          registrationResult.errors.push("身份验证失败");
+          updateCallFactoryResult({
+            ...registrationResult,
+            newManagementKey,
+            newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
+            newIdentityAddress,
+          });
+          showResult("callFactoryExample", registrationResult.errors.join("\n"));
+          return;
+        }
+      } catch (error: any) {
+        registrationResult.success = false;
+        registrationResult.errors.push(`验证身份失败: ${error.message}`);
+        updateCallFactoryResult({
+          ...registrationResult,
+          newManagementKey,
+          newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
+          newIdentityAddress,
+        });
+        showResult("callFactoryExample", registrationResult.errors.join("\n"));
+        return;
+      }
+
+      registrationResult.messages.push("\n=== 注册新身份完成 ===");
+      registrationResult.newManagementKey = newManagementKey;
+      registrationResult.newManagementKeyPrivateKey = newManagementKeyWallet.privateKey;
+      registrationResult.newIdentityAddress = newIdentityAddress;
 
       const parts: string[] = [];
       parts.push(...registrationResult.messages);
@@ -620,14 +769,22 @@ export default function BackendPanel({ provider, wallet, account }: BackendPanel
     <div className="panel">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
         <h2 style={{ margin: 0 }}>后端管理面板</h2>
-        <button
-          onClick={handleCallFactoryExample}
-          disabled={loading}
-          className="example-button"
-        >
-          <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
-          <span>运行示例</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={() => setRoleChoose(false)}
+            className="btn-secondary"
+          >
+            返回角色选择
+          </button>
+          <button
+            onClick={handleCallFactoryExample}
+            disabled={loading}
+            className="example-button"
+          >
+            <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+            <span>运行示例</span>
+          </button>
+        </div>
       </div>
 
       {/* RWAClaimIssuerIdFactory */}

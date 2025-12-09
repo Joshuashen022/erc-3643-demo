@@ -6,9 +6,10 @@ interface OwnerPanelProps {
   provider: ethers.JsonRpcProvider;
   wallet: ethers.Signer;
   account: string;
+  setRoleChoose: (value: boolean) => void;
 }
 
-export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProps) {
+export default function OwnerPanel({ provider, wallet, account, setRoleChoose }: OwnerPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
   
@@ -32,10 +33,6 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
   const [trustedIssuersRegistryForIR, setTrustedIssuersRegistryForIR] = useState("");
   const [agentToAdd, setAgentToAdd] = useState("");
   const [agentToRemove, setAgentToRemove] = useState("");
-
-  // IdentityRegistryStorage 状态
-  const [identityRegistryToBind, setIdentityRegistryToBind] = useState("");
-  const [identityRegistryToUnbind, setIdentityRegistryToUnbind] = useState("");
 
   // TREXImplementationAuthority 状态
   const [trexFactory, setTrexFactory] = useState("");
@@ -315,7 +312,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       setLoading(false);
     }
   };
-  
+
   // TREXImplementationAuthority 操作
   const handleSetTrexFactory = async () => {
     if (!trexFactory || !CONTRACT_ADDRESSES.trexImplementationAuthority) {
@@ -1065,7 +1062,15 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
 
   return (
     <div className="panel">
-      <h2>Owner 管理面板</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
+        <h2 style={{ margin: 0 }}>Owner 管理面板</h2>
+        <button
+          onClick={() => setRoleChoose(false)}
+          className="btn-secondary"
+        >
+          返回角色选择
+        </button>
+      </div>
 
       {/* IdentityRegistry */}
       <div className="section">

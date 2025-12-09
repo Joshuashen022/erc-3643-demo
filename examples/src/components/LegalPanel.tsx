@@ -298,15 +298,9 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
 
   return (
     <div className="panel">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
-        <h2 style={{ margin: 0 }}>监管管理面板</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <button
-            onClick={() => setRoleChoose(false)}
-            className="btn-secondary"
-          >
-            返回角色选择
-          </button>
+      <div className="panel-header">
+        <h2 className="panel-title">监管管理面板</h2>
+        <div className="panel-actions">
           <button
             onClick={handleCallLegalExample}
             disabled={loading}
@@ -314,6 +308,12 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
           >
             <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
             <span>运行示例</span>
+          </button>
+          <button
+            onClick={() => setRoleChoose(false)}
+            className="btn-secondary"
+          >
+            返回角色选择
           </button>
         </div>
       </div>

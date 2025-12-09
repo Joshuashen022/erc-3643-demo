@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESSES } from "../utils/config";
+import { CONTRACT_ADDRESSES, RPC_URL } from "../utils/config";
+import { createContractConfig } from "../utils/contracts";
+import { addAndRemoveClaimTopicExample } from "../utils/operations";
 
 interface LegalPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -258,9 +260,64 @@ export default function LegalPanel({ provider, wallet, account }: LegalPanelProp
     }
   };
 
+  const handleCallLegalExample = async () => {
+    setLoading(true);
+    showResult("callLegalExample", "正在执行示例操作：添加/移除声明主题并验证身份...");
+
+    try {
+      const contractConfig = await createContractConfig(provider, wallet, {
+        useClaimIssuerPrivateKeys: true,
+      });
+
+      const exampleResult = await addAndRemoveClaimTopicExample(contractConfig, account, RPC_URL);
+
+      if (!exampleResult.success) {
+        const errorMsg = exampleResult.errors.length > 0
+          ? exampleResult.errors.join("\n")
+          : "示例执行失败";
+        showResult(
+          "callLegalExample",
+          `错误: ${errorMsg}\n\n详细信息:\n${exampleResult.messages.join("\n")}`
+        );
+        return;
+      }
+
+      const allMessages = [
+        "=== 示例操作完成 ===",
+        ...exampleResult.messages,
+        "=== 所有操作成功完成 ===",
+      ];
+      showResult("callLegalExample", allMessages.join("\n"));
+    } catch (error: any) {
+      showResult("callLegalExample", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="panel">
-      <h2>法务管理面板</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
+        <h2 style={{ margin: 0 }}>监管管理面板</h2>
+        <button
+          onClick={handleCallLegalExample}
+          disabled={loading}
+          className="example-button"
+        >
+          <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+          <span>运行示例</span>
+        </button>
+      </div>
+
+      {/* 示例执行结果 */}
+      {results.callLegalExample && (
+        <div
+          className={`result ${results.callLegalExample.includes("错误") || results.callLegalExample.includes("失败") ? "error" : "success"}`}
+          style={{ marginBottom: "1rem" }}
+        >
+          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{results.callLegalExample}</pre>
+        </div>
+      )}
 
       {/* ClaimTopicsRegistry */}
       <div className="section">

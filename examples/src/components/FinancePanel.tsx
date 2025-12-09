@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESSES, CHAIN_ID } from "../utils/config";
-import { checkNetwork, switchToTargetNetwork } from "../utils/contracts";
-
+import { CONTRACT_ADDRESSES, CHAIN_ID, RPC_URL } from "../utils/config";
+import { checkNetwork, switchToTargetNetwork, createContractConfig } from "../utils/contracts";
+import { mintAndBurn, MintAndBurnResult } from "../utils/operations";
+import "../styles/components/FinancePanel.css";
 interface FinancePanelProps {
   provider: ethers.JsonRpcProvider;
   wallet: ethers.Signer;
@@ -14,6 +15,23 @@ export default function FinancePanel({ provider, wallet, account }: FinancePanel
   const [results, setResults] = useState<Record<string, string>>({});
   const [isTokenAgent, setIsTokenAgent] = useState<boolean | null>(null);
   const [checkingTokenAgent, setCheckingTokenAgent] = useState(false);
+  const [mintAndBurnResult, setMintAndBurnResult] = useState<MintAndBurnResult | null>(null);
+  const [showMintAndBurnResult, setShowMintAndBurnResult] = useState(false);
+  const [mintAndBurnLoading, setMintAndBurnLoading] = useState(false);
+
+  const updateMintAndBurnResult = (partial: Partial<MintAndBurnResult>) => {
+    setMintAndBurnResult((prev) => {
+      const base: MintAndBurnResult = prev || { success: true, messages: [], errors: [] };
+      return {
+        success: partial.success ?? base.success,
+        messages: partial.messages ? [...partial.messages] : [...base.messages],
+        errors: partial.errors ? [...partial.errors] : [...base.errors],
+        mintReceipt: partial.mintReceipt ?? base.mintReceipt,
+        burnReceipt: partial.burnReceipt ?? base.burnReceipt,
+        transferReceipt: partial.transferReceipt ?? base.transferReceipt,
+      };
+    });
+  };
 
   // Token 状态
   const [toAddress, setToAddress] = useState("");
@@ -252,10 +270,85 @@ export default function FinancePanel({ provider, wallet, account }: FinancePanel
     }
   };
 
+  // Mint 和 Burn 示例操作（执行脚本 3_mintAndBurn.ts 的逻辑）
+  const handleMintAndBurnExample = async () => {
+    setLoading(true);
+    setMintAndBurnLoading(true);
+    setShowMintAndBurnResult(true);
+    // 打开弹窗后先给用户即时反馈
+    updateMintAndBurnResult({
+      success: true,
+      messages: ["正在执行示例操作，请稍候..."],
+      errors: [],
+      mintReceipt: undefined,
+      burnReceipt: undefined,
+      transferReceipt: undefined,
+    });
+    try {
+      // 确保在正确的网络
+      const networkOk = await ensureCorrectNetwork();
+      if (!networkOk) {
+        setLoading(false);
+        setMintAndBurnLoading(false);
+        return;
+      }
+
+      // 初始化合约配置（前端场景，不使用 Claim Issuer 各自的私钥）
+      const contractConfig = await createContractConfig(provider, wallet, {
+        useClaimIssuerPrivateKeys: false,
+      });
+
+      // 使用工具函数执行操作（参数与脚本相同）
+      const amount = ethers.parseEther("1");
+      const transferToAddress = "0x340ec02864d9CAFF4919BEbE4Ee63f64b99c7806";
+      
+      const result = await mintAndBurn(provider, contractConfig, {
+        mintAmount: amount,
+        mintTo: account,
+        burnAmount: amount / 2n,
+        burnFrom: account,
+        transferAmount: amount / 10n,
+        transferTo: transferToAddress,
+        transferFrom: account,
+        rpcUrl: RPC_URL,
+        onProgress: (update) => {
+          updateMintAndBurnResult(update);
+        },
+      });
+
+      // 存储最终结果
+      updateMintAndBurnResult(result);
+    } catch (error: any) {
+      let errorMsg = error.message || "未知错误";
+      if (errorMsg.includes("insufficient funds") || errorMsg.includes("gas") || errorMsg.includes("network")) {
+        errorMsg = `交易失败: ${errorMsg}\n\n请检查:\n1. MetaMask 是否连接到正确的网络 (ChainId: ${CHAIN_ID})\n2. 账户余额是否充足\n3. 合约地址是否正确配置`;
+      }
+      // 创建错误结果对象并显示在模态框中
+      const errorResult: MintAndBurnResult = {
+        success: false,
+        messages: [],
+        errors: [errorMsg],
+      };
+      updateMintAndBurnResult(errorResult);
+    } finally {
+      setLoading(false);
+      setMintAndBurnLoading(false);
+    }
+  };
+
   return (
     <div className="panel">
-      <h2>财务模块管理面板</h2>
-
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
+        <h2 style={{ margin: 0 }}>财务模块管理面板</h2>
+        <button
+          onClick={handleMintAndBurnExample}
+          disabled={loading}
+          className="example-button"
+        >
+          <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+          <span>运行示例</span>
+        </button>
+      </div>
       {/* Token 操作 */}
       <div className="section">
         <h3>代币管理 (Token)</h3>
@@ -410,6 +503,61 @@ export default function FinancePanel({ provider, wallet, account }: FinancePanel
           )}
         </div>
       </div>
+
+      {/* Mint 和 Burn 示例结果模态框 */}
+      {showMintAndBurnResult && mintAndBurnResult && (
+        <div className="validation-result-modal">
+          <div className="validation-result-content">
+            <button
+              onClick={() => setShowMintAndBurnResult(false)}
+              className="validation-result-close-button"
+            >
+              ×
+            </button>
+            <h2 className={`validation-result-title ${mintAndBurnResult.success ? "success" : "error"}`}>
+              {mintAndBurnLoading
+                ? "执行中..."
+                : mintAndBurnResult.success
+                  ? "✓ 操作成功"
+                  : "✗ 操作失败"}
+            </h2>
+            <div className="validation-result-body">
+              {mintAndBurnResult.messages.length > 0 && (
+                <div>
+                  <h3>操作信息：</h3>
+                  <pre className="validation-result-pre">
+                    {mintAndBurnResult.messages.join("\n")}
+                  </pre>
+                </div>
+              )}
+              {(mintAndBurnResult.mintReceipt || mintAndBurnResult.burnReceipt || mintAndBurnResult.transferReceipt) && (
+                <div className="validation-result-section">
+                  <h3>交易哈希：</h3>
+                  <pre className="validation-result-pre">
+                    {mintAndBurnResult.mintReceipt && `Mint: ${mintAndBurnResult.mintReceipt.hash}\n`}
+                    {mintAndBurnResult.burnReceipt && `Burn: ${mintAndBurnResult.burnReceipt.hash}\n`}
+                    {mintAndBurnResult.transferReceipt && `Transfer: ${mintAndBurnResult.transferReceipt.hash}`}
+                  </pre>
+                </div>
+              )}
+              {mintAndBurnResult.errors.length > 0 && (
+                <div className="validation-result-section">
+                  <h3>错误信息：</h3>
+                  <pre className="validation-result-pre error">
+                    {mintAndBurnResult.errors.join("\n")}
+                  </pre>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setShowMintAndBurnResult(false)}
+              className="validation-result-close-btn"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

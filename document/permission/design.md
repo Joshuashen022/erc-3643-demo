@@ -16,9 +16,15 @@
 | TREXFactory | Owner | 管理子模块 | 合约升级 | 合约管理者 | 1 |
 | TREXGateway | Owner | 管理子模块 | 合约升级 | 合约管理者 | 1 |
 | TREXGateway | Agent | 管理子模块 | 合约升级 | 合约管理者 | 1 |
-| IdentityIdFactory | Owner | 管理identity | 业务逻辑 | 监管 | 1 |
-| IdentityIdFactory | TokenFactory | 管理Token identity | 业务逻辑 | 监管 | 1 |
-| IdentityGateway | Owner | 管理identity | 业务逻辑 | 监管 | 1 |
-| Identity | manageKey (1) | 最高权限，管理key，执行，管理claim | 业务逻辑 | 后端 | n |
-| Identity | actionKey (2) | 执行权限，approve某些行为 | 业务逻辑 | 后端 | n |
-| Identity | claimKey (3) | 执行权限，只能管理Claim | 业务逻辑 | 后端 | n |
+| IdentityIdFactory | Owner | 管理identity | 业务逻辑 | 后端 | 1 |
+| IdentityIdFactory | TokenFactory | 管理Token identity | 业务逻辑 | 后端 | 1 |
+| IdentityGateway | Owner | 管理identity | 业务逻辑 | 后端 | 1 |
+| Identity | manageKey (1) | 最高权限，管理key，执行，管理claim | 业务逻辑 | 用户 | n |
+| Identity | actionKey (2) | 执行权限，approve某些行为 | 业务逻辑 | 用户 | n |
+| Identity | claimKey (3) | 执行权限，只能管理Claim | 业务逻辑 | 用户 | n |
+| IssuerIdFactory | Owner | 管理issuer | 业务逻辑 | 后端 | 1 |
+| IssuerIdFactory | TokenFactory | 管理Token issuer | 业务逻辑 | 后端 | 1 |
+| IssuerGateway | Owner | 管理issuer | 业务逻辑 | 后端 | 1 |
+| Issuer | manageKey (1) | 最高权限，管理key，执行，管理claim | 业务逻辑 | 法务 | n |
+| Issuer | actionKey (2) | 执行权限，approve某些行为 | 业务逻辑 | 法务 | n |
+| Issuer | claimKey (3) | 执行权限，只能管理Claim | 业务逻辑 | 法务 | n |

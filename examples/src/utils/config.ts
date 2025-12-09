@@ -12,7 +12,7 @@ export type UserRole =
   | "compliance" 
   | "legal" 
   | "public" 
-  | "user";
+  // | "user";
 
 export interface ContractAddresses {
   token: string;

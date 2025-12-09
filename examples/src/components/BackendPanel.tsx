@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
+import { createContractConfig } from "../utils/contracts";
+import { registerNewIdentity, RegisterNewIdentityResult } from "../utils/operations";
 
 interface BackendPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -11,6 +13,9 @@ interface BackendPanelProps {
 export default function BackendPanel({ provider, wallet, account }: BackendPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
+  const [callFactoryResult, setCallFactoryResult] = useState<RegisterNewIdentityResult | null>(null);
+  const [showCallFactoryResult, setShowCallFactoryResult] = useState(false);
+  const [callFactoryLoading, setCallFactoryLoading] = useState(false);
   
   // Owner 检查状态
   const [ownerStatus, setOwnerStatus] = useState<Record<string, { isOwner: boolean | null; checking: boolean }>>({
@@ -47,6 +52,21 @@ export default function BackendPanel({ provider, wallet, account }: BackendPanel
 
   const showResult = (key: string, message: string) => {
     setResults((prev) => ({ ...prev, [key]: message }));
+  };
+
+  const updateCallFactoryResult = (partial: Partial<RegisterNewIdentityResult>) => {
+    setCallFactoryResult((prev) => {
+      const base: RegisterNewIdentityResult = prev || { success: true, messages: [], errors: [] };
+      return {
+        success: partial.success ?? base.success,
+        messages: partial.messages ? [...partial.messages] : [...base.messages],
+        errors: partial.errors ? [...partial.errors] : [...base.errors],
+        newManagementKey: partial.newManagementKey ?? base.newManagementKey,
+        newManagementKeyPrivateKey: partial.newManagementKeyPrivateKey ?? base.newManagementKeyPrivateKey,
+        newIdentityAddress: partial.newIdentityAddress ?? base.newIdentityAddress,
+        countryCode: partial.countryCode ?? base.countryCode,
+      };
+    });
   };
 
   // 检查 owner 角色
@@ -519,10 +539,96 @@ export default function BackendPanel({ provider, wallet, account }: BackendPanel
       setLoading(false);
     }
   };
+  const handleCallFactoryExample = async () => {
+    setLoading(true);
+    setCallFactoryLoading(true);
+    setShowCallFactoryResult(true);
+    updateCallFactoryResult({
+      success: true,
+      messages: ["正在执行示例操作，请稍候..."],
+      errors: [],
+      newManagementKey: undefined,
+      newManagementKeyPrivateKey: undefined,
+      newIdentityAddress: undefined,
+      countryCode: undefined,
+    });
 
+    try {
+
+      const contractConfig = await createContractConfig(provider, wallet, {
+        useClaimIssuerPrivateKeys: true,
+      });
+
+      let newManagementKeyWallet: ethers.Wallet | ethers.HDNodeWallet;
+      newManagementKeyWallet = ethers.Wallet.createRandom().connect(contractConfig.provider);
+      const tx = await wallet.sendTransaction({
+        to: await newManagementKeyWallet.getAddress(),
+        value: ethers.parseEther("0.0001"),
+      });
+      await tx.wait();
+
+      const registrationResult = await registerNewIdentity(
+        contractConfig,
+        newManagementKeyWallet,
+        840,
+        `${Date.now()}`,
+      );
+
+      const parts: string[] = [];
+      parts.push(...registrationResult.messages);
+      if (registrationResult.success) {
+        parts.push("\n=== 注册结果摘要 ===");
+        if (registrationResult.newManagementKey) {
+          parts.push(`新管理密钥地址: ${registrationResult.newManagementKey}`);
+        }
+        if (registrationResult.newManagementKeyPrivateKey) {
+          parts.push(`新管理密钥私钥: ${registrationResult.newManagementKeyPrivateKey}`);
+        }
+        if (registrationResult.newIdentityAddress) {
+          parts.push(`新身份合约地址: ${registrationResult.newIdentityAddress}`);
+        }
+        if (registrationResult.countryCode) {
+          parts.push(`国家代码: ${registrationResult.countryCode}`);
+        }
+      } else {
+        parts.push("\n=== 注册错误 ===");
+        registrationResult.errors.forEach((err) => parts.push(`✗ ${err}`));
+      }
+
+      updateCallFactoryResult({
+        ...registrationResult,
+        messages: parts,
+      });
+      showResult("callFactoryExample", parts.join("\n"));
+    } catch (error: any) {
+      let errorMsg = error.message || "未知错误";
+      if (errorMsg.includes("insufficient funds") || errorMsg.includes("gas") || errorMsg.includes("network")) {
+        errorMsg = `交易失败: ${errorMsg}\n\n请检查:\n1. RPC 是否可用 (RPC_URL)\n2. PRIVATE_KEY 账户余额是否充足\n3. 合约地址是否正确配置`;
+      }
+      updateCallFactoryResult({
+        success: false,
+        messages: [],
+        errors: [errorMsg],
+      });
+      showResult("callFactoryExample", errorMsg);
+    } finally {
+      setLoading(false);
+      setCallFactoryLoading(false);
+    }
+  };
   return (
     <div className="panel">
-      <h2>后端管理面板</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
+        <h2 style={{ margin: 0 }}>后端管理面板</h2>
+        <button
+          onClick={handleCallFactoryExample}
+          disabled={loading}
+          className="example-button"
+        >
+          <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+          <span>运行示例</span>
+        </button>
+      </div>
 
       {/* RWAClaimIssuerIdFactory */}
       <div className="section">
@@ -976,6 +1082,64 @@ export default function BackendPanel({ provider, wallet, account }: BackendPanel
           )}
         </div>
       </div>
+      {/* 工厂示例结果模态框 */}
+      {showCallFactoryResult && callFactoryResult && (
+        <div className="validation-result-modal">
+          <div className="validation-result-content">
+            <button
+              onClick={() => setShowCallFactoryResult(false)}
+              className="validation-result-close-button"
+            >
+              ×
+            </button>
+            <h2 className={`validation-result-title ${callFactoryResult.success ? "success" : "error"}`}>
+              {callFactoryLoading
+                ? "执行中..."
+                : callFactoryResult.success
+                  ? "✓ 操作成功"
+                  : "✗ 操作失败"}
+            </h2>
+            <div className="validation-result-body">
+              {callFactoryResult.messages.length > 0 && (
+                <div>
+                  <h3>操作信息：</h3>
+                  <pre className="validation-result-pre">
+                    {callFactoryResult.messages.join("\n")}
+                  </pre>
+                </div>
+              )}
+              {(callFactoryResult.newManagementKey ||
+                callFactoryResult.newManagementKeyPrivateKey ||
+                callFactoryResult.newIdentityAddress ||
+                callFactoryResult.countryCode) && (
+                <div className="validation-result-section">
+                  <h3>注册结果摘要：</h3>
+                  <pre className="validation-result-pre">
+                    {callFactoryResult.newManagementKey && `新管理密钥地址: ${callFactoryResult.newManagementKey}\n`}
+                    {callFactoryResult.newManagementKeyPrivateKey && `新管理密钥私钥: ${callFactoryResult.newManagementKeyPrivateKey}\n`}
+                    {callFactoryResult.newIdentityAddress && `新身份合约地址: ${callFactoryResult.newIdentityAddress}\n`}
+                    {callFactoryResult.countryCode && `国家代码: ${callFactoryResult.countryCode}`}
+                  </pre>
+                </div>
+              )}
+              {callFactoryResult.errors.length > 0 && (
+                <div className="validation-result-section">
+                  <h3>错误信息：</h3>
+                  <pre className="validation-result-pre error">
+                    {callFactoryResult.errors.join("\n")}
+                  </pre>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setShowCallFactoryResult(false)}
+              className="validation-result-close-btn"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

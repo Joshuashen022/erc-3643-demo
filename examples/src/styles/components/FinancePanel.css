@@ -1,0 +1,14 @@
+.burn-and-mint-example-button {
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    background-color: #e6f7fb;
+    color: #0f8fa3;
+    border-color: #0f8fa3;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

@@ -9,7 +9,7 @@ import PublicPanel from "./components/PublicPanel";
 import BackendPanel from "./components/BackendPanel";
 import CompliancePanel from "./components/CompliancePanel";
 import LegalPanel from "./components/LegalPanel";
-import UserPanel from "./components/UserPanel";
+// import UserPanel from "./components/UserPanel";
 import DocumentViewer from "./components/DocumentViewer";
 import "./styles/global.css";
 import "./styles/common.css";
@@ -119,30 +119,30 @@ const ROLE_MODULES: Record<NonNullUserRole, { name: string; modules: string[]; d
       "  • approve(address _spender, uint256 _amount)",
     ],
   },
-  user: {
-    name: "身份管理",
-    description: "管理Identity合约的密钥和声明",
-    modules: [
-      "Identity - 身份合约管理",
-      "Management Key (Purpose 1):",
-      "  • addKey(bytes32 _key, uint256 _purpose, uint256 _type)",
-      "  • removeKey(bytes32 _key, uint256 _purpose)",
-      "  • approve(uint256 _id, bool _approve)",
-      "  • execute(address _to, uint256 _value, bytes memory _data)",
-      "Action Key (Purpose 2):",
-      "  • execute(address _to, uint256 _value, bytes memory _data)",
-      "  • approve(uint256 _id, bool _approve)",
-      "Claim Key (Purpose 3):",
-      "  • addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri)",
-      "  • removeClaim(bytes32 _claimId)",
-      "View Functions:",
-      "  • getKey(bytes32 _key) / getKeyPurposes(bytes32 _key) / getKeysByPurpose(uint256 _purpose)",
-      "  • getClaimIdsByTopic(uint256 _topic) / getClaim(bytes32 _claimId)",
-      "  • keyHasPurpose(bytes32 _key, uint256 _purpose)",
-      "  • isClaimValid(address _identity, uint256 claimTopic, bytes memory sig, bytes memory data)",
-      "  • getRecoveredAddress(bytes memory sig, bytes32 dataHash)",
-    ],
-  },
+  // user: {
+  //   name: "身份管理",
+  //   description: "管理Identity合约的密钥和声明",
+  //   modules: [
+  //     "Identity - 身份合约管理",
+  //     "Management Key (Purpose 1):",
+  //     "  • addKey(bytes32 _key, uint256 _purpose, uint256 _type)",
+  //     "  • removeKey(bytes32 _key, uint256 _purpose)",
+  //     "  • approve(uint256 _id, bool _approve)",
+  //     "  • execute(address _to, uint256 _value, bytes memory _data)",
+  //     "Action Key (Purpose 2):",
+  //     "  • execute(address _to, uint256 _value, bytes memory _data)",
+  //     "  • approve(uint256 _id, bool _approve)",
+  //     "Claim Key (Purpose 3):",
+  //     "  • addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri)",
+  //     "  • removeClaim(bytes32 _claimId)",
+  //     "View Functions:",
+  //     "  • getKey(bytes32 _key) / getKeyPurposes(bytes32 _key) / getKeysByPurpose(uint256 _purpose)",
+  //     "  • getClaimIdsByTopic(uint256 _topic) / getClaim(bytes32 _claimId)",
+  //     "  • keyHasPurpose(bytes32 _key, uint256 _purpose)",
+  //     "  • isClaimValid(address _identity, uint256 claimTopic, bytes memory sig, bytes memory data)",
+  //     "  • getRecoveredAddress(bytes memory sig, bytes32 dataHash)",
+  //   ],
+  // },
 };
 
 function App() {
@@ -440,8 +440,8 @@ function App() {
           <CompliancePanel provider={provider!} wallet={signer!} account={account} />
         ) : role === "legal" ? (
           <LegalPanel provider={provider!} wallet={signer!} account={account} />
-        ) : role === "user" ? (
-          <UserPanel provider={provider!} wallet={signer!} account={account} />
+        // ) : role === "user" ? (
+        //   <UserPanel provider={provider!} wallet={signer!} account={account} />
         ) : (
           <PublicPanel provider={provider!} account={account} setRoleChoose={setRoleChoose} />
         ) }

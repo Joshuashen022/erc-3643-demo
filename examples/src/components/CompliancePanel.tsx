@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
+import { createContractConfig } from "../utils/contracts";
+import { deployMockModule, addAndRemoveModule } from "../utils/operations";
+import { RPC_URL } from "../utils/config";
 
 interface CompliancePanelProps {
   provider: ethers.JsonRpcProvider;
@@ -225,9 +228,77 @@ export default function CompliancePanel({ provider, wallet, account }: Complianc
     }
   };
 
+  const handleCallModuleExample = async () => {
+    setLoading(true);
+    showResult("callModuleExample", "正在执行示例操作：1. 部署 MockModule  2. 添加并移除模块...");
+
+    try {
+      // 第一步：部署 MockModule
+      showResult("callModuleExample", "步骤 1/2: 正在部署 MockModule...");
+      const deployResult = await deployMockModule(provider, wallet, RPC_URL);
+
+      if (!deployResult.success || !deployResult.moduleAddress) {
+        const errorMsg = deployResult.errors.length > 0 
+          ? deployResult.errors.join("\n") 
+          : "部署 MockModule 失败";
+        showResult("callModuleExample", `错误: ${errorMsg}\n\n详细信息:\n${deployResult.messages.join("\n")}`);
+        return;
+      }
+
+      const moduleAddress = deployResult.moduleAddress;
+      showResult("callModuleExample", `步骤 1/2 完成: MockModule 已部署，地址: ${moduleAddress}\n\n步骤 2/2: 正在添加并移除模块...`);
+
+      // 第二步：添加并移除模块
+      const contractConfig = await createContractConfig(provider, wallet, {
+        useClaimIssuerPrivateKeys: true,
+      });
+
+      const addRemoveResult = await addAndRemoveModule(contractConfig, moduleAddress, RPC_URL);
+
+      if (!addRemoveResult.success) {
+        const errorMsg = addRemoveResult.errors.length > 0 
+          ? addRemoveResult.errors.join("\n") 
+          : "添加并移除模块失败";
+        showResult("callModuleExample", `步骤 1 成功，但步骤 2 失败:\n错误: ${errorMsg}\n\n详细信息:\n${deployResult.messages.join("\n")}\n\n${addRemoveResult.messages.join("\n")}`);
+        return;
+      }
+
+      // 成功
+      const allMessages = [
+        "=== 示例操作完成 ===\n",
+        "步骤 1: 部署 MockModule",
+        ...deployResult.messages,
+        "\n步骤 2: 添加并移除模块",
+        ...addRemoveResult.messages,
+        "\n=== 所有操作成功完成 ==="
+      ];
+      showResult("callModuleExample", allMessages.join("\n"));
+    } catch (error: any) {
+      showResult("callModuleExample", `错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
   return (
     <div className="panel">
-      <h2>监管管理面板</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" }}>
+        <h2 style={{ margin: 0 }}>监管管理面板</h2>
+        <button
+          onClick={handleCallModuleExample}
+          disabled={loading}
+          className="example-button"
+        >
+          <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+          <span>运行示例</span>
+        </button>
+      </div>
+
+      {/* 示例执行结果 */}
+      {results.callModuleExample && (
+        <div className={`result ${results.callModuleExample.includes("错误") || results.callModuleExample.includes("失败") ? "error" : "success"}`} style={{ marginBottom: "1rem" }}>
+          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{results.callModuleExample}</pre>
+        </div>
+      )}
 
       {/* ModularCompliance */}
       <div className="section">

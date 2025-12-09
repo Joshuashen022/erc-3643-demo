@@ -315,60 +315,7 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
       setLoading(false);
     }
   };
-
-  // IdentityRegistryStorage 操作
-  const handleBindIdentityRegistry = async () => {
-    if (!identityRegistryToBind || !CONTRACT_ADDRESSES.identityRegistryStorage) {
-      showResult("bindIdentityRegistry", "请填写身份注册表地址并配置 IdentityRegistryStorage 合约地址");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESSES.identityRegistryStorage,
-        [
-          "function bindIdentityRegistry(address _identityRegistry) external",
-        ],
-        wallet
-      );
-      const tx = await contract.bindIdentityRegistry(identityRegistryToBind);
-      await tx.wait();
-      showResult("bindIdentityRegistry", `成功绑定身份注册表，交易哈希: ${tx.hash}`);
-      setIdentityRegistryToBind("");
-    } catch (error: any) {
-      showResult("bindIdentityRegistry", `错误: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUnbindIdentityRegistry = async () => {
-    if (!identityRegistryToUnbind || !CONTRACT_ADDRESSES.identityRegistryStorage) {
-      showResult("unbindIdentityRegistry", "请填写身份注册表地址并配置 IdentityRegistryStorage 合约地址");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const contract = new ethers.Contract(
-        CONTRACT_ADDRESSES.identityRegistryStorage,
-        [
-          "function unbindIdentityRegistry(address _identityRegistry) external",
-        ],
-        wallet
-      );
-      const tx = await contract.unbindIdentityRegistry(identityRegistryToUnbind);
-      await tx.wait();
-      showResult("unbindIdentityRegistry", `成功解绑身份注册表，交易哈希: ${tx.hash}`);
-      setIdentityRegistryToUnbind("");
-    } catch (error: any) {
-      showResult("unbindIdentityRegistry", `错误: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  
   // TREXImplementationAuthority 操作
   const handleSetTrexFactory = async () => {
     if (!trexFactory || !CONTRACT_ADDRESSES.trexImplementationAuthority) {
@@ -1261,81 +1208,6 @@ export default function OwnerPanel({ provider, wallet, account }: OwnerPanelProp
         <div style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#666" }}>
           合约地址: {CONTRACT_ADDRESSES.identityRegistry ? (
             <span style={{ fontFamily: "monospace" }}>{CONTRACT_ADDRESSES.identityRegistry}</span>
-          ) : (
-            <span style={{ color: "#999" }}>未配置</span>
-          )}
-        </div>
-      </div>
-
-      {/* IdentityRegistryStorage */}
-      <div className="section">
-        <h3>身份注册表存储管理 (IdentityRegistryStorage)</h3>
-        <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
-          {ownerStatus.identityRegistryStorage.checking ? (
-            <div style={{ color: "#666", fontSize: "0.875rem" }}>正在检查 owner 角色...</div>
-          ) : ownerStatus.identityRegistryStorage.isOwner === null ? (
-            <div style={{ color: "#999", fontSize: "0.875rem" }}>无法检查 owner 角色（请确保已配置合约地址）</div>
-          ) : ownerStatus.identityRegistryStorage.isOwner ? (
-            <div style={{ color: "#28a745", fontSize: "0.875rem", fontWeight: "500" }}>
-              ✓ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 是 Owner 角色
-            </div>
-          ) : (
-            <div style={{ color: "#dc3545", fontSize: "0.875rem", fontWeight: "500" }}>
-              ✗ 当前钱包 ({account.slice(0, 6)}...{account.slice(-4)}) 不是 Owner 角色
-            </div>
-          )}
-        </div>
-        
-        {/* 绑定身份注册表 */}
-        <div className="subsection">
-          <h4>绑定身份注册表 bindIdentityRegistry(address _identityRegistry)</h4>
-          <div className="form-group">
-            <label>身份注册表地址</label>
-            <input
-              type="text"
-              value={identityRegistryToBind}
-              onChange={(e) => setIdentityRegistryToBind(e.target.value)}
-              placeholder="0x..."
-            />
-          </div>
-          <div className="button-group">
-            <button onClick={handleBindIdentityRegistry} disabled={loading} className="btn-primary">
-              绑定身份注册表
-            </button>
-          </div>
-          {results.bindIdentityRegistry && (
-            <div className={`result ${results.bindIdentityRegistry.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
-              <pre>{results.bindIdentityRegistry}</pre>
-            </div>
-          )}
-        </div>
-
-        {/* 解绑身份注册表 */}
-        <div className="subsection">
-          <h4>解绑身份注册表 unbindIdentityRegistry(address _identityRegistry)</h4>
-          <div className="form-group">
-            <label>身份注册表地址</label>
-            <input
-              type="text"
-              value={identityRegistryToUnbind}
-              onChange={(e) => setIdentityRegistryToUnbind(e.target.value)}
-              placeholder="0x..."
-            />
-          </div>
-          <div className="button-group">
-            <button onClick={handleUnbindIdentityRegistry} disabled={loading} className="btn-danger">
-              解绑身份注册表
-            </button>
-          </div>
-          {results.unbindIdentityRegistry && (
-            <div className={`result ${results.unbindIdentityRegistry.includes("错误") ? "error" : "success"}`} style={{ marginTop: "0.5rem" }}>
-              <pre>{results.unbindIdentityRegistry}</pre>
-            </div>
-          )}
-        </div>
-        <div style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#666" }}>
-          合约地址: {CONTRACT_ADDRESSES.identityRegistryStorage ? (
-            <span style={{ fontFamily: "monospace" }}>{CONTRACT_ADDRESSES.identityRegistryStorage}</span>
           ) : (
             <span style={{ color: "#999" }}>未配置</span>
           )}

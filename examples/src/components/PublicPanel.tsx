@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
+import { createContractConfig } from "../utils/contracts";
 
 interface PublicPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -12,6 +13,7 @@ export default function PublicPanel({ provider, account, setRoleChoose }: Public
   const [loading, setLoading] = useState(false);
   
   // 每个模块独立的结果状态
+  const [publicExampleResult, setPublicExampleResult] = useState<string>("");
   const [claimTopicsResult, setClaimTopicsResult] = useState<string>("");
   const [identityResult, setIdentityResult] = useState<string>("");
   const [trustedIssuersResult, setTrustedIssuersResult] = useState<string>("");
@@ -317,18 +319,64 @@ export default function PublicPanel({ provider, account, setRoleChoose }: Public
     }
   };
 
+  const handleCallPublicExample = async () => {
+    setLoading(true);
+    setPublicExampleResult("正在执行示例操作：执行 Transfer 操作...");
+
+    try {
+      
+      if (typeof window === "undefined" || !window.ethereum) {
+        setPublicExampleResult("请使用 MetaMask 或其他 Web3 钱包");
+        return;
+      }
+
+      const web3Provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await web3Provider.getSigner();
+      const contractConfig = await createContractConfig(provider, signer);
+      const transferToAddress = "0x340ec02864d9CAFF4919BEbE4Ee63f64b99c7806";
+      const ownerBalance = await contractConfig.token.balanceOf(account);
+      const transferReceipt = await contractConfig.token.transfer(transferToAddress, ownerBalance / 10n);
+      await transferReceipt.wait();
+
+      setPublicExampleResult(`成功转账，交易哈希: ${transferReceipt.hash}`);
+    } catch (error: any) {
+      setPublicExampleResult(`错误: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="panel">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h2>普通用户面板</h2>
-        <button 
-          onClick={() => setRoleChoose(false)} 
-          className="btn-secondary"
-          style={{ marginLeft: "auto" }}
-        >
-          返回角色选择
-        </button>
+      <div className="panel-header">
+        <h2 className="panel-title">普通用户面板</h2>
+        <div className="panel-actions">
+          <button
+            onClick={handleCallPublicExample}
+            disabled={loading}
+            className="example-button"
+          >
+            <span style={{ fontSize: "16px", lineHeight: 1 }}>▶</span>
+            <span>运行示例</span>
+          </button>
+          <button 
+            onClick={() => setRoleChoose(false)} 
+            className="btn-secondary"
+          >
+            返回角色选择
+          </button>
+        </div>
       </div>
+      {publicExampleResult && (
+          <div
+            className={`result ${publicExampleResult.includes("错误") || publicExampleResult.includes("失败") ? "error" : "success"}`}
+            style={{ marginTop: "0.75rem" }}
+          >
+            <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {publicExampleResult}
+            </pre>
+          </div>
+        )}
 
       {/* ClaimTopicsRegistry 查询 */}
       <div className="section">

@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import { ContractConfig } from "./contracts.js";
 import { sendTransaction } from "./transactions.js";
 import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
+import mockModuleArtifact from "../../../out/MockModule.sol/MockModule.json";
 
 /**
  * 确保地址已注册
@@ -411,6 +412,535 @@ export async function registerNewIdentity(
   } catch (error: any) {
     result.success = false;
     result.errors.push(`注册新身份过程出错: ${error.message}`);
+  }
+
+  return result;
+}
+
+/**
+ * Mint、Burn 和 Transfer 操作结果接口
+ */
+export interface MintAndBurnResult {
+  success: boolean;
+  messages: string[];
+  errors: string[];
+  mintReceipt?: ethers.ContractTransactionReceipt;
+  burnReceipt?: ethers.ContractTransactionReceipt;
+  transferReceipt?: ethers.ContractTransactionReceipt;
+}
+
+/**
+ * 执行 Mint、Burn 和 Transfer 操作
+ * 参考 validateDeployment 的结构，方便前端集成
+ */
+export async function mintAndBurn(
+  _provider: ethers.JsonRpcProvider,
+  contractConfig: ContractConfig,
+  options: {
+    mintAmount?: bigint;
+    mintTo?: string;
+    burnAmount?: bigint;
+    burnFrom?: string;
+    transferAmount?: bigint;
+    transferTo?: string;
+    transferFrom?: string;
+    rpcUrl?: string;
+    onProgress?: (update: Partial<MintAndBurnResult>) => void;
+  } = {}
+): Promise<MintAndBurnResult> {
+  const result: MintAndBurnResult = {
+    success: true,
+    messages: [],
+    errors: [],
+  };
+
+  const emitProgress = () => {
+    if (typeof options.onProgress === "function") {
+      // 复制数组，保证调用方能触发 React 渲染
+      options.onProgress({
+        success: result.success,
+        messages: [...result.messages],
+        errors: [...result.errors],
+        mintReceipt: result.mintReceipt,
+        burnReceipt: result.burnReceipt,
+        transferReceipt: result.transferReceipt,
+      });
+    }
+  };
+
+  try {
+    const {
+      mintAmount = ethers.parseEther("1"),
+      mintTo,
+      burnAmount,
+      burnFrom,
+      transferAmount,
+      transferTo,
+      transferFrom,
+      rpcUrl,
+    } = options;
+
+    // 获取默认地址（使用 signer 的地址）
+    const defaultAddress = await contractConfig.signer.getAddress();
+    const mintToAddress = mintTo || defaultAddress;
+    const burnFromAddress = burnFrom || defaultAddress;
+    const transferFromAddress = transferFrom || defaultAddress;
+
+    // === Mint 操作 ===
+    if (mintAmount > 0n) {
+      result.messages.push("\n=== 开始 Mint 操作 ===");
+      emitProgress();
+      
+      try {
+        // 获取 mint 前的状态
+        const balanceBefore = await contractConfig.token.balanceOf(mintToAddress);
+        const totalSupplyBefore = await contractConfig.token.totalSupply();
+        
+        result.messages.push(`Mint 前余额: ${ethers.formatEther(balanceBefore)}`);
+        result.messages.push(`Mint 前总供应量: ${ethers.formatEther(totalSupplyBefore)}`);
+        result.messages.push(`Mint 数量: ${ethers.formatEther(mintAmount)}`);
+        result.messages.push(`Mint 到地址: ${mintToAddress}`);
+        emitProgress();
+
+        // 执行 mint 操作
+        const mintReceipt = await sendTransaction(
+          contractConfig.token,
+          "mint",
+          [mintToAddress, mintAmount],
+          "Mint",
+          contractConfig.provider,
+          rpcUrl
+        );
+        result.mintReceipt = mintReceipt;
+        emitProgress();
+
+        // 获取 mint 后的状态
+        const balanceAfter = await contractConfig.token.balanceOf(mintToAddress);
+        const totalSupplyAfter = await contractConfig.token.totalSupply();
+
+        result.messages.push(`Mint 后余额: ${ethers.formatEther(balanceAfter)}`);
+        result.messages.push(`Mint 后总供应量: ${ethers.formatEther(totalSupplyAfter)}`);
+        result.messages.push("✓ Mint 操作完成");
+        emitProgress();
+      } catch (error: any) {
+        result.success = false;
+        result.errors.push(`Mint 操作失败: ${error.message}`);
+        emitProgress();
+      }
+    }
+
+    // === Burn 操作 ===
+    if (burnAmount && burnAmount > 0n) {
+      result.messages.push("\n=== 开始 Burn 操作 ===");
+      emitProgress();
+      
+      try {
+        // 获取 burn 前的状态
+        const balanceBeforeBurn = await contractConfig.token.balanceOf(burnFromAddress);
+        const totalSupplyBeforeBurn = await contractConfig.token.totalSupply();
+        
+        result.messages.push(`Burn 前余额: ${ethers.formatEther(balanceBeforeBurn)}`);
+        result.messages.push(`Burn 前总供应量: ${ethers.formatEther(totalSupplyBeforeBurn)}`);
+        result.messages.push(`Burn 数量: ${ethers.formatEther(burnAmount)}`);
+        result.messages.push(`Burn 从地址: ${burnFromAddress}`);
+        emitProgress();
+
+        // 执行 burn 操作
+        const burnReceipt = await sendTransaction(
+          contractConfig.token,
+          "burn",
+          [burnFromAddress, burnAmount],
+          "Burn",
+          contractConfig.provider,
+          rpcUrl
+        );
+        result.burnReceipt = burnReceipt;
+        emitProgress();
+
+        // 获取 burn 后的状态
+        const balanceAfterBurn = await contractConfig.token.balanceOf(burnFromAddress);
+        const totalSupplyAfterBurn = await contractConfig.token.totalSupply();
+
+        result.messages.push(`Burn 后余额: ${ethers.formatEther(balanceAfterBurn)}`);
+        result.messages.push(`Burn 后总供应量: ${ethers.formatEther(totalSupplyAfterBurn)}`);
+        result.messages.push("✓ Burn 操作完成");
+        emitProgress();
+      } catch (error: any) {
+        result.success = false;
+        result.errors.push(`Burn 操作失败: ${error.message}`);
+        emitProgress();
+      }
+    }
+
+    // === Transfer 操作 ===
+    if (transferAmount && transferAmount > 0n && transferTo) {
+      result.messages.push("\n=== 开始 Transfer 操作 ===");
+      emitProgress();
+      
+      try {
+        // 获取 Transfer 前的状态
+        const fromBalanceBefore = await contractConfig.token.balanceOf(transferFromAddress);
+        const toBalanceBefore = await contractConfig.token.balanceOf(transferTo);
+        const totalSupplyBeforeTransfer = await contractConfig.token.totalSupply();
+
+        result.messages.push(`Transfer 前发送地址余额: ${ethers.formatEther(fromBalanceBefore)}`);
+        result.messages.push(`Transfer 前接收地址余额: ${ethers.formatEther(toBalanceBefore)}`);
+        result.messages.push(`Transfer 前总供应量: ${ethers.formatEther(totalSupplyBeforeTransfer)}`);
+        result.messages.push(`Transfer 数量: ${ethers.formatEther(transferAmount)}`);
+        result.messages.push(`Transfer 从地址: ${transferFromAddress}`);
+        result.messages.push(`Transfer 到地址: ${transferTo}`);
+        emitProgress();
+
+        // 执行 transfer 操作
+        const transferReceipt = await sendTransaction(
+          contractConfig.token,
+          "transfer",
+          [transferTo, transferAmount],
+          "Transfer",
+          contractConfig.provider,
+          rpcUrl
+        );
+        result.transferReceipt = transferReceipt;
+        emitProgress();
+
+        // 获取 Transfer 后的状态
+        const fromBalanceAfter = await contractConfig.token.balanceOf(transferFromAddress);
+        const toBalanceAfter = await contractConfig.token.balanceOf(transferTo);
+        const totalSupplyAfterTransfer = await contractConfig.token.totalSupply();
+
+        result.messages.push(`Transfer 后发送地址余额: ${ethers.formatEther(fromBalanceAfter)}`);
+        result.messages.push(`Transfer 后接收地址余额: ${ethers.formatEther(toBalanceAfter)}`);
+        result.messages.push(`Transfer 后总供应量: ${ethers.formatEther(totalSupplyAfterTransfer)}`);
+        result.messages.push("✓ Transfer 操作完成");
+        emitProgress();
+      } catch (error: any) {
+        result.success = false;
+        result.errors.push(`Transfer 操作失败: ${error.message}`);
+        emitProgress();
+      }
+    }
+
+    if (result.success) {
+      result.messages.push("\n✓ 所有操作完成！");
+      emitProgress();
+    } else {
+      result.messages.push("\n✗ 部分操作失败，请查看错误信息");
+      emitProgress();
+    }
+
+  } catch (error: any) {
+    result.success = false;
+    result.errors.push(`操作过程出错: ${error.message}`);
+    emitProgress();
+  }
+
+  return result;
+}
+
+/**
+ * 部署 MockModule 合约结果接口
+ */
+export interface DeployMockModuleResult {
+  success: boolean;
+  messages: string[];
+  errors: string[];
+  moduleAddress?: string;
+}
+
+/**
+ * 部署 MockModule 合约
+ */
+export async function deployMockModule(
+  provider: ethers.JsonRpcProvider,
+  signer: ethers.Signer,
+  rpcUrl?: string
+): Promise<DeployMockModuleResult> {
+  const result: DeployMockModuleResult = {
+    success: true,
+    messages: [],
+    errors: [],
+  };
+
+  try {
+    result.messages.push("\n=== 开始部署 MockModule ===");
+
+    const factory = new ethers.ContractFactory(
+      mockModuleArtifact.abi,
+      mockModuleArtifact.bytecode?.object || mockModuleArtifact.bytecode,
+      signer
+    );
+
+    result.messages.push("开始部署 MockModule...");
+    const contract = await factory.deploy({
+      gasLimit: 1_500_000n,
+    });
+    result.messages.push(`交易哈希: ${contract.deploymentTransaction()?.hash}`);
+
+    const deployed = await contract.waitForDeployment();
+    const address = await deployed.getAddress();
+    result.moduleAddress = address;
+    result.messages.push(`MockModule 部署完成，地址: ${address}`);
+    result.messages.push("\n=== 部署 MockModule 完成 ===");
+  } catch (error: any) {
+    result.success = false;
+    result.errors.push(`部署 MockModule 失败: ${error.message}`);
+  }
+
+  return result;
+}
+
+/**
+ * 添加并移除模块结果接口
+ */
+export interface AddAndRemoveModuleResult {
+  success: boolean;
+  messages: string[];
+  errors: string[];
+}
+
+/**
+ * 添加并移除声明主题示例结果接口
+ */
+export interface AddAndRemoveClaimTopicExampleResult {
+  success: boolean;
+  messages: string[];
+  errors: string[];
+}
+
+/**
+ * 添加并移除模块
+ */
+export async function addAndRemoveModule(
+  contractConfig: ContractConfig,
+  moduleAddress: string,
+  rpcUrl?: string
+): Promise<AddAndRemoveModuleResult> {
+  const result: AddAndRemoveModuleResult = {
+    success: true,
+    messages: [],
+    errors: [],
+  };
+
+  try {
+    result.messages.push("\n=== 开始添加并移除模块 ===");
+    result.messages.push(`模块地址: ${moduleAddress}`);
+
+    // 检查模块是否已绑定
+    const isBoundBefore = await contractConfig.compliance.isModuleBound(moduleAddress);
+    result.messages.push(`模块绑定状态: ${isBoundBefore ? "已绑定" : "未绑定"}`);
+
+    // 如果模块尚未绑定，先绑定一次
+    if (!isBoundBefore) {
+      result.messages.push("\n--- 添加模块 ---");
+      try {
+        await sendTransaction(
+          contractConfig.compliance,
+          "addModule",
+          [moduleAddress],
+          "AddModule",
+          contractConfig.provider,
+          rpcUrl
+        );
+        result.messages.push("✓ 模块添加成功");
+      } catch (error: any) {
+        result.success = false;
+        result.errors.push(`添加模块失败: ${error.message}`);
+        return result;
+      }
+    } else {
+      result.messages.push("模块已绑定，跳过添加步骤");
+    }
+
+    // 检查 canTransfer（在移除前）
+    try {
+      const canTransfer = await contractConfig.compliance.canTransfer(
+        "0x0000000000000000000000000000000000001111", 
+        "0x0000000000000000000000000000000000002222", 
+        ethers.parseEther("1")
+      );
+      result.messages.push(`移除前 canTransfer: ${canTransfer}`);
+    } catch (error: any) {
+      result.messages.push(`检查 canTransfer 失败: ${error.message}`);
+    }
+
+    // 移除模块
+    result.messages.push("\n--- 移除模块 ---");
+    try {
+      await sendTransaction(
+        contractConfig.compliance,
+        "removeModule",
+        [moduleAddress],
+        "RemoveModule",
+        contractConfig.provider,
+        rpcUrl
+      );
+      result.messages.push("✓ 模块移除成功");
+    } catch (error: any) {
+      result.success = false;
+      result.errors.push(`移除模块失败: ${error.message}`);
+      return result;
+    }
+
+    // Post-checks
+    const isBoundAfter = await contractConfig.compliance.isModuleBound(moduleAddress);
+    const modules = await contractConfig.compliance.getModules();
+    const found = modules.map((m: string) => ethers.getAddress(m)).includes(moduleAddress);
+
+    result.messages.push(`\n--- 验证移除结果 ---`);
+    result.messages.push(`模块已移除: ${!isBoundAfter && !found}`);
+    result.messages.push(`当前模块列表: ${modules.join(", ") || "空"}`);
+
+    // 检查 canTransfer（移除后）
+    try {
+      const canTransferAfter = await contractConfig.compliance.canTransfer(
+        "0x0000000000000000000000000000000000001111", 
+        "0x0000000000000000000000000000000000002222", 
+        ethers.parseEther("1")
+      );
+      result.messages.push(`移除后 canTransfer: ${canTransferAfter}`);
+    } catch (error: any) {
+      result.messages.push(`检查 canTransfer 失败: ${error.message}`);
+    }
+
+    result.messages.push("\n=== 添加并移除模块完成 ===");
+  } catch (error: any) {
+    result.success = false;
+    result.errors.push(`添加并移除模块过程出错: ${error.message}`);
+  }
+
+  return result;
+}
+
+/**
+ * 执行“添加并移除 Claim Topic”示例，流程同 7_addAndRemoveClaimTopic.ts
+ */
+export async function addAndRemoveClaimTopicExample(
+  contractConfig: ContractConfig,
+  userAddress: string,
+  rpcUrl?: string,
+  targetTopic: number = 3
+): Promise<AddAndRemoveClaimTopicExampleResult> {
+  const result: AddAndRemoveClaimTopicExampleResult = {
+    success: true,
+    messages: [],
+    errors: [],
+  };
+
+  try {
+    result.messages.push(`\n=== 开始执行添加并移除 Claim Topic 示例 (topic ${targetTopic}) ===`);
+
+    // 1) 若不存在则新增 topic
+    const topicsBefore: bigint[] = await contractConfig.claimTopicsRegistry.getClaimTopics();
+    result.messages.push(`当前 ClaimTopics: [${topicsBefore.join(", ")}]`);
+    if (!topicsBefore.map(Number).includes(targetTopic)) {
+      result.messages.push("添加新的 claim topic...");
+      await sendTransaction(
+        contractConfig.claimTopicsRegistry,
+        "addClaimTopic",
+        [targetTopic],
+        "AddClaimTopic",
+        contractConfig.provider,
+        rpcUrl
+      );
+      result.messages.push("✓ claim topic 添加成功");
+    } else {
+      result.messages.push("claim topic 已存在，跳过添加");
+    }
+
+    // 2) 部署新的 ClaimIssuer 并信任它
+    result.messages.push("\n=== 部署新的 RWAClaimIssuer ===");
+    const newIssuerKeyWallet = ethers.Wallet.createRandom().connect(contractConfig.provider);
+    const salt = `${Date.now()}`;
+    const issuerAddressPlanned = await (contractConfig.claimIssuerIdFactory as any).createIdentity.staticCall(
+      newIssuerKeyWallet.address,
+      salt
+    );
+    result.messages.push(`新 ClaimIssuer 管理密钥: ${newIssuerKeyWallet.address}`);
+    result.messages.push(`预测的 issuer 地址: ${issuerAddressPlanned}`);
+
+    await sendTransaction(
+      contractConfig.claimIssuerIdFactory,
+      "createIdentity",
+      [newIssuerKeyWallet.address, salt],
+      "CreateIdentity",
+      contractConfig.provider,
+      rpcUrl
+    );
+
+    const newIssuerAddress = await contractConfig.claimIssuerIdFactory.getIdentity(newIssuerKeyWallet.address);
+    if (newIssuerAddress === ethers.ZeroAddress) {
+      throw new Error("createIdentity 未能返回有效地址");
+    }
+    result.messages.push(`新 ClaimIssuer 地址: ${newIssuerAddress}`);
+
+    result.messages.push("\n=== 将新 issuer 加入 TrustedIssuersRegistry ===");
+    await sendTransaction(
+      contractConfig.trustedIssuersRegistry,
+      "addTrustedIssuer",
+      [newIssuerAddress, [targetTopic]],
+      "AddTrustedIssuer",
+      contractConfig.provider,
+      rpcUrl
+    );
+    result.messages.push("✓ 新 issuer 已加入 TrustedIssuersRegistry");
+
+    // 3) 创建/注册身份并添加 claim
+    result.messages.push("\n=== 为身份添加 claim ===");
+    const identityAddress = await contractConfig.identityIdFactory.getIdentity(userAddress);
+    if (identityAddress === ethers.ZeroAddress) {
+      throw new Error("getIdentity 未能返回有效地址");
+    }
+    result.messages.push(`身份地址: ${identityAddress}`);
+
+    const identityContract = new ethers.Contract(
+      identityAddress,
+      (rwaIdentityABI as any).abi && (rwaIdentityABI as any).abi.length > 0
+        ? (rwaIdentityABI as any).abi
+        : [
+            "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external"
+          ],
+      contractConfig.signer
+    );
+
+    const claimSchemeEcdsa = 1;
+    const claimData = "0x";
+    const signature = await signClaim(identityAddress, targetTopic, newIssuerKeyWallet, claimData);
+
+    await sendTransaction(
+      identityContract,
+      "addClaim",
+      [targetTopic, claimSchemeEcdsa, newIssuerAddress, signature, claimData, "0x"],
+      "AddClaimToIdentity",
+      contractConfig.provider,
+      rpcUrl
+    );
+
+    const isVerified = await contractConfig.identityRegistry.isVerified(userAddress);
+    result.messages.push(`identity 是否已验证: ${isVerified}`);
+    if (!isVerified) {
+      throw new Error("identity 未被验证");
+    }
+
+    result.messages.push("\n=== 移除 claim topic ===");
+    await sendTransaction(
+      contractConfig.claimTopicsRegistry,
+      "removeClaimTopic",
+      [targetTopic],
+      "RemoveClaimTopic",
+      contractConfig.provider,
+      rpcUrl
+    );
+
+    const topicsAfter: bigint[] = await contractConfig.claimTopicsRegistry.getClaimTopics();
+    result.messages.push(`移除后 ClaimTopics: [${topicsAfter.join(", ")}]`);
+
+    const stillVerified = await contractConfig.identityRegistry.isVerified(userAddress);
+    result.messages.push(`移除 topic 后 identity 是否仍被验证: ${stillVerified}`);
+
+    result.messages.push("\n=== 示例操作完成 ===");
+  } catch (error: any) {
+    result.success = false;
+    result.errors.push(`添加并移除 Claim Topic 示例失败: ${error.message}`);
   }
 
   return result;

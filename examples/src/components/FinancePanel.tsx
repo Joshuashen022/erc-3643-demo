@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESSES, CHAIN_ID, RPC_URL } from "../utils/config";
+import { CONTRACT_ADDRESSES, CHAIN_ID } from "../utils/config";
 import { checkNetwork, switchToTargetNetwork, createContractConfig } from "../utils/contracts";
 import { MintAndBurnResult } from "../utils/operations";
-import { sendTransaction } from "../utils/transactions";
+import { useMultiTransaction } from "../hooks/useMultiTransaction";
+import MultiTransactionModal from "./MultiTransactionModal";
 import "../styles/components/FinancePanel.css";
+
 interface FinancePanelProps {
   provider: ethers.JsonRpcProvider;
   wallet: ethers.Signer;
@@ -20,6 +22,9 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
   const [mintAndBurnResult, setMintAndBurnResult] = useState<MintAndBurnResult | null>(null);
   const [showMintAndBurnResult, setShowMintAndBurnResult] = useState(false);
   const [mintAndBurnLoading, setMintAndBurnLoading] = useState(false);
+  
+  // 使用多步骤交易流程 hook
+  const multiTransaction = useMultiTransaction();
 
   const updateMintAndBurnResult = (partial: Partial<MintAndBurnResult>) => {
     setMintAndBurnResult((prev) => {
@@ -272,11 +277,29 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
     }
   };
 
+
   // Mint 和 Burn 示例操作（执行脚本 3_mintAndBurn.ts 的逻辑）
   const handleMintAndBurnExample = async () => {
     setLoading(true);
     setMintAndBurnLoading(true);
     setShowMintAndBurnResult(true);
+
+    // 初始化多步骤状态
+    multiTransaction.initialize([
+      {
+        id: 1,
+        title: "执行 Mint 操作",
+      },
+      {
+        id: 2,
+        title: "执行 Burn 操作",
+      },
+      {
+        id: 3,
+        title: "完成所有操作",
+      },
+    ]);
+
     // 打开弹窗后先给用户即时反馈
     updateMintAndBurnResult({
       success: true,
@@ -286,6 +309,7 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
       burnReceipt: undefined,
       transferReceipt: undefined,
     });
+
     try {
       // 确保在正确的网络
       const networkOk = await ensureCorrectNetwork();
@@ -324,9 +348,12 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
       const mintToAddress = account || defaultAddress;
       const burnFromAddress = account || defaultAddress;
 
-      // Mint
+      // Step 1: Mint
+      multiTransaction.setCurrentStep(1);
+      multiTransaction.updateStep(1, { status: "in_progress" });
       result.messages.push("\n=== 开始 Mint 操作 ===");
       emitProgress();
+      
       try {
         const balanceBefore = await contractConfig.token.balanceOf(mintToAddress);
         const totalSupplyBefore = await contractConfig.token.totalSupply();
@@ -336,15 +363,26 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
         result.messages.push(`Mint 到地址: ${mintToAddress}`);
         emitProgress();
 
-        const mintReceipt = await sendTransaction(
-          contractConfig.token,
-          "mint",
-          [mintToAddress, amount],
-          "Mint",
-          contractConfig.provider,
-          RPC_URL
+        // 发送交易
+        const mintTx = await contractConfig.token.mint(mintToAddress, amount, {
+          gasLimit: 1000000,
+        });
+        result.messages.push(`Mint 交易哈希: ${mintTx.hash}`);
+        emitProgress();
+
+        // 开始跟踪确认进度
+        const mintCheckInterval = await multiTransaction.trackTransactionConfirmations(
+          provider,
+          mintTx.hash,
+          1,
+          12
         );
+
+        // 等待交易确认
+        const mintReceipt = await mintTx.wait(2);
+        if (mintCheckInterval) clearInterval(mintCheckInterval);
         result.mintReceipt = mintReceipt;
+        multiTransaction.updateStep(1, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
         emitProgress();
 
         const balanceAfter = await contractConfig.token.balanceOf(mintToAddress);
@@ -356,13 +394,17 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
       } catch (mintError: any) {
         result.success = false;
         result.errors.push(`Mint 操作失败: ${mintError.message || mintError}`);
+        multiTransaction.updateStep(1, { status: "failed", error: mintError.message || mintError });
         emitProgress();
       }
 
-      // Burn
+      // Step 2: Burn
       const burnAmount = amount / 2n;
+      multiTransaction.setCurrentStep(2);
+      multiTransaction.updateStep(2, { status: "in_progress" });
       result.messages.push("\n=== 开始 Burn 操作 ===");
       emitProgress();
+      
       try {
         const balanceBeforeBurn = await contractConfig.token.balanceOf(burnFromAddress);
         const totalSupplyBeforeBurn = await contractConfig.token.totalSupply();
@@ -372,15 +414,26 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
         result.messages.push(`Burn 从地址: ${burnFromAddress}`);
         emitProgress();
 
-        const burnReceipt = await sendTransaction(
-          contractConfig.token,
-          "burn",
-          [burnFromAddress, burnAmount],
-          "Burn",
-          contractConfig.provider,
-          RPC_URL
+        // 发送交易
+        const burnTx = await contractConfig.token.burn(burnFromAddress, burnAmount, {
+          gasLimit: 1000000,
+        });
+        result.messages.push(`Burn 交易哈希: ${burnTx.hash}`);
+        emitProgress();
+
+        // 开始跟踪确认进度
+        const burnCheckInterval = await multiTransaction.trackTransactionConfirmations(
+          provider,
+          burnTx.hash,
+          2,
+          12
         );
+
+        // 等待交易确认
+        const burnReceipt = await burnTx.wait(2);
+        if (burnCheckInterval) clearInterval(burnCheckInterval);
         result.burnReceipt = burnReceipt;
+        multiTransaction.updateStep(2, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
         emitProgress();
 
         const balanceAfterBurn = await contractConfig.token.balanceOf(burnFromAddress);
@@ -392,12 +445,17 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
       } catch (burnError: any) {
         result.success = false;
         result.errors.push(`Burn 操作失败: ${burnError.message || burnError}`);
+        multiTransaction.updateStep(2, { status: "failed", error: burnError.message || burnError });
         emitProgress();
       }
 
+      // Step 3: 完成
+      multiTransaction.setCurrentStep(3);
       if (result.success) {
+        multiTransaction.updateStep(3, { status: "completed" });
         result.messages.push("\n✓ 所有操作完成！");
       } else {
+        multiTransaction.updateStep(3, { status: "failed" });
         result.messages.push("\n✗ 部分操作失败，请查看错误信息");
       }
 
@@ -603,60 +661,45 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
         </div>
       </div>
 
-      {/* Mint 和 Burn 示例结果模态框 */}
-      {showMintAndBurnResult && mintAndBurnResult && (
-        <div className="validation-result-modal">
-          <div className="validation-result-content">
-            <button
-              onClick={() => setShowMintAndBurnResult(false)}
-              className="validation-result-close-button"
-            >
-              ×
-            </button>
-            <h2 className={`validation-result-title ${mintAndBurnResult.success ? "success" : "error"}`}>
-              {mintAndBurnLoading
-                ? "执行中..."
-                : mintAndBurnResult.success
-                  ? "✓ 操作成功"
-                  : "✗ 操作失败"}
-            </h2>
-            <div className="validation-result-body">
-              {mintAndBurnResult.messages.length > 0 && (
-                <div>
-                  <h3>操作信息：</h3>
-                  <pre className="validation-result-pre">
-                    {mintAndBurnResult.messages.join("\n")}
-                  </pre>
-                </div>
-              )}
-              {(mintAndBurnResult.mintReceipt || mintAndBurnResult.burnReceipt || mintAndBurnResult.transferReceipt) && (
-                <div className="validation-result-section">
-                  <h3>交易哈希：</h3>
-                  <pre className="validation-result-pre">
-                    {mintAndBurnResult.mintReceipt && `Mint: ${mintAndBurnResult.mintReceipt.hash}\n`}
-                    {mintAndBurnResult.burnReceipt && `Burn: ${mintAndBurnResult.burnReceipt.hash}\n`}
-                    {mintAndBurnResult.transferReceipt && `Transfer: ${mintAndBurnResult.transferReceipt.hash}`}
-                  </pre>
-                </div>
-              )}
-              {mintAndBurnResult.errors.length > 0 && (
-                <div className="validation-result-section">
-                  <h3>错误信息：</h3>
-                  <pre className="validation-result-pre error">
-                    {mintAndBurnResult.errors.join("\n")}
-                  </pre>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => setShowMintAndBurnResult(false)}
-              className="validation-result-close-btn"
-            >
-              关闭
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 多步骤交易流程模态框 */}
+      <MultiTransactionModal
+        isOpen={showMintAndBurnResult}
+        onClose={() => {
+          setShowMintAndBurnResult(false);
+          multiTransaction.reset();
+        }}
+        state={multiTransaction.state}
+        onToggleTechnicalDetails={multiTransaction.toggleTechnicalDetails}
+        technicalDetails={
+          mintAndBurnResult
+            ? {
+                messages: mintAndBurnResult.messages,
+                errors: mintAndBurnResult.errors,
+                receipts: [
+                  mintAndBurnResult.mintReceipt && {
+                    label: "Mint",
+                    hash: mintAndBurnResult.mintReceipt.hash,
+                  },
+                  mintAndBurnResult.burnReceipt && {
+                    label: "Burn",
+                    hash: mintAndBurnResult.burnReceipt.hash,
+                  },
+                  mintAndBurnResult.transferReceipt && {
+                    label: "Transfer",
+                    hash: mintAndBurnResult.transferReceipt.hash,
+                  },
+                ].filter(Boolean) as Array<{ label: string; hash: string }>,
+              }
+            : undefined
+        }
+        isLoading={mintAndBurnLoading}
+        title="多交易流程"
+        progressLabel="Mint & Burn"
+        onSpeedUp={(stepId) => {
+          // 加速功能可以在这里实现
+          console.log("加速步骤:", stepId);
+        }}
+      />
     </div>
   );
 }

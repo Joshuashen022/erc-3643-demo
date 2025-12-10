@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESSES, RPC_URL } from "../utils/config";
+import { CONTRACT_ADDRESSES } from "../utils/config";
 import { createContractConfig } from "../utils/contracts";
 import { signClaim } from "../utils/operations";
-import { sendTransaction } from "../utils/transactions";
 import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
+import { useMultiTransaction } from "../hooks/useMultiTransaction";
+import MultiTransactionModal from "./MultiTransactionModal";
 
 interface LegalPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -16,6 +17,18 @@ interface LegalPanelProps {
 export default function LegalPanel({ provider, wallet, account, setRoleChoose }: LegalPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
+  
+  // 法务示例相关状态
+  const [legalExampleResult, setLegalExampleResult] = useState<{
+    success: boolean;
+    messages: string[];
+    errors: string[];
+  } | null>(null);
+  const [showLegalExampleResult, setShowLegalExampleResult] = useState(false);
+  const [legalExampleLoading, setLegalExampleLoading] = useState(false);
+  
+  // 使用多步骤交易流程 hook
+  const multiTransaction = useMultiTransaction();
   
   // Owner 检查状态
   const [ownerStatus, setOwnerStatus] = useState<Record<string, { isOwner: boolean | null; checking: boolean }>>({
@@ -265,7 +278,50 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
 
   const handleCallLegalExample = async () => {
     setLoading(true);
-    showResult("callLegalExample", "正在执行示例操作：添加/移除声明主题并验证身份...");
+    setLegalExampleLoading(true);
+    setShowLegalExampleResult(true);
+
+    // 初始化多步骤状态
+    multiTransaction.initialize([
+      {
+        id: 1,
+        title: "添加 Claim Topic",
+      },
+      {
+        id: 2,
+        title: "部署新的 ClaimIssuer",
+      },
+      {
+        id: 3,
+        title: "添加 Claim 到身份",
+      },
+      {
+        id: 4,
+        title: "移除 Claim Topic",
+      },
+      {
+        id: 5,
+        title: "完成所有操作",
+      },
+    ]);
+
+    // 初始化结果状态
+    setLegalExampleResult({
+      success: true,
+      messages: ["正在执行示例操作，请稍候..."],
+      errors: [],
+    });
+
+    const updateResult = (partial: Partial<NonNullable<typeof legalExampleResult>>) => {
+      setLegalExampleResult((prev) => {
+        const base = prev || { success: true, messages: [], errors: [] };
+        return {
+          success: partial.success ?? base.success,
+          messages: partial.messages ? [...partial.messages] : [...base.messages],
+          errors: partial.errors ? [...partial.errors] : [...base.errors],
+        };
+      });
+    };
 
     try {
       const contractConfig = await createContractConfig(provider, wallet, {
@@ -273,31 +329,44 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
       });
 
       const targetTopic = 3;
-      const messages: string[] = [];
 
-      messages.push(`\n=== 开始执行添加并移除 Claim Topic 示例 (topic ${targetTopic}) ===`);
+      updateResult({ messages: [`\n=== 开始执行添加并移除 Claim Topic 示例 (topic ${targetTopic}) ===`] });
 
       // 1) 若不存在则新增 topic
+      multiTransaction.setCurrentStep(1);
+      multiTransaction.updateStep(1, { status: "in_progress" });
+
       const topicsBefore: bigint[] = await contractConfig.claimTopicsRegistry.getClaimTopics();
-      messages.push(`当前 ClaimTopics: [${topicsBefore.join(", ")}]`);
+      updateResult({ messages: [`当前 ClaimTopics: [${topicsBefore.join(", ")}]`] });
 
       if (!topicsBefore.map(Number).includes(targetTopic)) {
-        messages.push("添加新的 claim topic...");
-        await sendTransaction(
-          contractConfig.claimTopicsRegistry,
-          "addClaimTopic",
-          [targetTopic],
-          "AddClaimTopic",
-          contractConfig.provider,
-          RPC_URL
+        updateResult({ messages: ["添加新的 claim topic..."] });
+        const addTopicTx = await contractConfig.claimTopicsRegistry.addClaimTopic(targetTopic, {
+          gasLimit: 1000000,
+        });
+        updateResult({ messages: [`添加 topic 交易哈希: ${addTopicTx.hash}`] });
+
+        const addTopicCheckInterval = await multiTransaction.trackTransactionConfirmations(
+          provider,
+          addTopicTx.hash,
+          1,
+          12
         );
-        messages.push("✓ claim topic 添加成功");
+
+        await addTopicTx.wait(2);
+        if (addTopicCheckInterval) clearInterval(addTopicCheckInterval);
+        updateResult({ messages: ["✓ claim topic 添加成功"] });
+        multiTransaction.updateStep(1, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
       } else {
-        messages.push("claim topic 已存在，跳过添加");
+        updateResult({ messages: ["claim topic 已存在，跳过添加"] });
+        multiTransaction.updateStep(1, { status: "completed" });
       }
 
       // 2) 部署新的 ClaimIssuer 并信任它
-      messages.push("\n=== 部署新的 RWAClaimIssuer ===");
+      multiTransaction.setCurrentStep(2);
+      multiTransaction.updateStep(2, { status: "in_progress" });
+      updateResult({ messages: ["\n=== 部署新的 RWAClaimIssuer ==="] });
+
       const newIssuerKeyWallet = ethers.Wallet.createRandom();
       const issuerWallet = new ethers.Wallet(newIssuerKeyWallet.privateKey, contractConfig.provider);
       const salt = `${Date.now()}`;
@@ -305,42 +374,58 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
         issuerWallet.address,
         salt
       );
-      messages.push(`新 ClaimIssuer 管理密钥: ${issuerWallet.address}`);
-      messages.push(`预测的 issuer 地址: ${issuerAddressPlanned}`);
+      updateResult({ messages: [`新 ClaimIssuer 管理密钥: ${issuerWallet.address}`] });
+      updateResult({ messages: [`预测的 issuer 地址: ${issuerAddressPlanned}`] });
 
-      await sendTransaction(
-        contractConfig.claimIssuerIdFactory,
-        "createIdentity",
-        [issuerWallet.address, salt],
-        "CreateIdentity",
-        contractConfig.provider,
-        RPC_URL
+      const createIssuerTx = await contractConfig.claimIssuerIdFactory.createIdentity(issuerWallet.address, salt, {
+        gasLimit: 1000000,
+      });
+      updateResult({ messages: [`创建 issuer 交易哈希: ${createIssuerTx.hash}`] });
+
+      const createIssuerCheckInterval = await multiTransaction.trackTransactionConfirmations(
+        provider,
+        createIssuerTx.hash,
+        2,
+        12
       );
+
+      await createIssuerTx.wait(2);
+      if (createIssuerCheckInterval) clearInterval(createIssuerCheckInterval);
 
       const newIssuerAddress = await contractConfig.claimIssuerIdFactory.getIdentity(issuerWallet.address);
       if (newIssuerAddress === ethers.ZeroAddress) {
         throw new Error("createIdentity 未能返回有效地址");
       }
-      messages.push(`新 ClaimIssuer 地址: ${newIssuerAddress}`);
+      updateResult({ messages: [`新 ClaimIssuer 地址: ${newIssuerAddress}`] });
 
-      messages.push("\n=== 将新 issuer 加入 TrustedIssuersRegistry ===");
-      await sendTransaction(
-        contractConfig.trustedIssuersRegistry,
-        "addTrustedIssuer",
-        [newIssuerAddress, [targetTopic]],
-        "AddTrustedIssuer",
-        contractConfig.provider,
-        RPC_URL
+      updateResult({ messages: ["\n=== 将新 issuer 加入 TrustedIssuersRegistry ==="] });
+      const addTrustedTx = await contractConfig.trustedIssuersRegistry.addTrustedIssuer(newIssuerAddress, [targetTopic], {
+        gasLimit: 1000000,
+      });
+      updateResult({ messages: [`添加 trusted issuer 交易哈希: ${addTrustedTx.hash}`] });
+
+      const addTrustedCheckInterval = await multiTransaction.trackTransactionConfirmations(
+        provider,
+        addTrustedTx.hash,
+        2,
+        12
       );
-      messages.push("✓ 新 issuer 已加入 TrustedIssuersRegistry");
+
+      await addTrustedTx.wait(2);
+      if (addTrustedCheckInterval) clearInterval(addTrustedCheckInterval);
+      updateResult({ messages: ["✓ 新 issuer 已加入 TrustedIssuersRegistry"] });
+      multiTransaction.updateStep(2, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
 
       // 3) 创建/注册身份并添加 claim
-      messages.push("\n=== 为身份添加 claim ===");
+      multiTransaction.setCurrentStep(3);
+      multiTransaction.updateStep(3, { status: "in_progress" });
+      updateResult({ messages: ["\n=== 为身份添加 claim ==="] });
+
       const identityAddress = await contractConfig.identityIdFactory.getIdentity(account);
       if (identityAddress === ethers.ZeroAddress) {
         throw new Error("getIdentity 未能返回有效地址");
       }
-      messages.push(`身份地址: ${identityAddress}`);
+      updateResult({ messages: [`身份地址: ${identityAddress}`] });
 
       const identityContract = new ethers.Contract(
         identityAddress,
@@ -356,43 +441,78 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
       const claimData = "0x";
       const signature = await signClaim(identityAddress, targetTopic, issuerWallet, claimData);
 
-      await sendTransaction(
-        identityContract,
-        "addClaim",
-        [targetTopic, claimSchemeEcdsa, newIssuerAddress, signature, claimData, "0x"],
-        "AddClaimToIdentity",
-        contractConfig.provider,
-        RPC_URL
+      const addClaimTx = await identityContract.addClaim(
+        targetTopic,
+        claimSchemeEcdsa,
+        newIssuerAddress,
+        signature,
+        claimData,
+        "0x",
+        { gasLimit: 1000000 }
+      );
+      updateResult({ messages: [`添加 claim 交易哈希: ${addClaimTx.hash}`] });
+
+      const addClaimCheckInterval = await multiTransaction.trackTransactionConfirmations(
+        provider,
+        addClaimTx.hash,
+        3,
+        12
       );
 
+      await addClaimTx.wait(2);
+      if (addClaimCheckInterval) clearInterval(addClaimCheckInterval);
+
       const isVerified = await contractConfig.identityRegistry.isVerified(account);
-      messages.push(`identity 是否已验证: ${isVerified}`);
+      updateResult({ messages: [`identity 是否已验证: ${isVerified}`] });
       if (!isVerified) {
         throw new Error("identity 未被验证");
       }
 
-      messages.push("\n=== 移除 claim topic ===");
-      await sendTransaction(
-        contractConfig.claimTopicsRegistry,
-        "removeClaimTopic",
-        [targetTopic],
-        "RemoveClaimTopic",
-        contractConfig.provider,
-        RPC_URL
+      multiTransaction.updateStep(3, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+
+      // 4) 移除 claim topic
+      multiTransaction.setCurrentStep(4);
+      multiTransaction.updateStep(4, { status: "in_progress" });
+      updateResult({ messages: ["\n=== 移除 claim topic ==="] });
+
+      const removeTopicTx = await contractConfig.claimTopicsRegistry.removeClaimTopic(targetTopic, {
+        gasLimit: 1000000,
+      });
+      updateResult({ messages: [`移除 topic 交易哈希: ${removeTopicTx.hash}`] });
+
+      const removeTopicCheckInterval = await multiTransaction.trackTransactionConfirmations(
+        provider,
+        removeTopicTx.hash,
+        4,
+        12
       );
 
+      await removeTopicTx.wait(2);
+      if (removeTopicCheckInterval) clearInterval(removeTopicCheckInterval);
+
       const topicsAfter: bigint[] = await contractConfig.claimTopicsRegistry.getClaimTopics();
-      messages.push(`移除后 ClaimTopics: [${topicsAfter.join(", ")}]`);
+      updateResult({ messages: [`移除后 ClaimTopics: [${topicsAfter.join(", ")}]`] });
 
       const stillVerified = await contractConfig.identityRegistry.isVerified(account);
-      messages.push(`移除 topic 后 identity 是否仍被验证: ${stillVerified}`);
+      updateResult({ messages: [`移除 topic 后 identity 是否仍被验证: ${stillVerified}`] });
 
-      messages.push("\n=== 示例操作完成 ===");
-      showResult("callLegalExample", messages.join("\n"));
+      multiTransaction.updateStep(4, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+
+      // 完成
+      multiTransaction.setCurrentStep(5);
+      multiTransaction.updateStep(5, { status: "completed" });
+      updateResult({ messages: ["\n=== 示例操作完成 ==="] });
     } catch (error: any) {
-      showResult("callLegalExample", `错误: ${error.message}`);
+      updateResult({
+        success: false,
+        errors: [`错误: ${error.message}`],
+      });
+      if (multiTransaction.state) {
+        multiTransaction.updateStep(multiTransaction.state.currentStep, { status: "failed", error: error.message });
+      }
     } finally {
       setLoading(false);
+      setLegalExampleLoading(false);
     }
   };
 
@@ -418,15 +538,6 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
         </div>
       </div>
 
-      {/* 示例执行结果 */}
-      {results.callLegalExample && (
-        <div
-          className={`result ${results.callLegalExample.includes("错误") || results.callLegalExample.includes("失败") ? "error" : "success"}`}
-          style={{ marginBottom: "1rem" }}
-        >
-          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{results.callLegalExample}</pre>
-        </div>
-      )}
 
       {/* ClaimTopicsRegistry */}
       <div className="section">
@@ -649,6 +760,33 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
           )}
         </div>
       </div>
+
+      {/* 多步骤交易流程模态框 */}
+      <MultiTransactionModal
+        isOpen={showLegalExampleResult}
+        onClose={() => {
+          setShowLegalExampleResult(false);
+          multiTransaction.reset();
+        }}
+        state={multiTransaction.state}
+        onToggleTechnicalDetails={multiTransaction.toggleTechnicalDetails}
+        technicalDetails={
+          legalExampleResult
+            ? {
+                messages: legalExampleResult.messages,
+                errors: legalExampleResult.errors,
+                receipts: [],
+              }
+            : undefined
+        }
+        isLoading={legalExampleLoading}
+        title="添加并移除 Claim Topic"
+        progressLabel="法务管理流程"
+        onSpeedUp={(stepId) => {
+          // 加速功能可以在这里实现
+          console.log("加速步骤:", stepId);
+        }}
+      />
     </div>
   );
 }

@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
 import { createContractConfig } from "../utils/contracts";
-import { RegisterNewIdentityResult, registerIdentity, signClaim } from "../utils/operations";
-import { sendTransaction } from "../utils/transactions";
+import { RegisterNewIdentityResult, signClaim } from "../utils/operations";
+import { useMultiTransaction } from "../hooks/useMultiTransaction";
+import MultiTransactionModal from "./MultiTransactionModal";
 
 interface BackendPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -18,6 +19,9 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
   const [callFactoryResult, setCallFactoryResult] = useState<RegisterNewIdentityResult | null>(null);
   const [showCallFactoryResult, setShowCallFactoryResult] = useState(false);
   const [callFactoryLoading, setCallFactoryLoading] = useState(false);
+  
+  // 使用多步骤交易流程 hook
+  const multiTransaction = useMultiTransaction();
   
   // Owner 检查状态
   const [ownerStatus, setOwnerStatus] = useState<Record<string, { isOwner: boolean | null; checking: boolean }>>({
@@ -545,6 +549,36 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
     setLoading(true);
     setCallFactoryLoading(true);
     setShowCallFactoryResult(true);
+
+    // 初始化多步骤状态
+    multiTransaction.initialize([
+      {
+        id: 1,
+        title: "创建新的管理密钥并预估身份地址",
+      },
+      {
+        id: 2,
+        title: "创建身份合约",
+      },
+      {
+        id: 3,
+        title: "为身份添加 Claims",
+      },
+      {
+        id: 4,
+        title: "注册到 Identity Registry",
+      },
+      {
+        id: 5,
+        title: "验证注册状态",
+      },
+      {
+        id: 6,
+        title: "完成所有操作",
+      },
+    ]);
+
+    // 打开弹窗后先给用户即时反馈
     updateCallFactoryResult({
       success: true,
       messages: ["正在执行示例操作，请稍候..."],
@@ -556,7 +590,6 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
     });
 
     try {
-
       const contractConfig = await createContractConfig(provider, wallet, {
         useClaimIssuerPrivateKeys: true,
       });
@@ -567,14 +600,30 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
         errors: [],
       };
 
+      const emitProgress = () => {
+        updateCallFactoryResult({
+          success: registrationResult.success,
+          messages: [...registrationResult.messages],
+          errors: [...registrationResult.errors],
+          newManagementKey: registrationResult.newManagementKey,
+          newManagementKeyPrivateKey: registrationResult.newManagementKeyPrivateKey,
+          newIdentityAddress: registrationResult.newIdentityAddress,
+          countryCode: registrationResult.countryCode,
+        });
+      };
+
       // 1) 创建新的管理密钥并预估身份地址
+      multiTransaction.setCurrentStep(1);
+      multiTransaction.updateStep(1, { status: "in_progress" });
+      registrationResult.messages.push("\n=== 开始注册新身份 ===");
+      
       const newManagementKeyWallet = ethers.Wallet.createRandom().connect(contractConfig.provider);
       const newManagementKey = await newManagementKeyWallet.getAddress();
       const identitySalt = `${Date.now()}`;
 
-      registrationResult.messages.push("\n=== 开始注册新身份 ===");
       registrationResult.messages.push(`新管理密钥地址: ${newManagementKey}`);
       registrationResult.messages.push(`使用的 salt: ${identitySalt}`);
+      emitProgress();
 
       // 为新钱包充值少量 gas
       const fundTx = await wallet.sendTransaction({
@@ -583,7 +632,6 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
       });
       await fundTx.wait();
 
-
       // 预测身份地址
       const createIdentityResult = await (contractConfig.identityIdFactory as any).createIdentity.staticCall(
         newManagementKey,
@@ -591,22 +639,39 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
       );
       const newIdentityAddress = ethers.getAddress(String(createIdentityResult));
       registrationResult.messages.push(`预测的身份合约地址: ${newIdentityAddress}`);
-      
-      updateCallFactoryResult({...registrationResult});
+      multiTransaction.updateStep(1, { status: "completed" });
+      emitProgress();
       
       // 2) 创建身份
-      await sendTransaction(
-        contractConfig.identityIdFactory,
-        "createIdentity",
-        [newManagementKey, identitySalt],
-        "创建身份",
-        contractConfig.provider
+      multiTransaction.setCurrentStep(2);
+      multiTransaction.updateStep(2, { status: "in_progress" });
+      registrationResult.messages.push("\n--- 创建身份合约 ---");
+      emitProgress();
+
+      const createIdentityTx = await contractConfig.identityIdFactory.createIdentity(
+        newManagementKey,
+        identitySalt,
+        { gasLimit: 1000000 }
       );
-      registrationResult.messages.push("✓ 身份创建交易已提交");
-      
-      updateCallFactoryResult({...registrationResult});
+      registrationResult.messages.push(`创建身份交易哈希: ${createIdentityTx.hash}`);
+      emitProgress();
+
+      const createIdentityCheckInterval = await multiTransaction.trackTransactionConfirmations(
+        provider,
+        createIdentityTx.hash,
+        2,
+        12
+      );
+
+        await createIdentityTx.wait(2);
+      if (createIdentityCheckInterval) clearInterval(createIdentityCheckInterval);
+      registrationResult.messages.push("✓ 身份创建交易已确认");
+      multiTransaction.updateStep(2, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+      emitProgress();
 
       // 3) 为身份添加 claims
+      multiTransaction.setCurrentStep(3);
+      multiTransaction.updateStep(3, { status: "in_progress" });
       registrationResult.messages.push("\n--- 获取 ClaimIssuer 信息 ---");
       const claimSchemeEcdsa = 1;
       const newIdentity = new ethers.Contract(
@@ -634,6 +699,7 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
         registrationResult.messages.push(`ClaimIssuer 地址: ${claimIssuerAddress}`);
         registrationResult.messages.push(`ClaimIssuer 钱包地址: ${claimIssuerWallet.address}`);
         registrationResult.messages.push(`支持的 Topics: ${claimTopics.join(", ")}`);
+        emitProgress();
 
         for (const claimTopic of claimTopics) {
           registrationResult.messages.push(`\n--- 为 topic ${claimTopic} 创建并签名 claim ---`);
@@ -642,113 +708,118 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
 
           registrationResult.messages.push(`\n--- 添加 topic ${claimTopic} 的 claim 到新身份 ---`);
           try {
-            await sendTransaction(
-              newIdentity,
-              "addClaim",
-              [claimTopic, claimSchemeEcdsa, claimIssuerAddress, sigBytes, data, ""],
-              `添加 topic ${claimTopic} 的 claim`,
-              contractConfig.provider
+            const addClaimTx = await newIdentity.addClaim(
+              claimTopic,
+              claimSchemeEcdsa,
+              claimIssuerAddress,
+              sigBytes,
+              data,
+              "",
+              { gasLimit: 1000000 }
             );
+            registrationResult.messages.push(`添加 claim 交易哈希: ${addClaimTx.hash}`);
+            emitProgress();
+
+            await addClaimTx.wait(2);
             registrationResult.messages.push(`✓ Topic ${claimTopic} 的 Claim 已添加到新身份`);
+            emitProgress();
           } catch (error: any) {
             registrationResult.success = false;
             registrationResult.errors.push(`添加 topic ${claimTopic} 的 claim 失败: ${error.message}`);
-            updateCallFactoryResult({
-              ...registrationResult,
-              newManagementKey,
-              newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
-              newIdentityAddress,
-            });
-            showResult("callFactoryExample", registrationResult.errors.join("\n"));
+            multiTransaction.updateStep(3, { status: "failed", error: error.message });
+            emitProgress();
             return;
           }
         }
       }
-      updateCallFactoryResult({...registrationResult});
+      multiTransaction.updateStep(3, { status: "completed" });
+      emitProgress();
+
       // 4) 注册到 Identity Registry
+      multiTransaction.setCurrentStep(4);
+      multiTransaction.updateStep(4, { status: "in_progress" });
       registrationResult.messages.push("\n--- 注册新身份到 Identity Registry ---");
+      emitProgress();
+
       try {
-        await registerIdentity(contractConfig, newManagementKey, newIdentityAddress, 840);
+        const registerTx = await contractConfig.identityRegistry.registerIdentity(
+          newManagementKey,
+          newIdentityAddress,
+          840,
+          { gasLimit: 1000000 }
+        );
+        registrationResult.messages.push(`注册身份交易哈希: ${registerTx.hash}`);
+        emitProgress();
+
+        const registerCheckInterval = await multiTransaction.trackTransactionConfirmations(
+          provider,
+          registerTx.hash,
+          4,
+          12
+        );
+
+        await registerTx.wait(2);
+        if (registerCheckInterval) clearInterval(registerCheckInterval);
         registrationResult.messages.push("✓ 身份已注册到 Identity Registry");
         registrationResult.countryCode = 840;
-        updateCallFactoryResult({...registrationResult});
+        multiTransaction.updateStep(4, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+        emitProgress();
       } catch (error: any) {
         registrationResult.success = false;
         registrationResult.errors.push(`注册身份失败: ${error.message}`);
-        updateCallFactoryResult({
-          ...registrationResult,
-          newManagementKey,
-          newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
-          newIdentityAddress,
-        });
-        showResult("callFactoryExample", registrationResult.errors.join("\n"));
+        multiTransaction.updateStep(4, { status: "failed", error: error.message });
+        emitProgress();
         return;
       }
 
       // 5) 验证注册状态
+      multiTransaction.setCurrentStep(5);
+      multiTransaction.updateStep(5, { status: "in_progress" });
       registrationResult.messages.push("\n--- 验证身份注册状态 ---");
+      emitProgress();
+
       try {
         const isVerified = await contractConfig.identityRegistry.isVerified(newManagementKey);
         if (isVerified) {
           registrationResult.messages.push("✓ 身份验证成功！");
           registrationResult.messages.push(`用户地址: ${newManagementKey}`);
           registrationResult.messages.push(`身份合约地址: ${newIdentityAddress}`);
+          multiTransaction.updateStep(5, { status: "completed" });
         } else {
           registrationResult.success = false;
           registrationResult.errors.push("身份验证失败");
-          updateCallFactoryResult({
-            ...registrationResult,
-            newManagementKey,
-            newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
-            newIdentityAddress,
-          });
-          showResult("callFactoryExample", registrationResult.errors.join("\n"));
-          return;
+          multiTransaction.updateStep(5, { status: "failed", error: "身份验证失败" });
         }
+        emitProgress();
       } catch (error: any) {
         registrationResult.success = false;
         registrationResult.errors.push(`验证身份失败: ${error.message}`);
-        updateCallFactoryResult({
-          ...registrationResult,
-          newManagementKey,
-          newManagementKeyPrivateKey: newManagementKeyWallet.privateKey,
-          newIdentityAddress,
-        });
-        showResult("callFactoryExample", registrationResult.errors.join("\n"));
+        multiTransaction.updateStep(5, { status: "failed", error: error.message });
+        emitProgress();
         return;
       }
 
-      registrationResult.messages.push("\n=== 注册新身份完成 ===");
-      registrationResult.newManagementKey = newManagementKey;
-      registrationResult.newManagementKeyPrivateKey = newManagementKeyWallet.privateKey;
-      registrationResult.newIdentityAddress = newIdentityAddress;
-
-      const parts: string[] = [];
-      parts.push(...registrationResult.messages);
+      // 6) 完成
+      multiTransaction.setCurrentStep(6);
       if (registrationResult.success) {
-        parts.push("\n=== 注册结果摘要 ===");
-        if (registrationResult.newManagementKey) {
-          parts.push(`新管理密钥地址: ${registrationResult.newManagementKey}`);
-        }
-        if (registrationResult.newManagementKeyPrivateKey) {
-          parts.push(`新管理密钥私钥: ${registrationResult.newManagementKeyPrivateKey}`);
-        }
-        if (registrationResult.newIdentityAddress) {
-          parts.push(`新身份合约地址: ${registrationResult.newIdentityAddress}`);
-        }
-        if (registrationResult.countryCode) {
-          parts.push(`国家代码: ${registrationResult.countryCode}`);
-        }
+        multiTransaction.updateStep(6, { status: "completed" });
+        registrationResult.messages.push("\n=== 注册新身份完成 ===");
+        registrationResult.newManagementKey = newManagementKey;
+        registrationResult.newManagementKeyPrivateKey = newManagementKeyWallet.privateKey;
+        registrationResult.newIdentityAddress = newIdentityAddress;
+
+        registrationResult.messages.push("\n=== 注册结果摘要 ===");
+        registrationResult.messages.push(`新管理密钥地址: ${newManagementKey}`);
+        registrationResult.messages.push(`新管理密钥私钥: ${newManagementKeyWallet.privateKey}`);
+        registrationResult.messages.push(`新身份合约地址: ${newIdentityAddress}`);
+        registrationResult.messages.push(`国家代码: 840`);
       } else {
-        parts.push("\n=== 注册错误 ===");
-        registrationResult.errors.forEach((err) => parts.push(`✗ ${err}`));
+        multiTransaction.updateStep(6, { status: "failed" });
+        registrationResult.messages.push("\n=== 注册错误 ===");
+        registrationResult.errors.forEach((err) => registrationResult.messages.push(`✗ ${err}`));
       }
 
-      updateCallFactoryResult({
-        ...registrationResult,
-        messages: parts,
-      });
-      showResult("callFactoryExample", parts.join("\n"));
+      emitProgress();
     } catch (error: any) {
       let errorMsg = error.message || "未知错误";
       if (errorMsg.includes("insufficient funds") || errorMsg.includes("gas") || errorMsg.includes("network")) {
@@ -759,7 +830,9 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
         messages: [],
         errors: [errorMsg],
       });
-      showResult("callFactoryExample", errorMsg);
+      if (multiTransaction.state) {
+        multiTransaction.updateStep(multiTransaction.state.currentStep, { status: "failed", error: errorMsg });
+      }
     } finally {
       setLoading(false);
       setCallFactoryLoading(false);
@@ -1239,64 +1312,32 @@ export default function BackendPanel({ provider, wallet, account, setRoleChoose 
           )}
         </div>
       </div>
-      {/* 工厂示例结果模态框 */}
-      {showCallFactoryResult && callFactoryResult && (
-        <div className="validation-result-modal">
-          <div className="validation-result-content">
-            <button
-              onClick={() => setShowCallFactoryResult(false)}
-              className="validation-result-close-button"
-            >
-              ×
-            </button>
-            <h2 className={`validation-result-title ${callFactoryResult.success ? "success" : "error"}`}>
-              {callFactoryLoading
-                ? "执行中..."
-                : callFactoryResult.success
-                  ? "✓ 操作成功"
-                  : "✗ 操作失败"}
-            </h2>
-            <div className="validation-result-body">
-              {callFactoryResult.messages.length > 0 && (
-                <div>
-                  <h3>操作信息：</h3>
-                  <pre className="validation-result-pre">
-                    {callFactoryResult.messages.join("\n")}
-                  </pre>
-                </div>
-              )}
-              {(callFactoryResult.newManagementKey ||
-                callFactoryResult.newManagementKeyPrivateKey ||
-                callFactoryResult.newIdentityAddress ||
-                callFactoryResult.countryCode) && (
-                <div className="validation-result-section">
-                  <h3>注册结果摘要：</h3>
-                  <pre className="validation-result-pre">
-                    {callFactoryResult.newManagementKey && `新管理密钥地址: ${callFactoryResult.newManagementKey}\n`}
-                    {callFactoryResult.newManagementKeyPrivateKey && `新管理密钥私钥: ${callFactoryResult.newManagementKeyPrivateKey}\n`}
-                    {callFactoryResult.newIdentityAddress && `新身份合约地址: ${callFactoryResult.newIdentityAddress}\n`}
-                    {callFactoryResult.countryCode && `国家代码: ${callFactoryResult.countryCode}`}
-                  </pre>
-                </div>
-              )}
-              {callFactoryResult.errors.length > 0 && (
-                <div className="validation-result-section">
-                  <h3>错误信息：</h3>
-                  <pre className="validation-result-pre error">
-                    {callFactoryResult.errors.join("\n")}
-                  </pre>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => setShowCallFactoryResult(false)}
-              className="validation-result-close-btn"
-            >
-              关闭
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 多步骤交易流程模态框 */}
+      <MultiTransactionModal
+        isOpen={showCallFactoryResult}
+        onClose={() => {
+          setShowCallFactoryResult(false);
+          multiTransaction.reset();
+        }}
+        state={multiTransaction.state}
+        onToggleTechnicalDetails={multiTransaction.toggleTechnicalDetails}
+        technicalDetails={
+          callFactoryResult
+            ? {
+                messages: callFactoryResult.messages,
+                errors: callFactoryResult.errors,
+                receipts: [],
+              }
+            : undefined
+        }
+        isLoading={callFactoryLoading}
+        title="注册新身份"
+        progressLabel="注册流程"
+        onSpeedUp={(stepId) => {
+          // 加速功能可以在这里实现
+          console.log("加速步骤:", stepId);
+        }}
+      />
     </div>
   );
 }

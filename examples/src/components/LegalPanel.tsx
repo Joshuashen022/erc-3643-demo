@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES, RPC_URL } from "../utils/config";
 import { createContractConfig } from "../utils/contracts";
-import { addAndRemoveClaimTopicExample } from "../utils/operations";
+import { signClaim } from "../utils/operations";
+import { sendTransaction } from "../utils/transactions";
+import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
 
 interface LegalPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -270,25 +272,123 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
         useClaimIssuerPrivateKeys: true,
       });
 
-      const exampleResult = await addAndRemoveClaimTopicExample(contractConfig, account, RPC_URL);
+      const targetTopic = 3;
+      const messages: string[] = [];
 
-      if (!exampleResult.success) {
-        const errorMsg = exampleResult.errors.length > 0
-          ? exampleResult.errors.join("\n")
-          : "示例执行失败";
-        showResult(
-          "callLegalExample",
-          `错误: ${errorMsg}\n\n详细信息:\n${exampleResult.messages.join("\n")}`
+      messages.push(`\n=== 开始执行添加并移除 Claim Topic 示例 (topic ${targetTopic}) ===`);
+
+      // 1) 若不存在则新增 topic
+      const topicsBefore: bigint[] = await contractConfig.claimTopicsRegistry.getClaimTopics();
+      messages.push(`当前 ClaimTopics: [${topicsBefore.join(", ")}]`);
+
+      if (!topicsBefore.map(Number).includes(targetTopic)) {
+        messages.push("添加新的 claim topic...");
+        await sendTransaction(
+          contractConfig.claimTopicsRegistry,
+          "addClaimTopic",
+          [targetTopic],
+          "AddClaimTopic",
+          contractConfig.provider,
+          RPC_URL
         );
-        return;
+        messages.push("✓ claim topic 添加成功");
+      } else {
+        messages.push("claim topic 已存在，跳过添加");
       }
 
-      const allMessages = [
-        "=== 示例操作完成 ===",
-        ...exampleResult.messages,
-        "=== 所有操作成功完成 ===",
-      ];
-      showResult("callLegalExample", allMessages.join("\n"));
+      // 2) 部署新的 ClaimIssuer 并信任它
+      messages.push("\n=== 部署新的 RWAClaimIssuer ===");
+      const newIssuerKeyWallet = ethers.Wallet.createRandom();
+      const issuerWallet = new ethers.Wallet(newIssuerKeyWallet.privateKey, contractConfig.provider);
+      const salt = `${Date.now()}`;
+      const issuerAddressPlanned = await (contractConfig.claimIssuerIdFactory as any).createIdentity.staticCall(
+        issuerWallet.address,
+        salt
+      );
+      messages.push(`新 ClaimIssuer 管理密钥: ${issuerWallet.address}`);
+      messages.push(`预测的 issuer 地址: ${issuerAddressPlanned}`);
+
+      await sendTransaction(
+        contractConfig.claimIssuerIdFactory,
+        "createIdentity",
+        [issuerWallet.address, salt],
+        "CreateIdentity",
+        contractConfig.provider,
+        RPC_URL
+      );
+
+      const newIssuerAddress = await contractConfig.claimIssuerIdFactory.getIdentity(issuerWallet.address);
+      if (newIssuerAddress === ethers.ZeroAddress) {
+        throw new Error("createIdentity 未能返回有效地址");
+      }
+      messages.push(`新 ClaimIssuer 地址: ${newIssuerAddress}`);
+
+      messages.push("\n=== 将新 issuer 加入 TrustedIssuersRegistry ===");
+      await sendTransaction(
+        contractConfig.trustedIssuersRegistry,
+        "addTrustedIssuer",
+        [newIssuerAddress, [targetTopic]],
+        "AddTrustedIssuer",
+        contractConfig.provider,
+        RPC_URL
+      );
+      messages.push("✓ 新 issuer 已加入 TrustedIssuersRegistry");
+
+      // 3) 创建/注册身份并添加 claim
+      messages.push("\n=== 为身份添加 claim ===");
+      const identityAddress = await contractConfig.identityIdFactory.getIdentity(account);
+      if (identityAddress === ethers.ZeroAddress) {
+        throw new Error("getIdentity 未能返回有效地址");
+      }
+      messages.push(`身份地址: ${identityAddress}`);
+
+      const identityContract = new ethers.Contract(
+        identityAddress,
+        (rwaIdentityABI as any).abi && (rwaIdentityABI as any).abi.length > 0
+          ? (rwaIdentityABI as any).abi
+          : [
+              "function addClaim(uint256 _topic, uint256 _scheme, address _issuer, bytes memory _signature, bytes memory _data, string memory _uri) external",
+            ],
+        contractConfig.signer
+      );
+
+      const claimSchemeEcdsa = 1;
+      const claimData = "0x";
+      const signature = await signClaim(identityAddress, targetTopic, issuerWallet, claimData);
+
+      await sendTransaction(
+        identityContract,
+        "addClaim",
+        [targetTopic, claimSchemeEcdsa, newIssuerAddress, signature, claimData, "0x"],
+        "AddClaimToIdentity",
+        contractConfig.provider,
+        RPC_URL
+      );
+
+      const isVerified = await contractConfig.identityRegistry.isVerified(account);
+      messages.push(`identity 是否已验证: ${isVerified}`);
+      if (!isVerified) {
+        throw new Error("identity 未被验证");
+      }
+
+      messages.push("\n=== 移除 claim topic ===");
+      await sendTransaction(
+        contractConfig.claimTopicsRegistry,
+        "removeClaimTopic",
+        [targetTopic],
+        "RemoveClaimTopic",
+        contractConfig.provider,
+        RPC_URL
+      );
+
+      const topicsAfter: bigint[] = await contractConfig.claimTopicsRegistry.getClaimTopics();
+      messages.push(`移除后 ClaimTopics: [${topicsAfter.join(", ")}]`);
+
+      const stillVerified = await contractConfig.identityRegistry.isVerified(account);
+      messages.push(`移除 topic 后 identity 是否仍被验证: ${stillVerified}`);
+
+      messages.push("\n=== 示例操作完成 ===");
+      showResult("callLegalExample", messages.join("\n"));
     } catch (error: any) {
       showResult("callLegalExample", `错误: ${error.message}`);
     } finally {
@@ -299,7 +399,7 @@ export default function LegalPanel({ provider, wallet, account, setRoleChoose }:
   return (
     <div className="panel">
       <div className="panel-header">
-        <h2 className="panel-title">监管管理面板</h2>
+        <h2 className="panel-title">法务管理面板</h2>
         <div className="panel-actions">
           <button
             onClick={handleCallLegalExample}

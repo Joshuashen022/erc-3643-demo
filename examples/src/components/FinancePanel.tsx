@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES, CHAIN_ID, RPC_URL } from "../utils/config";
 import { checkNetwork, switchToTargetNetwork, createContractConfig } from "../utils/contracts";
-import { mintAndBurn, MintAndBurnResult } from "../utils/operations";
+import { MintAndBurnResult } from "../utils/operations";
+import { sendTransaction } from "../utils/transactions";
 import "../styles/components/FinancePanel.css";
 interface FinancePanelProps {
   provider: ethers.JsonRpcProvider;
@@ -299,26 +300,115 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
         useClaimIssuerPrivateKeys: false,
       });
 
-      // 使用工具函数执行操作（参数与脚本相同）
+      // 在此直接实现示例脚本逻辑，方便前端展示执行过程
       const amount = ethers.parseEther("1");
-      const transferToAddress = "0x340ec02864d9CAFF4919BEbE4Ee63f64b99c7806";
-      
-      const result = await mintAndBurn(provider, contractConfig, {
-        mintAmount: amount,
-        mintTo: account,
-        burnAmount: amount / 2n,
-        burnFrom: account,
-        transferAmount: amount / 10n,
-        transferTo: transferToAddress,
-        transferFrom: account,
-        rpcUrl: RPC_URL,
-        onProgress: (update) => {
-          updateMintAndBurnResult(update);
-        },
-      });
 
-      // 存储最终结果
-      updateMintAndBurnResult(result);
+      const result: MintAndBurnResult = {
+        success: true,
+        messages: [],
+        errors: [],
+      };
+
+      const emitProgress = () => {
+        updateMintAndBurnResult({
+          success: result.success,
+          messages: [...result.messages],
+          errors: [...result.errors],
+          mintReceipt: result.mintReceipt,
+          burnReceipt: result.burnReceipt,
+          transferReceipt: result.transferReceipt,
+        });
+      };
+
+      const defaultAddress = await contractConfig.signer.getAddress();
+      const mintToAddress = account || defaultAddress;
+      const burnFromAddress = account || defaultAddress;
+
+      // Mint
+      result.messages.push("\n=== 开始 Mint 操作 ===");
+      emitProgress();
+      try {
+        const balanceBefore = await contractConfig.token.balanceOf(mintToAddress);
+        const totalSupplyBefore = await contractConfig.token.totalSupply();
+        result.messages.push(`Mint 前余额: ${ethers.formatEther(balanceBefore)}`);
+        result.messages.push(`Mint 前总供应量: ${ethers.formatEther(totalSupplyBefore)}`);
+        result.messages.push(`Mint 数量: ${ethers.formatEther(amount)}`);
+        result.messages.push(`Mint 到地址: ${mintToAddress}`);
+        emitProgress();
+
+        const mintReceipt = await sendTransaction(
+          contractConfig.token,
+          "mint",
+          [mintToAddress, amount],
+          "Mint",
+          contractConfig.provider,
+          RPC_URL
+        );
+        result.mintReceipt = mintReceipt;
+        emitProgress();
+
+        const balanceAfter = await contractConfig.token.balanceOf(mintToAddress);
+        const totalSupplyAfter = await contractConfig.token.totalSupply();
+        result.messages.push(`Mint 后余额: ${ethers.formatEther(balanceAfter)}`);
+        result.messages.push(`Mint 后总供应量: ${ethers.formatEther(totalSupplyAfter)}`);
+        result.messages.push("✓ Mint 操作完成");
+        emitProgress();
+      } catch (mintError: any) {
+        result.success = false;
+        result.errors.push(`Mint 操作失败: ${mintError.message || mintError}`);
+        emitProgress();
+      }
+
+      // Burn
+      const burnAmount = amount / 2n;
+      result.messages.push("\n=== 开始 Burn 操作 ===");
+      emitProgress();
+      try {
+        const balanceBeforeBurn = await contractConfig.token.balanceOf(burnFromAddress);
+        const totalSupplyBeforeBurn = await contractConfig.token.totalSupply();
+        result.messages.push(`Burn 前余额: ${ethers.formatEther(balanceBeforeBurn)}`);
+        result.messages.push(`Burn 前总供应量: ${ethers.formatEther(totalSupplyBeforeBurn)}`);
+        result.messages.push(`Burn 数量: ${ethers.formatEther(burnAmount)}`);
+        result.messages.push(`Burn 从地址: ${burnFromAddress}`);
+        emitProgress();
+
+        const burnReceipt = await sendTransaction(
+          contractConfig.token,
+          "burn",
+          [burnFromAddress, burnAmount],
+          "Burn",
+          contractConfig.provider,
+          RPC_URL
+        );
+        result.burnReceipt = burnReceipt;
+        emitProgress();
+
+        const balanceAfterBurn = await contractConfig.token.balanceOf(burnFromAddress);
+        const totalSupplyAfterBurn = await contractConfig.token.totalSupply();
+        result.messages.push(`Burn 后余额: ${ethers.formatEther(balanceAfterBurn)}`);
+        result.messages.push(`Burn 后总供应量: ${ethers.formatEther(totalSupplyAfterBurn)}`);
+        result.messages.push("✓ Burn 操作完成");
+        emitProgress();
+      } catch (burnError: any) {
+        result.success = false;
+        result.errors.push(`Burn 操作失败: ${burnError.message || burnError}`);
+        emitProgress();
+      }
+
+      if (result.success) {
+        result.messages.push("\n✓ 所有操作完成！");
+      } else {
+        result.messages.push("\n✗ 部分操作失败，请查看错误信息");
+      }
+
+      updateMintAndBurnResult({
+        success: result.success,
+        messages: [...result.messages],
+        errors: [...result.errors],
+        mintReceipt: result.mintReceipt,
+        burnReceipt: result.burnReceipt,
+        transferReceipt: result.transferReceipt,
+      });
     } catch (error: any) {
       let errorMsg = error.message || "未知错误";
       if (errorMsg.includes("insufficient funds") || errorMsg.includes("gas") || errorMsg.includes("network")) {

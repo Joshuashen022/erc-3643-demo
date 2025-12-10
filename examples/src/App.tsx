@@ -443,7 +443,7 @@ function App() {
         // ) : role === "user" ? (
         //   <UserPanel provider={provider!} wallet={signer!} account={account} />
         ) : (
-          <PublicPanel provider={provider!} account={account} setRoleChoose={setRoleChoose} />
+          <PublicPanel provider={provider!} wallet={signer!} account={account} setRoleChoose={setRoleChoose} />
         ) }
       </main>
     </div>

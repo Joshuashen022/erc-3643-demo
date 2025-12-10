@@ -1,10 +1,6 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
-import { createContractConfig } from "../utils/contracts";
-import { deployMockModule } from "../utils/operations";
-import { RPC_URL } from "../utils/config";
-import { useMultiTransaction } from "../hooks/useMultiTransaction";
 import MultiTransactionModal from "./MultiTransactionModal";
 
 interface CompliancePanelProps {
@@ -19,16 +15,7 @@ export default function CompliancePanel({ provider, wallet, account, setRoleChoo
   const [results, setResults] = useState<Record<string, string>>({});
   
   // 模块示例相关状态
-  const [moduleExampleResult, setModuleExampleResult] = useState<{
-    success: boolean;
-    messages: string[];
-    errors: string[];
-  } | null>(null);
   const [showModuleExampleResult, setShowModuleExampleResult] = useState(false);
-  const [moduleExampleLoading, setModuleExampleLoading] = useState(false);
-  
-  // 使用多步骤交易流程 hook
-  const multiTransaction = useMultiTransaction();
   
   // Owner 检查状态
   const [ownerStatus, setOwnerStatus] = useState<Record<string, { isOwner: boolean | null; checking: boolean }>>({
@@ -244,208 +231,8 @@ export default function CompliancePanel({ provider, wallet, account, setRoleChoo
   };
 
   const handleCallModuleExample = async () => {
-    setLoading(true);
-    setModuleExampleLoading(true);
     setShowModuleExampleResult(true);
-
-    // 初始化多步骤状态
-    multiTransaction.initialize([
-      {
-        id: 1,
-        title: "部署 MockModule",
-      },
-      {
-        id: 2,
-        title: "添加模块",
-      },
-      {
-        id: 3,
-        title: "移除模块",
-      },
-      {
-        id: 4,
-        title: "验证结果",
-      },
-      {
-        id: 5,
-        title: "完成所有操作",
-      },
-    ]);
-
-    // 初始化结果状态
-    setModuleExampleResult({
-      success: true,
-      messages: ["正在执行示例操作，请稍候..."],
-      errors: [],
-    });
-
-    const updateResult = (partial: Partial<NonNullable<typeof moduleExampleResult>>) => {
-      setModuleExampleResult((prev) => {
-        const base = prev || { success: true, messages: [], errors: [] };
-        return {
-          success: partial.success ?? base.success,
-          messages: partial.messages ? [...partial.messages] : [...base.messages],
-          errors: partial.errors ? [...partial.errors] : [...base.errors],
-        };
-      });
-    };
-
-    try {
-      // 第一步：部署 MockModule
-      multiTransaction.setCurrentStep(1);
-      multiTransaction.updateStep(1, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 1: 部署 MockModule ==="] });
-
-      const deployResult = await deployMockModule(provider, wallet, RPC_URL);
-
-      if (!deployResult.success || !deployResult.moduleAddress) {
-        const errorMsg = deployResult.errors.length > 0 
-          ? deployResult.errors.join("\n") 
-          : "部署 MockModule 失败";
-        multiTransaction.updateStep(1, { status: "failed", error: errorMsg });
-        updateResult({
-          success: false,
-          messages: [...deployResult.messages],
-          errors: [errorMsg],
-        });
-        return;
-      }
-
-      const moduleAddress = deployResult.moduleAddress;
-      updateResult({ messages: [...deployResult.messages] });
-      multiTransaction.updateStep(1, { status: "completed" });
-
-      // 第二步：添加并移除模块
-      const contractConfig = await createContractConfig(provider, wallet, {
-        useClaimIssuerPrivateKeys: true,
-      });
-
-      // 2.1 检查模块是否已绑定并添加
-      multiTransaction.setCurrentStep(2);
-      multiTransaction.updateStep(2, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 2: 添加模块 ==="] });
-
-      const isBoundBefore = await contractConfig.compliance.isModuleBound(moduleAddress);
-      updateResult({ messages: [`模块绑定状态: ${isBoundBefore ? "已绑定" : "未绑定"}`] });
-
-      if (!isBoundBefore) {
-        updateResult({ messages: ["\n--- 添加模块 ---"] });
-        try {
-          const addModuleTx = await contractConfig.compliance.addModule(moduleAddress, {
-            gasLimit: 1000000,
-          });
-          updateResult({ messages: [`添加模块交易哈希: ${addModuleTx.hash}`] });
-
-          const addCheckInterval = await multiTransaction.trackTransactionConfirmations(
-            provider,
-            addModuleTx.hash,
-            2,
-            12
-          );
-
-          await addModuleTx.wait(2);
-          if (addCheckInterval) clearInterval(addCheckInterval);
-          updateResult({ messages: ["✓ 模块添加成功"] });
-          multiTransaction.updateStep(2, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
-        } catch (error: any) {
-          updateResult({
-            success: false,
-            errors: [`添加模块失败: ${error.message}`],
-          });
-          multiTransaction.updateStep(2, { status: "failed", error: error.message });
-          return;
-        }
-      } else {
-        updateResult({ messages: ["模块已绑定，跳过添加步骤"] });
-        multiTransaction.updateStep(2, { status: "completed" });
-      }
-
-      // 检查 canTransfer（在移除前）
-      try {
-        const canTransfer = await contractConfig.compliance.canTransfer(
-          "0x0000000000000000000000000000000000001111",
-          "0x0000000000000000000000000000000000002222",
-          ethers.parseEther("1")
-        );
-        updateResult({ messages: [`移除前 canTransfer: ${canTransfer}`] });
-      } catch (error: any) {
-        updateResult({ messages: [`检查 canTransfer 失败: ${error.message}`] });
-      }
-
-      // 2.2 移除模块
-      multiTransaction.setCurrentStep(3);
-      multiTransaction.updateStep(3, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 3: 移除模块 ==="] });
-
-      try {
-        const removeModuleTx = await contractConfig.compliance.removeModule(moduleAddress, {
-          gasLimit: 1000000,
-        });
-        updateResult({ messages: [`移除模块交易哈希: ${removeModuleTx.hash}`] });
-
-        const removeCheckInterval = await multiTransaction.trackTransactionConfirmations(
-          provider,
-          removeModuleTx.hash,
-          3,
-          12
-        );
-
-        await removeModuleTx.wait(2);
-        if (removeCheckInterval) clearInterval(removeCheckInterval);
-        updateResult({ messages: ["✓ 模块移除成功"] });
-        multiTransaction.updateStep(3, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
-      } catch (error: any) {
-        updateResult({
-          success: false,
-          errors: [`移除模块失败: ${error.message}`],
-        });
-        multiTransaction.updateStep(3, { status: "failed", error: error.message });
-        return;
-      }
-
-      // 2.3 验证结果
-      multiTransaction.setCurrentStep(4);
-      multiTransaction.updateStep(4, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 4: 验证结果 ==="] });
-
-      const isBoundAfter = await contractConfig.compliance.isModuleBound(moduleAddress);
-      const modules = await contractConfig.compliance.getModules();
-      const found = modules.map((m: string) => ethers.getAddress(m)).includes(moduleAddress);
-
-      updateResult({ messages: [`模块已移除: ${!isBoundAfter && !found}`] });
-      updateResult({ messages: [`当前模块列表: ${modules.join(", ") || "空"}`] });
-
-      // 检查 canTransfer（移除后）
-      try {
-        const canTransferAfter = await contractConfig.compliance.canTransfer(
-          "0x0000000000000000000000000000000000001111",
-          "0x0000000000000000000000000000000000002222",
-          ethers.parseEther("1")
-        );
-        updateResult({ messages: [`移除后 canTransfer: ${canTransferAfter}`] });
-      } catch (error: any) {
-        updateResult({ messages: [`检查 canTransfer 失败: ${error.message}`] });
-      }
-
-      multiTransaction.updateStep(4, { status: "completed" });
-
-      // 完成
-      multiTransaction.setCurrentStep(5);
-      multiTransaction.updateStep(5, { status: "completed" });
-      updateResult({ messages: ["\n=== 所有操作成功完成 ==="] });
-    } catch (error: any) {
-      updateResult({
-        success: false,
-        errors: [`错误: ${error.message}`],
-      });
-      if (multiTransaction.state) {
-        multiTransaction.updateStep(multiTransaction.state.currentStep, { status: "failed", error: error.message });
-      }
-    } finally {
-      setLoading(false);
-      setModuleExampleLoading(false);
-    }
-  }
+  };
   return (
     <div className="panel">
       <div className="panel-header">
@@ -645,26 +432,11 @@ export default function CompliancePanel({ provider, wallet, account, setRoleChoo
         isOpen={showModuleExampleResult}
         onClose={() => {
           setShowModuleExampleResult(false);
-          multiTransaction.reset();
         }}
-        state={multiTransaction.state}
-        onToggleTechnicalDetails={multiTransaction.toggleTechnicalDetails}
-        technicalDetails={
-          moduleExampleResult
-            ? {
-                messages: moduleExampleResult.messages,
-                errors: moduleExampleResult.errors,
-                receipts: [],
-              }
-            : undefined
-        }
-        isLoading={moduleExampleLoading}
+        isLoading={loading}
+        provider={provider}
+        wallet={wallet}
         title="添加并移除模块"
-        progressLabel="模块管理流程"
-        onSpeedUp={(stepId) => {
-          // 加速功能可以在这里实现
-          console.log("加速步骤:", stepId);
-        }}
       />
     </div>
   );

@@ -3,6 +3,10 @@ import { useState, useEffect } from "react";
 import { RegisterNewIdentityResult } from "../utils/operations";
 import { useMultiTransaction } from "../hooks/useMultiTransaction";
 import { REGISTER_NEW_IDENTITY_STEPS, createRegisterNewIdentityHandler } from "../flows/registerNewIdentity";
+import { COMPLIANCE_FLOW_STEPS, createComplianceFlowHandler, ComplianceFlowResult } from "../flows/complianceFlow";
+import { FINANCE_FLOW_STEPS, createFinanceFlowHandler, FinanceFlowResult } from "../flows/financeFlow";
+import { LEGAL_FLOW_STEPS, createLegalFlowHandler, LegalFlowResult } from "../flows/legalFlow";
+import { PUBLIC_FLOW_STEPS, createPublicFlowHandler, PublicFlowResult } from "../flows/publicFlow";
 import "../styles/components/MultiTransactionModal.css";
 
 /**
@@ -18,7 +22,14 @@ export default function MultiTransactionModal({
   provider,
   wallet,
 }: MultiTransactionModalProps) {
-  const [callFactoryResult, setCallFactoryResult] = useState<RegisterNewIdentityResult | null>(null);
+  type FlowResult =
+    | RegisterNewIdentityResult
+    | ComplianceFlowResult
+    | FinanceFlowResult
+    | LegalFlowResult
+    | PublicFlowResult;
+
+  const [callFactoryResult, setCallFactoryResult] = useState<FlowResult | null>(null);
   const multiTransaction = useMultiTransaction();
   const state = multiTransaction.state;
   const technicalDetails = {
@@ -36,8 +47,14 @@ export default function MultiTransactionModal({
       title: "出错步骤",
     },
   ];
+
+  // 各模块对应的步骤配置，便于 Modal 自行初始化
   const titleToStepsMap: Record<string, Omit<TransactionStep, "status">[]> = {
     "注册新身份": REGISTER_NEW_IDENTITY_STEPS,
+    "添加并移除模块": COMPLIANCE_FLOW_STEPS,
+    "多交易流程": FINANCE_FLOW_STEPS,
+    "添加并移除 Claim Topic": LEGAL_FLOW_STEPS,
+    "转账操作": PUBLIC_FLOW_STEPS,
   };
   
   // 当模态框打开时，自动初始化步骤
@@ -86,7 +103,6 @@ export default function MultiTransactionModal({
 
   // 根据 title 选择执行的操作函数
   const getOperationHandler = (): (Promise<void>) => {
-    
     // 根据 title 映射到不同的操作处理函数
     const titleToHandler: Record<string, () => Promise<void>> = {
       "注册新身份": createRegisterNewIdentityHandler({
@@ -95,9 +111,30 @@ export default function MultiTransactionModal({
         multiTransaction,
         setCallFactoryResult,
       }),
-      // 未来可以添加更多模块
-      // "Finance 操作": handleFinanceOperation,
-      // "Compliance 操作": handleComplianceOperation,
+      "添加并移除模块": createComplianceFlowHandler({
+        provider,
+        wallet,
+        multiTransaction,
+        setResult: setCallFactoryResult as any,
+      }),
+      "多交易流程": createFinanceFlowHandler({
+        provider,
+        wallet,
+        multiTransaction,
+        setResult: setCallFactoryResult as any,
+      }),
+      "添加并移除 Claim Topic": createLegalFlowHandler({
+        provider,
+        wallet,
+        multiTransaction,
+        setResult: setCallFactoryResult as any,
+      }),
+      "转账操作": createPublicFlowHandler({
+        provider,
+        wallet,
+        multiTransaction,
+        setResult: setCallFactoryResult as any,
+      }),
     };
     const returns = titleToHandler[title]?.() ?? handleDefaultFlow();
     // 返回对应的处理函数，如果没有匹配则使用默认的注册新身份

@@ -1,34 +1,19 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
-import { createContractConfig } from "../utils/contracts";
-import { useMultiTransaction } from "../hooks/useMultiTransaction";
 import MultiTransactionModal from "./MultiTransactionModal";
 
 interface PublicPanelProps {
   provider: ethers.JsonRpcProvider;
+  wallet: ethers.Signer;
   account: string;
   setRoleChoose: (value: boolean) => void;
 }
 
-export default function PublicPanel({ provider, account, setRoleChoose }: PublicPanelProps) {
+export default function PublicPanel({ provider, wallet, account, setRoleChoose }: PublicPanelProps) {
   const [loading, setLoading] = useState(false);
-  
-  // 每个模块独立的结果状态
-  const [publicExampleResult, setPublicExampleResult] = useState<string>("");
-  
-  // 公共示例相关状态
-  const [publicExampleResultObj, setPublicExampleResultObj] = useState<{
-    success: boolean;
-    messages: string[];
-    errors: string[];
-    transferReceipt?: ethers.ContractTransactionReceipt;
-  } | null>(null);
   const [showPublicExampleResult, setShowPublicExampleResult] = useState(false);
-  const [publicExampleLoading, setPublicExampleLoading] = useState(false);
-  
-  // 使用多步骤交易流程 hook
-  const multiTransaction = useMultiTransaction();
+
   const [claimTopicsResult, setClaimTopicsResult] = useState<string>("");
   const [identityResult, setIdentityResult] = useState<string>("");
   const [trustedIssuersResult, setTrustedIssuersResult] = useState<string>("");
@@ -335,110 +320,23 @@ export default function PublicPanel({ provider, account, setRoleChoose }: Public
   };
 
   const handleCallPublicExample = async () => {
-    setLoading(true);
-    setPublicExampleLoading(true);
     setShowPublicExampleResult(true);
-
-    // 初始化多步骤状态
-    multiTransaction.initialize([
-      {
-        id: 1,
-        title: "执行 Transfer 操作",
-      },
-      {
-        id: 2,
-        title: "完成转账",
-      },
-    ]);
-
-    // 初始化结果状态
-    setPublicExampleResultObj({
-      success: true,
-      messages: ["正在执行示例操作：执行 Transfer 操作..."],
-      errors: [],
-    });
-
-    const updateResult = (partial: Partial<typeof publicExampleResultObj>) => {
-      setPublicExampleResultObj((prev) => {
-        const base = prev || { success: true, messages: [], errors: [] };
-        return {
-          success: partial.success ?? base.success,
-          messages: partial.messages ? [...partial.messages] : [...base.messages],
-          errors: partial.errors ? [...partial.errors] : [...base.errors],
-          transferReceipt: partial.transferReceipt ?? base.transferReceipt,
-        };
-      });
-    };
-
-    try {
-      if (typeof window === "undefined" || !window.ethereum) {
-        updateResult({
-          success: false,
-          errors: ["请使用 MetaMask 或其他 Web3 钱包"],
-        });
-        multiTransaction.updateStep(1, { status: "failed", error: "请使用 MetaMask 或其他 Web3 钱包" });
-        return;
-      }
-
-      multiTransaction.setCurrentStep(1);
-      multiTransaction.updateStep(1, { status: "in_progress" });
-
-      const web3Provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await web3Provider.getSigner();
-      const contractConfig = await createContractConfig(provider, signer);
-      const transferToAddress = "0x340ec02864d9CAFF4919BEbE4Ee63f64b99c7806";
-
-      updateResult({ messages: ["\n=== 开始执行 Transfer 操作 ==="] });
-      updateResult({ messages: [`转账到地址: ${transferToAddress}`] });
-
-      const ownerBalance = await contractConfig.token.balanceOf(account);
-      const transferAmount = ownerBalance / 10n;
-      updateResult({ messages: [`当前余额: ${ethers.formatEther(ownerBalance)}`] });
-      updateResult({ messages: [`转账数量: ${ethers.formatEther(transferAmount)}`] });
-
-      const transferTx = await contractConfig.token.transfer(transferToAddress, transferAmount);
-      updateResult({ messages: [`转账交易哈希: ${transferTx.hash}`] });
-
-      const transferCheckInterval = await multiTransaction.trackTransactionConfirmations(
-        provider,
-        transferTx.hash,
-        1,
-        12
-      );
-
-      const transferReceipt = await transferTx.wait(2);
-      if (transferCheckInterval) clearInterval(transferCheckInterval);
-
-      updateResult({
-        messages: ["✓ 转账成功"],
-        transferReceipt,
-      });
-
-      const balanceAfter = await contractConfig.token.balanceOf(account);
-      updateResult({ messages: [`转账后余额: ${ethers.formatEther(balanceAfter)}`] });
-
-      multiTransaction.updateStep(1, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
-
-      // 完成
-      multiTransaction.setCurrentStep(2);
-      multiTransaction.updateStep(2, { status: "completed" });
-      updateResult({ messages: ["\n=== 转账操作完成 ==="] });
-    } catch (error: any) {
-      updateResult({
-        success: false,
-        errors: [`错误: ${error.message}`],
-      });
-      if (multiTransaction.state) {
-        multiTransaction.updateStep(multiTransaction.state.currentStep, { status: "failed", error: error.message });
-      }
-    } finally {
-      setLoading(false);
-      setPublicExampleLoading(false);
-    }
+    console.log(provider, wallet);
   };
 
   return (
     <div className="panel">
+      {/* 多步骤交易流程模态框 */}
+      <MultiTransactionModal
+        isOpen={showPublicExampleResult}
+        onClose={() => {
+          setShowPublicExampleResult(false);
+        }}
+        isLoading={loading}
+        provider={provider}
+        wallet={wallet}
+        title="转账操作"
+      />
       <div className="panel-header">
         <h2 className="panel-title">普通用户面板</h2>
         <div className="panel-actions">
@@ -712,40 +610,6 @@ export default function PublicPanel({ provider, account, setRoleChoose }: Public
           </div>
         )}
       </div>
-
-      {/* 多步骤交易流程模态框 */}
-      <MultiTransactionModal
-        isOpen={showPublicExampleResult}
-        onClose={() => {
-          setShowPublicExampleResult(false);
-          multiTransaction.reset();
-        }}
-        state={multiTransaction.state}
-        onToggleTechnicalDetails={multiTransaction.toggleTechnicalDetails}
-        technicalDetails={
-          publicExampleResultObj
-            ? {
-                messages: publicExampleResultObj.messages,
-                errors: publicExampleResultObj.errors,
-                receipts: publicExampleResultObj.transferReceipt
-                  ? [
-                      {
-                        label: "Transfer",
-                        hash: publicExampleResultObj.transferReceipt.hash,
-                      },
-                    ]
-                  : [],
-              }
-            : undefined
-        }
-        isLoading={publicExampleLoading}
-        title="转账操作"
-        progressLabel="转账流程"
-        onSpeedUp={(stepId) => {
-          // 加速功能可以在这里实现
-          console.log("加速步骤:", stepId);
-        }}
-      />
     </div>
   );
 }

@@ -22,6 +22,11 @@
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     color: #ffffff;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 90vh;
+    overflow: hidden;
 }
 
 .multi-transaction-header {
@@ -135,6 +140,13 @@
 /* 步骤列表 */
 .multi-transaction-steps {
     margin-bottom: 24px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 40vh;
+    overflow-y: auto;
+    padding-right: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
 }
 
 .multi-transaction-step {

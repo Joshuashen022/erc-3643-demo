@@ -277,7 +277,6 @@ export default function FinancePanel({ provider, wallet, account, setRoleChoose 
     }
   };
 
-
   // Mint 和 Burn 示例操作（执行脚本 3_mintAndBurn.ts 的逻辑）
   const handleMintAndBurnExample = async () => {
     setLoading(true);

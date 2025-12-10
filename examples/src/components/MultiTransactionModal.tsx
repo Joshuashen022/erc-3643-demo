@@ -1,4 +1,8 @@
-import { MultiTransactionModalProps } from "../types/multiTransaction";
+import { MultiTransactionModalProps, TransactionStep } from "../types/multiTransaction";
+import { useState, useEffect } from "react";
+import { RegisterNewIdentityResult } from "../utils/operations";
+import { useMultiTransaction } from "../hooks/useMultiTransaction";
+import { REGISTER_NEW_IDENTITY_STEPS, createRegisterNewIdentityHandler } from "../flows/registerNewIdentity";
 import "../styles/components/MultiTransactionModal.css";
 
 /**
@@ -8,18 +12,98 @@ import "../styles/components/MultiTransactionModal.css";
 export default function MultiTransactionModal({
   isOpen,
   onClose,
-  state,
   onToggleTechnicalDetails,
-  technicalDetails,
   isLoading = false,
   title = "多交易流程",
-  progressLabel,
-  onSpeedUp,
+  provider,
+  wallet,
 }: MultiTransactionModalProps) {
+  const [callFactoryResult, setCallFactoryResult] = useState<RegisterNewIdentityResult | null>(null);
+  const multiTransaction = useMultiTransaction();
+  const state = multiTransaction.state;
+  const technicalDetails = {
+    messages: callFactoryResult?.messages || [],
+    errors: callFactoryResult?.errors || [],
+    receipts: [] as Array<{ label: string; hash: string }>,
+  };
+  const onSpeedUp = (stepId: number) => {
+    console.log("加速步骤:", stepId);
+  };
+  // 默认步骤配置
+  const defaultSteps: Omit<TransactionStep, "status">[] = [
+    {
+      id: -1,
+      title: "出错步骤",
+    },
+  ];
+  const titleToStepsMap: Record<string, Omit<TransactionStep, "status">[]> = {
+    "注册新身份": REGISTER_NEW_IDENTITY_STEPS,
+  };
+  
+  // 当模态框打开时，自动初始化步骤
+  useEffect(() => {
+    if (isOpen && !state) {
+      // 根据 title 自动选择对应的步骤配置，优先使用 title 映射
+      const stepsByTitle = titleToStepsMap[title];
+      const stepsToUse = stepsByTitle || defaultSteps;
+      multiTransaction.initialize(stepsToUse);
+    }
+  }, [isOpen, state, multiTransaction, title]);
+
+  // 当模态框关闭时，清理状态
+  useEffect(() => {
+    if (!isOpen) {
+      setCallFactoryResult(null);
+      multiTransaction.reset();
+    }
+  }, [isOpen, multiTransaction]);
+
   if (!isOpen || !state) {
     return null;
   }
 
+  // 处理多交易流程操作（用于 finance 等其他模块）
+  const handleDefaultFlow = async () => {
+    // 这个函数可以根据不同的模块需求来实现
+    // 目前作为占位符，未来可以扩展
+    if (!provider || !wallet) {
+      setCallFactoryResult({
+        success: false,
+        messages: [],
+        errors: ["Provider 或 Wallet 未提供"],
+      });
+      return;
+    }
+
+    // 这里可以根据 title 或其他参数来执行不同的操作
+    // 例如：finance 模块的 mintAndBurn 操作
+    setCallFactoryResult({
+      success: true,
+      messages: ["多交易流程功能待实现3333"],
+      errors: [],
+    });
+  };
+
+  // 根据 title 选择执行的操作函数
+  const getOperationHandler = (): (Promise<void>) => {
+    
+    // 根据 title 映射到不同的操作处理函数
+    const titleToHandler: Record<string, () => Promise<void>> = {
+      "注册新身份": createRegisterNewIdentityHandler({
+        provider,
+        wallet,
+        multiTransaction,
+        setCallFactoryResult,
+      }),
+      // 未来可以添加更多模块
+      // "Finance 操作": handleFinanceOperation,
+      // "Compliance 操作": handleComplianceOperation,
+    };
+    const returns = titleToHandler[title]?.() ?? handleDefaultFlow();
+    // 返回对应的处理函数，如果没有匹配则使用默认的注册新身份
+    return returns;
+  };
+  
   return (
     <div className="multi-transaction-modal">
       <div className="multi-transaction-content">
@@ -38,18 +122,18 @@ export default function MultiTransactionModal({
           <div className="multi-transaction-progress-bar">
             <div className="progress-bar-left">
               <div className="token-icon">🪙</div>
-              <span>{progressLabel || "交易进行中"}</span>
+              <span>{ "交易进行中"}</span>
             </div>
             <div className="progress-bar-center">
               <div
                 className="progress-bar-fill"
                 style={{
-                  width: `${(state.currentStep / state.totalSteps) * 100}%`,
+                  width: `${state ? (state.currentStep / state.totalSteps) * 100 : 0}%`,
                 }}
               />
-              <div className="progress-bar-icon">
-                {state.currentStep < state.totalSteps ? "⟳" : "✓"}
-              </div>
+              {/* <div className="progress-bar-icon">
+                {state && state.currentStep < state.totalSteps ? "⟳" : "✓"}
+              </div> */}
             </div>
             <div className="progress-bar-right">
               <span>进行中</span>
@@ -57,13 +141,13 @@ export default function MultiTransactionModal({
             </div>
           </div>
           <div className="multi-transaction-progress-text">
-            步骤 {state.currentStep}/{state.totalSteps}
+            步骤 {state ? `${state.currentStep}/${state.totalSteps}` : "0/0"}
           </div>
         </div>
 
         {/* 交易步骤列表 */}
         <div className="multi-transaction-steps">
-          {state.steps.map((step) => (
+          {state && state.steps.map((step) => (
             <div key={step.id} className="multi-transaction-step">
               <div className="step-connector" />
               <div className={`step-icon step-icon-${step.status}`}>
@@ -75,11 +159,6 @@ export default function MultiTransactionModal({
               <div className="step-content">
                 <div className="step-title">{step.title}</div>
                 <div className="step-status">
-                  {step.status === "completed" && step.txHash && (
-                    <span>
-                      已确认 - Tx: {step.txHash.slice(0, 6)}...{step.txHash.slice(-3)}
-                    </span>
-                  )}
                   {step.status === "in_progress" && (
                     <div className="step-progress-info">
                       {step.confirmations !== undefined &&
@@ -95,12 +174,22 @@ export default function MultiTransactionModal({
                       )}
                     </div>
                   )}
+                  {step.status === "pending" && <span>等待上一步完成</span>}
                   {step.status === "failed" && (
                     <span className="step-error">
                       失败: {step.error || "未知错误"}
                     </span>
                   )}
-                  {step.status === "pending" && <span>等待上一步完成</span>}
+                  {step.status === "completed" && step.txHash && (
+                    <span>
+                      已确认 - Tx: {step.txHash.slice(0, 6)}...{step.txHash.slice(-3)}
+                    </span>
+                  )}
+                  {step.status === "completed" && step.completeInfo && (
+                    <span>
+                      已确认 - {step.completeInfo}
+                    </span>
+                  )}
                 </div>
                 {step.status === "in_progress" && step.txHash && onSpeedUp && (
                   <button
@@ -118,23 +207,34 @@ export default function MultiTransactionModal({
         {/* 底部操作 */}
         <div className="multi-transaction-footer">
           <button
-            onClick={onToggleTechnicalDetails}
+            onClick={onToggleTechnicalDetails || multiTransaction.toggleTechnicalDetails}
             className="technical-details-button"
           >
             查看技术详情
             <span
-              className={`chevron ${state.showTechnicalDetails ? "open" : ""}`}
+              className={`chevron ${state && state.showTechnicalDetails ? "open" : ""}`}
             >
               ▼
             </span>
           </button>
-          <button
-            onClick={onClose}
-            className="done-button"
-            disabled={isLoading}
-          >
-            完成
-          </button>
+          {state && state.currentStep === 0 && (
+            <button
+              onClick={getOperationHandler}
+              className="done-button"
+              disabled={isLoading || !provider || !wallet}
+            >
+              开始交易
+            </button>
+          )}
+          {(state && state.currentStep > 0 && state.steps.every(s => s.status === "completed" || s.status === "failed")) && (
+            <button
+              onClick={onClose}
+              className="done-button"
+              disabled={isLoading}
+            >
+              完成
+            </button>
+          )}
         </div>
 
         {/* 技术详情（可展开） */}

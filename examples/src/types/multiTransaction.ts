@@ -1,3 +1,4 @@
+import { ethers } from "ethers";
 // 步骤状态类型
 export type StepStatus = "pending" | "in_progress" | "completed" | "failed";
 
@@ -11,6 +12,7 @@ export interface TransactionStep {
   requiredConfirmations?: number;
   estimatedTimeLeft?: number; // 秒
   error?: string;
+  completeInfo?: string;
 }
 
 // 多交易状态接口
@@ -35,12 +37,13 @@ export interface TechnicalDetails {
 export interface MultiTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  state: MultiTransactionState | null;
   onToggleTechnicalDetails?: () => void;
-  technicalDetails?: TechnicalDetails;
   isLoading?: boolean;
   title?: string;
   progressLabel?: string;
   onSpeedUp?: (stepId: number) => void;
+  provider?: ethers.JsonRpcProvider;
+  wallet?: ethers.Signer;
+  steps?: Omit<TransactionStep, "status">[]; // 可选的步骤配置，如果不提供则使用默认步骤
 }
 

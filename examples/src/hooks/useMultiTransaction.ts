@@ -2,10 +2,26 @@ import { useState, useCallback } from "react";
 import { ethers } from "ethers";
 import { TransactionStep, MultiTransactionState } from "../types/multiTransaction";
 
+export interface MultiTransactionController {
+  state: MultiTransactionState | null;
+  initialize: (steps: Omit<TransactionStep, "status">[]) => void;
+  updateStep: (stepId: number, updates: Partial<TransactionStep>) => void;
+  setCurrentStep: (stepNumber: number) => void;
+  trackTransactionConfirmations?: (
+    provider: ethers.JsonRpcProvider,
+    txHash: string,
+    stepId: number,
+    requiredConfirmations?: number,
+    onUpdate?: (confirmations: number, estimatedTimeLeft?: number) => void
+  ) => Promise<NodeJS.Timeout | number | undefined>;
+  toggleTechnicalDetails: () => void;
+  reset: () => void;
+}
+
 /**
  * 多步骤交易流程的 Hook
  */
-export function useMultiTransaction() {
+export function useMultiTransaction(): MultiTransactionController {
   const [state, setState] = useState<MultiTransactionState | null>(null);
 
   /**

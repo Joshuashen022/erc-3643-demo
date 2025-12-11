@@ -291,7 +291,7 @@ function App() {
     <div className="app">
       {showDocs && <DocumentViewer onClose={() => setShowDocs(false)} />}
       <header className="app-header">
-        <h1>ERC-3643 权限管理界面</h1>
+        <h1>ERC-3643</h1>
         <div className="wallet-section">
           <button className="docs-button" onClick={() => setShowDocs(true)}>
             查看文档
@@ -383,7 +383,7 @@ function App() {
         )}
         {!roleChoose || !account ? (
           <div className="welcome">
-            <h2>欢迎使用 ERC-3643 权限管理界面</h2>
+            <h2>欢迎使用 ERC-3643 </h2>
             <p>{account ? "钱包已经链接，请选择角色以开始使用" : "请先选择角色，然后连接钱包以开始使用"}</p>
             
             <div className="role-selection">

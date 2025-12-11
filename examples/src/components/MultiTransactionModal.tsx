@@ -287,7 +287,7 @@ export default function MultiTransactionModal({
               className="done-button"
               disabled={isLoading || !provider || !wallet}
             >
-              开始交易
+              开始
             </button>
           )}
           {(state && state.currentStep > 0 && state.steps.every(s => s.status === "completed" || s.status === "failed")) && (

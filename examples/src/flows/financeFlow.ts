@@ -46,15 +46,26 @@ export function createFinanceFlowHandler({
         };
       });
     };
+    
+    const result: FinanceFlowResult = { success: true, messages: [], errors: [] };
 
+    const emitProgress = () => {
+      updateResult({
+        success: result.success,
+        messages: [...result.messages],
+        errors: [...result.errors],
+        mintReceipt: result.mintReceipt,
+        burnReceipt: result.burnReceipt,
+      });
+    };
     if (!provider || !wallet) {
-      updateResult({ success: false, messages: [], errors: ["Provider 或 Wallet 未提供"] });
+      result.success = false;
+      result.errors.push("Provider 或 Wallet 未提供");
+      emitProgress();
       return;
     }
 
-    const result: FinanceFlowResult = { success: true, messages: [], errors: [] };
-    const emitProgress = () => updateResult({ ...result });
-
+    
     try {
       const contractConfig = await createContractConfig(provider, wallet, {
         useClaimIssuerPrivateKeys: false,
@@ -94,7 +105,12 @@ export function createFinanceFlowHandler({
         const mintReceipt = await mintTx.wait(2);
         if (mintCheckInterval) clearInterval(mintCheckInterval as NodeJS.Timeout);
         result.mintReceipt = mintReceipt;
-        multiTransaction.updateStep(1, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+        multiTransaction.updateStep(1, { 
+          status: "completed", 
+          confirmations: 12, 
+          estimatedTimeLeft: undefined , 
+          completeInfo: `mintToAddress: ${mintToAddress}`
+        });
         emitProgress();
 
         const balanceAfter = await contractConfig.token.balanceOf(mintToAddress);
@@ -141,7 +157,12 @@ export function createFinanceFlowHandler({
         const burnReceipt = await burnTx.wait(2);
         if (burnCheckInterval) clearInterval(burnCheckInterval as NodeJS.Timeout);
         result.burnReceipt = burnReceipt;
-        multiTransaction.updateStep(2, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+        multiTransaction.updateStep(2, { 
+          status: "completed", 
+          confirmations: 12, 
+          estimatedTimeLeft: undefined , 
+          completeInfo: `burnFromAddress: ${burnFromAddress}`
+        });
         emitProgress();
 
         const balanceAfterBurn = await contractConfig.token.balanceOf(burnFromAddress);
@@ -161,7 +182,7 @@ export function createFinanceFlowHandler({
       // Step 3: 完成
       multiTransaction.setCurrentStep(3);
       if (result.success) {
-        multiTransaction.updateStep(3, { status: "completed" });
+        multiTransaction.updateStep(3, { status: "completed" , completeInfo: "所有操作完成"});
         result.messages.push("\n✓ 所有操作完成！");
       } else {
         multiTransaction.updateStep(3, { status: "failed" });

@@ -7,6 +7,7 @@ import { COMPLIANCE_FLOW_STEPS, createComplianceFlowHandler, ComplianceFlowResul
 import { FINANCE_FLOW_STEPS, createFinanceFlowHandler, FinanceFlowResult } from "../flows/financeFlow";
 import { LEGAL_FLOW_STEPS, createLegalFlowHandler, LegalFlowResult } from "../flows/legalFlow";
 import { PUBLIC_FLOW_STEPS, createPublicFlowHandler, PublicFlowResult } from "../flows/publicFlow";
+import { VALIDATE_DEPLOYMENT_STEPS, createValidateDeploymentFlowHandler, ValidateDeploymentFlowResult } from "../flows/validateDeployment";
 import "../styles/components/MultiTransactionModal.css";
 
 /**
@@ -27,7 +28,8 @@ export default function MultiTransactionModal({
     | ComplianceFlowResult
     | FinanceFlowResult
     | LegalFlowResult
-    | PublicFlowResult;
+    | PublicFlowResult
+    | ValidateDeploymentFlowResult;
 
   const [callFactoryResult, setCallFactoryResult] = useState<FlowResult | null>(null);
   const multiTransaction = useMultiTransaction();
@@ -55,7 +57,20 @@ export default function MultiTransactionModal({
     "多交易流程": FINANCE_FLOW_STEPS,
     "添加并移除 Claim Topic": LEGAL_FLOW_STEPS,
     "转账操作": PUBLIC_FLOW_STEPS,
+    "验证部署": VALIDATE_DEPLOYMENT_STEPS,
   };
+
+  // 根据 title 展示对应的基础信息描述
+  const titleDescriptionMap: Record<string, string> = {
+    "注册新身份": "创建并注册新的身份，完成基础信息和凭证初始化。",
+    "添加并移除模块": "为身份添加或移除合规/功能模块，验证模块管理流程。",
+    "多交易流程": "演示多笔交易的顺序处理与状态跟踪能力。",
+    "添加并移除 Claim Topic": "管理身份的 Claim Topic 列表，测试新增与删除。",
+    "转账操作": "执行代币转账并展示进度、确认和失败处理。",
+    "验证部署": "校验合约部署情况并回传部署验证结果。",
+  };
+  const basicDescription =
+    titleDescriptionMap[title] || "该用例的详细描述暂未提供，敬请关注后续更新。";
   
   // 当模态框打开时，自动初始化步骤
   useEffect(() => {
@@ -135,6 +150,12 @@ export default function MultiTransactionModal({
         multiTransaction,
         setResult: setCallFactoryResult as any,
       }),
+      "验证部署": createValidateDeploymentFlowHandler({
+        provider,
+        wallet,
+        multiTransaction,
+        setResult: setCallFactoryResult as any,
+      }),
     };
     const returns = titleToHandler[title]?.() ?? handleDefaultFlow();
     // 返回对应的处理函数，如果没有匹配则使用默认的注册新身份
@@ -152,6 +173,12 @@ export default function MultiTransactionModal({
           >
             ×
           </button>
+        </div>
+
+        {/* 基本信息展示 */}
+        <div className="multi-transaction-basic-info">
+          <div className="basic-info-label">用例概述</div>
+          <div className="basic-info-text">{basicDescription}</div>
         </div>
 
         {/* 进度条和交易信息 */}

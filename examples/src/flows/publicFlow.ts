@@ -44,8 +44,21 @@ export function createPublicFlowHandler({
       });
     };
 
+    const result: PublicFlowResult = { success: true, messages: [], errors: [], transferReceipt: undefined };
+
+    const emitProgress = () => {
+      updateResult({
+        success: result.success,
+        messages: [...result.messages],
+        errors: [...result.errors],
+        transferReceipt: result.transferReceipt,
+      });
+    };
+
     if (!provider || !wallet) {
-      updateResult({ success: false, messages: [], errors: ["Provider 或 Wallet 未提供"] });
+      result.success = false;
+      result.errors.push("Provider 或 Wallet 未提供");
+      emitProgress();
       return;
     }
 
@@ -58,18 +71,17 @@ export function createPublicFlowHandler({
       multiTransaction.setCurrentStep(1);
       multiTransaction.updateStep(1, { status: "in_progress" });
 
-      const messages: string[] = [];
       const balance = await contractConfig.token.balanceOf(account);
       const transferAmount = balance / 10n;
-      messages.push("\n=== 开始执行 Transfer 操作 ===");
-      messages.push(`转账到地址: ${transferToAddress}`);
-      messages.push(`当前余额: ${ethers.formatEther(balance)}`);
-      messages.push(`转账数量: ${ethers.formatEther(transferAmount)}`);
-      updateResult({ messages });
+      result.messages.push("\n=== 开始执行 Transfer 操作 ===");
+      result.messages.push(`转账到地址: ${transferToAddress}`);
+      result.messages.push(`当前余额: ${ethers.formatEther(balance)}`);
+      result.messages.push(`转账数量: ${ethers.formatEther(transferAmount)}`);
+      emitProgress();
 
       const transferTx = await contractConfig.token.transfer(transferToAddress, transferAmount);
-      messages.push(`转账交易哈希: ${transferTx.hash}`);
-      updateResult({ messages });
+      result.messages.push(`转账交易哈希: ${transferTx.hash}`);
+      emitProgress();
 
       const transferCheckInterval = await multiTransaction.trackTransactionConfirmations?.(
         provider,
@@ -80,22 +92,23 @@ export function createPublicFlowHandler({
 
       const transferReceipt = await transferTx.wait(2);
       if (transferCheckInterval) clearInterval(transferCheckInterval as NodeJS.Timeout);
-
-      messages.push("✓ 转账成功");
+      result.transferReceipt = transferReceipt;
+      result.messages.push("✓ 转账成功");
       const balanceAfter = await contractConfig.token.balanceOf(account);
-      messages.push(`转账后余额: ${ethers.formatEther(balanceAfter)}`);
-      updateResult({ messages, transferReceipt });
-
-      multiTransaction.updateStep(1, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+      result.messages.push(`转账后余额: ${ethers.formatEther(balanceAfter)}`);
+      emitProgress();
+      const completeInfo = `转账成功, 转账后余额: ${ethers.formatEther(balanceAfter)}`;
+      multiTransaction.updateStep(1, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined, completeInfo: completeInfo });
 
       // Step 2: 完成
       multiTransaction.setCurrentStep(2);
-      multiTransaction.updateStep(2, { status: "completed" });
-      messages.push("\n=== 转账操作完成 ===");
-      updateResult({ messages });
+      multiTransaction.updateStep(2, { status: "completed" , completeInfo: "转账操作完成"});
+      emitProgress();
     } catch (error: any) {
       const msg = error.message || "未知错误";
-      updateResult({ success: false, errors: [`错误: ${msg}`] });
+      result.success = false;
+      result.errors.push(`错误: ${msg}`);
+      emitProgress();
       if (multiTransaction.state) {
         multiTransaction.updateStep(multiTransaction.state.currentStep, { status: "failed", error: msg });
       }

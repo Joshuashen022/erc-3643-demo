@@ -48,9 +48,20 @@ export function createComplianceFlowHandler({
       });
     };
 
+    const result: ComplianceFlowResult = { success: true, messages: [], errors: [] };
+
+    const emitProgress = () => {
+      updateResult({
+        success: result.success,
+        messages: [...result.messages],
+        errors: [...result.errors],
+      });
+    };
     // 基础校验
     if (!provider || !wallet) {
-      updateResult({ success: false, messages: [], errors: ["Provider 或 Wallet 未提供"] });
+      result.success = false;
+      result.errors.push("Provider 或 Wallet 未提供");
+      emitProgress();
       return;
     }
 
@@ -60,18 +71,22 @@ export function createComplianceFlowHandler({
       // 步骤 1：部署 MockModule
       multiTransaction.setCurrentStep(1);
       multiTransaction.updateStep(1, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 1: 部署 MockModule ==="] });
+      result.messages.push("\n=== 步骤 1: 部署 MockModule ===");
+      emitProgress();
 
       const deployResult = await deployMockModule(provider, wallet, RPC_URL);
       if (!deployResult.success || !deployResult.moduleAddress) {
         const errorMsg = deployResult.errors.length > 0 ? deployResult.errors.join("\n") : "部署 MockModule 失败";
-        multiTransaction.updateStep(1, { status: "failed", error: errorMsg });
-        updateResult({ success: false, messages: [...deployResult.messages], errors: [errorMsg] });
+        multiTransaction.updateStep(1, { status: "failed", error: errorMsg , completeInfo: `部署 MockModule 失败: ${errorMsg}`});
+        result.success = false;
+        result.errors.push(errorMsg);
+        emitProgress();
         return;
       }
       moduleAddress = deployResult.moduleAddress;
-      updateResult({ messages: [...deployResult.messages] });
-      multiTransaction.updateStep(1, { status: "completed" });
+      result.messages.push(...deployResult.messages);
+      emitProgress();
+      multiTransaction.updateStep(1, { status: "completed" , completeInfo: `部署 MockModule 成功: ${moduleAddress}`});
 
       // 生成合约配置
       const contractConfig = await createContractConfig(provider, wallet, {
@@ -81,15 +96,18 @@ export function createComplianceFlowHandler({
       // 步骤 2：添加模块
       multiTransaction.setCurrentStep(2);
       multiTransaction.updateStep(2, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 2: 添加模块 ==="] });
+      result.messages.push("\n=== 步骤 2: 添加模块 ===");
+      emitProgress();
 
       const isBoundBefore = await contractConfig.compliance.isModuleBound(moduleAddress);
-      updateResult({ messages: [`模块绑定状态: ${isBoundBefore ? "已绑定" : "未绑定"}`] });
+      result.messages.push(`模块绑定状态: ${isBoundBefore ? "已绑定" : "未绑定"}`);
+      emitProgress();
 
       if (!isBoundBefore) {
         try {
           const addModuleTx = await contractConfig.compliance.addModule(moduleAddress, { gasLimit: 1_000_000 });
-          updateResult({ messages: [`添加模块交易哈希: ${addModuleTx.hash}`] });
+          result.messages.push(`添加模块交易哈希: ${addModuleTx.hash}`);
+          emitProgress();
 
           const addCheckInterval = await multiTransaction.trackTransactionConfirmations?.(
             provider,
@@ -100,27 +118,38 @@ export function createComplianceFlowHandler({
 
           await addModuleTx.wait(2);
           if (addCheckInterval) clearInterval(addCheckInterval as NodeJS.Timeout);
-          updateResult({ messages: ["✓ 模块添加成功"] });
-          multiTransaction.updateStep(2, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+          result.messages.push("✓ 模块添加成功");
+          emitProgress();
+          multiTransaction.updateStep(2, { 
+            status: "completed", 
+            confirmations: 12, 
+            estimatedTimeLeft: undefined,
+            completeInfo: `模块添加成功: ${moduleAddress}`
+          });
         } catch (error: any) {
           const msg = error.message || "添加模块失败";
-          updateResult({ success: false, errors: [`添加模块失败: ${msg}`] });
+          result.success = false;
+          result.errors.push(`添加模块失败: ${msg}`);
+          emitProgress();
           multiTransaction.updateStep(2, { status: "failed", error: msg });
           return;
         }
       } else {
-        updateResult({ messages: ["模块已绑定，跳过添加步骤"] });
-        multiTransaction.updateStep(2, { status: "completed" });
+        result.messages.push("模块已绑定，跳过添加步骤");
+        emitProgress();
+        multiTransaction.updateStep(2, { status: "completed" , completeInfo: `模块已绑定，跳过添加步骤: ${moduleAddress}`});
       }
 
       // 步骤 3：移除模块
       multiTransaction.setCurrentStep(3);
       multiTransaction.updateStep(3, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 3: 移除模块 ==="] });
+      result.messages.push("\n=== 步骤 3: 移除模块 ===");
+      emitProgress();
 
       try {
         const removeModuleTx = await contractConfig.compliance.removeModule(moduleAddress, { gasLimit: 1_000_000 });
-        updateResult({ messages: [`移除模块交易哈希: ${removeModuleTx.hash}`] });
+        result.messages.push(`移除模块交易哈希: ${removeModuleTx.hash}`);
+        emitProgress();
 
         const removeCheckInterval = await multiTransaction.trackTransactionConfirmations?.(
           provider,
@@ -131,11 +160,19 @@ export function createComplianceFlowHandler({
 
         await removeModuleTx.wait(2);
         if (removeCheckInterval) clearInterval(removeCheckInterval as NodeJS.Timeout);
-        updateResult({ messages: ["✓ 模块移除成功"] });
-        multiTransaction.updateStep(3, { status: "completed", confirmations: 12, estimatedTimeLeft: undefined });
+        result.messages.push("✓ 模块移除成功");
+        emitProgress();
+        multiTransaction.updateStep(3, { 
+          status: "completed", 
+          confirmations: 12, 
+          estimatedTimeLeft: undefined,
+          completeInfo: `模块移除成功: ${moduleAddress}`
+        });
       } catch (error: any) {
         const msg = error.message || "移除模块失败";
-        updateResult({ success: false, errors: [`移除模块失败: ${msg}`] });
+        result.success = false;
+        result.errors.push(`移除模块失败: ${msg}`);
+        emitProgress();
         multiTransaction.updateStep(3, { status: "failed", error: msg });
         return;
       }
@@ -143,18 +180,16 @@ export function createComplianceFlowHandler({
       // 步骤 4：验证结果
       multiTransaction.setCurrentStep(4);
       multiTransaction.updateStep(4, { status: "in_progress" });
-      updateResult({ messages: ["\n=== 步骤 4: 验证结果 ==="] });
+      result.messages.push("\n=== 步骤 4: 验证结果 ===");
+      emitProgress();
 
       const isBoundAfter = await contractConfig.compliance.isModuleBound(moduleAddress);
       const modules = await contractConfig.compliance.getModules();
       const found = modules.map((m: string) => ethers.getAddress(m)).includes(moduleAddress);
 
-      updateResult({
-        messages: [
-          `模块已移除: ${!isBoundAfter && !found}`,
-          `当前模块列表: ${modules.join(", ") || "空"}`,
-        ],
-      });
+      result.messages.push(`模块已移除: ${!isBoundAfter && !found}`);
+      result.messages.push(`当前模块列表: ${modules.join(", ") || "空"}`);
+      emitProgress();
 
       try {
         const canTransferAfter = await contractConfig.compliance.canTransfer(
@@ -162,20 +197,41 @@ export function createComplianceFlowHandler({
           "0x0000000000000000000000000000000000002222",
           ethers.parseEther("1")
         );
-        updateResult({ messages: [`移除后 canTransfer: ${canTransferAfter}`] });
+        result.messages.push(`移除后 canTransfer: ${canTransferAfter}`);
+        emitProgress();
+        multiTransaction.updateStep(4, { 
+          status: "completed", 
+          confirmations: 12, 
+          estimatedTimeLeft: undefined,
+          completeInfo: `验证结果: ${canTransferAfter}`
+        });
+  
       } catch (error: any) {
-        updateResult({ messages: [`检查 canTransfer 失败: ${error.message}`] });
+        result.messages.push(`检查 canTransfer 失败: ${error.message}`);
+        emitProgress();
+        multiTransaction.updateStep(4, { 
+          status: "failed", 
+          error: error.message,
+          completeInfo: `检查 canTransfer 失败: ${error.message}`
+        });
+        return;
       }
-
-      multiTransaction.updateStep(4, { status: "completed" });
 
       // 步骤 5：完成
       multiTransaction.setCurrentStep(5);
-      multiTransaction.updateStep(5, { status: "completed" });
-      updateResult({ messages: ["\n=== 所有操作成功完成 ==="] });
+      multiTransaction.updateStep(5, { 
+        status: "completed", 
+        confirmations: 12, 
+        estimatedTimeLeft: undefined,
+        completeInfo: "所有操作成功完成"
+      });
+      result.messages.push("\n=== 所有操作成功完成 ===");
+      emitProgress();
     } catch (error: any) {
       const msg = error.message || "未知错误";
-      updateResult({ success: false, errors: [`错误: ${msg}`] });
+      result.success = false;
+      result.errors.push(`错误: ${msg}`);
+      emitProgress();
       if (multiTransaction.state) {
         multiTransaction.updateStep(multiTransaction.state.currentStep, { status: "failed", error: msg });
       }

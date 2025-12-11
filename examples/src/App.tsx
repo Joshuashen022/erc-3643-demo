@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { getProvider, connectWallet, checkNetwork, switchToTargetNetwork, createContractConfig } from "./utils/contracts";
+import { getProvider, connectWallet, checkNetwork, switchToTargetNetwork } from "./utils/contracts";
 import { RPC_URL, UserRole, CHAIN_ID } from "./utils/config";
-import { validateDeployment, ValidationResult } from "./utils/validateDeployment";
+import { ValidationResult } from "./utils/validateDeployment";
+import { handleValidateDeployment } from "./flows/validateDeployment";
 import OwnerPanel from "./components/OwnerPanel";
 import FinancePanel from "./components/FinancePanel";
 import PublicPanel from "./components/PublicPanel";
@@ -248,43 +249,43 @@ function App() {
     setNetworkStatus(null);
   };
 
-  const handleValidateDeployment = async () => {
-    if (!provider || !signer) {
-      alert("请先连接钱包");
-      return;
-    }
+  // const handleValidateDeployment = async () => {
+  //   if (!provider || !signer) {
+  //     alert("请先连接钱包");
+  //     return;
+  //   }
 
-    setValidating(true);
-    setValidationResult(null);
-    setShowValidationResult(true);
+  //   setValidating(true);
+  //   setValidationResult(null);
+  //   setShowValidationResult(true);
 
-    try {
-      // 从 signer 初始化合约配置（前端场景，Claim Issuers 使用统一的 signer）
-      const contractConfig = await createContractConfig(provider, signer, {
-        useClaimIssuerPrivateKeys: false,
-      });
-      const result = await validateDeployment(provider, contractConfig);
-      setValidationResult(result);
+  //   try {
+  //     // 从 signer 初始化合约配置（前端场景，Claim Issuers 使用统一的 signer）
+  //     const contractConfig = await createContractConfig(provider, signer, {
+  //       useClaimIssuerPrivateKeys: false,
+  //     });
+  //     const result = await validateDeployment(provider, contractConfig);
+  //     setValidationResult(result);
       
-      // 在控制台也输出结果
-      console.log("=== 验证结果 ===");
-      result.messages.forEach(msg => console.log(msg));
-      if (result.errors.length > 0) {
-        console.error("=== 错误信息 ===");
-        result.errors.forEach(err => console.error(err));
-      }
-    } catch (error: any) {
-      const errorResult: ValidationResult = {
-        success: false,
-        messages: [],
-        errors: [`验证失败: ${error.message}`]
-      };
-      setValidationResult(errorResult);
-      console.error("验证失败:", error);
-    } finally {
-      setValidating(false);
-    }
-  }; 
+  //     // 在控制台也输出结果
+  //     console.log("=== 验证结果 ===");
+  //     result.messages.forEach(msg => console.log(msg));
+  //     if (result.errors.length > 0) {
+  //       console.error("=== 错误信息 ===");
+  //       result.errors.forEach(err => console.error(err));
+  //     }
+  //   } catch (error: any) {
+  //     const errorResult: ValidationResult = {
+  //       success: false,
+  //       messages: [],
+  //       errors: [`验证失败: ${error.message}`]
+  //     };
+  //     setValidationResult(errorResult);
+  //     console.error("验证失败:", error);
+  //   } finally {
+  //     setValidating(false);
+  //   }
+  // }; 
 
   return (
     <div className="app">
@@ -338,9 +339,6 @@ function App() {
       </header>
         
       <header className="app-header2">
-      <button className="validate-button" onClick={handleValidateDeployment} disabled={validating}>
-          {validating ? "验证中..." : "验证部署"}
-          </button>
       </header>
 
       <main className="app-main">

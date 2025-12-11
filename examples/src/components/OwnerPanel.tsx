@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
+import MultiTransactionModal from "./MultiTransactionModal";
 
 interface OwnerPanelProps {
   provider: ethers.JsonRpcProvider;
@@ -12,6 +13,7 @@ interface OwnerPanelProps {
 export default function OwnerPanel({ provider, wallet, account, setRoleChoose }: OwnerPanelProps) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
+  const [showValidateDeployment, setShowValidateDeployment] = useState(false);
   
   // Owner 检查状态
   const [ownerStatus, setOwnerStatus] = useState<Record<string, { isOwner: boolean | null; checking: boolean }>>({
@@ -1060,11 +1062,38 @@ export default function OwnerPanel({ provider, wallet, account, setRoleChoose }:
     }
   };
 
+  const handleValidateDeployment = async () => {
+    if (!provider || !wallet) {
+      alert("请先连接钱包");
+      return;
+    }
+    setShowValidateDeployment(true);
+  };
+
   return (
     <div className="panel">
+      {/* 验证部署多步骤流程模态框 */}
+      <MultiTransactionModal
+        isOpen={showValidateDeployment}
+        onClose={() => {
+          setShowValidateDeployment(false);
+        }}
+        isLoading={loading}
+        provider={provider}
+        wallet={wallet}
+        title="验证部署"
+      />
       <div className="panel-header">
         <h2 className="panel-title">Owner 管理面板</h2>
         <div className="panel-actions">
+          <button
+            onClick={handleValidateDeployment}
+            disabled={loading}
+            className="example-button"
+          >
+            <span style={{ fontSize: "16px", lineHeight: 1 }}>✓</span>
+            <span>验证部署</span>
+          </button>
           <button
             onClick={() => setRoleChoose(false)}
             className="btn-secondary"

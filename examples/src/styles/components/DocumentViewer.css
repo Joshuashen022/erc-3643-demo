@@ -8,17 +8,17 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2rem;
+  padding: 0;
 }
 
 .doc-viewer {
-  width: min(1200px, 100%);
-  height: min(800px, 90vh);
+  width: 100vw;
+  height: 100vh;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -43,6 +43,28 @@
   gap: 0.75rem;
 }
 
+.doc-toggle-sidebar-btn { 
+  /*  todo::display: ;
+  padding: 0.6rem 0.75rem;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #333;
+  transition: background 0.2s, border-color 0.2s;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center; */
+}
+
+.doc-toggle-sidebar-btn:hover {
+  /* background: #eef2ff; */
+  /* border-color: #cdd5ff; */
+  /* color: #4a5fb8; */
+}
+
 .doc-search {
   padding: 0.6rem 0.75rem;
   border: 1px solid #e0e0e0;
@@ -63,12 +85,26 @@
   grid-template-columns: 320px 1fr;
   flex: 1;
   min-height: 0;
+  transition: grid-template-columns 0.3s ease;
+}
+
+.doc-body.sidebar-hidden {
+  grid-template-columns: 0 1fr;
 }
 
 .doc-sidebar {
   border-right: 1px solid #f0f0f0;
   padding: 1rem;
   overflow-y: auto;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.doc-sidebar.hidden {
+  opacity: 0;
+  transform: translateX(-100%);
+  padding: 0;
+  border: none;
+  pointer-events: none;
 }
 
 .doc-group + .doc-group {

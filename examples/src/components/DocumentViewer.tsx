@@ -50,6 +50,7 @@ interface DocumentViewerProps {
 export default function DocumentViewer({ onClose }: DocumentViewerProps) {
   const [keyword, setKeyword] = useState("");
   const [selectedDocId, setSelectedDocId] = useState<string>(DOC_ITEMS[0]?.id ?? "");
+  const [sidebarVisible, setSidebarVisible] = useState(true);
   const markdownContainerRef = useRef<HTMLDivElement | null>(null);
 
   const filteredDocs = useMemo(() => {
@@ -121,9 +122,16 @@ export default function DocumentViewer({ onClose }: DocumentViewerProps) {
         <header className="doc-header">
           <div>
             <h2>文档中心</h2>
-            <p className="doc-subtitle">直接读取 @document 目录下的 Markdown 文件</p>
+            <p className="doc-subtitle">ERC-3643 原理及应用</p>
           </div>
           <div className="doc-actions">
+            <button
+              className="doc-toggle-sidebar-btn"
+              onClick={() => setSidebarVisible(!sidebarVisible)}
+              title={sidebarVisible ? "隐藏目录" : "显示目录"}
+            >
+              {sidebarVisible ? "◀" : "▶"}
+            </button>
             <input
               className="doc-search"
               placeholder="搜索文件名或路径..."
@@ -136,8 +144,8 @@ export default function DocumentViewer({ onClose }: DocumentViewerProps) {
           </div>
         </header>
 
-        <div className="doc-body">
-          <aside className="doc-sidebar">
+        <div className={`doc-body ${sidebarVisible ? "" : "sidebar-hidden"}`}>
+          <aside className={`doc-sidebar ${sidebarVisible ? "" : "hidden"}`}>
             {filteredDocs.length === 0 ? (
               <div className="doc-empty">未找到匹配的文档</div>
             ) : (

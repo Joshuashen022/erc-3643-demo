@@ -195,9 +195,6 @@ export default function MultiTransactionModal({
                   width: `${state ? (state.currentStep / state.totalSteps) * 100 : 0}%`,
                 }}
               />
-              {/* <div className="progress-bar-icon">
-                {state && state.currentStep < state.totalSteps ? "⟳" : "✓"}
-              </div> */}
             </div>
             <div className="progress-bar-right">
               <span>进行中</span>

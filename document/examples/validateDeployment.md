@@ -6,39 +6,29 @@
 sequenceDiagram
     participant Operator as 操作者/钱包
     participant Provider as RPC Provider
-    participant Token as Token 合约
-    participant Compliance as Compliance 合约
-    participant Registry as IdentityRegistry
-    participant Trusted as TrustedIssuersRegistry
-    participant Topics as ClaimTopicsRegistry
-
-    Note over Operator:  初始化
-    Operator->>Operator: multiTransaction.initialize
+    participant Token as 合约集合
+    participant Compliance as owner 集合
+    participant Registry as agent 集合
 
     Note over Operator,Provider:  验证网络信息
     Operator->>Provider: getNetwork()
     Provider-->>Operator: chainId
 
     Note over Operator,Token:  验证合约地址
-    Operator->>Token: compliance(), identityRegistry()
+    Operator->>Token: compliance(), identityRegistry(), identityStorage(), <br/>issuersRegistry(), topicsRegistry()
     Token-->>Operator: 合约地址
-    Operator->>Registry: identityStorage(), issuersRegistry(), topicsRegistry()
-    Registry-->>Operator: 子合约地址
-
+  
     Note over Operator,Compliance:  验证 Owner 关系
-    Operator->>Token: owner()
+
     Operator->>Compliance: owner()
-    Operator->>Registry: owner()
-    Operator->>Trusted: owner()
-    Operator->>Topics: owner()
 
     Note over Operator,Registry:  验证 Agent 关系
     Operator->>Registry: isAgent(suiteOwner)
-    Operator->>Token: isAgent(suiteOwner)
+
 
     Note over Operator:  汇总
     Operator->>Operator: 记录地址/Owner/Agent 结果
-    Operator->>Operator: 标记完成
+  
 ```
 
 ## 主要角色

@@ -1,53 +1,35 @@
 # Legal Flow（Claim Topic 管理示例）
 
-对应 `examples/src/flows/legalFlow.ts`，演示添加/移除 claim topic、部署新的 ClaimIssuer 并为身份添加 claim 的完整链路。文档结构参考 `transferFrom_flowchart.md`：准备 → 操作 → 验证 → 收尾。
 
 ```mermaid
 sequenceDiagram
-    participant Operator as 操作者/钱包
+    participant Operator as 法务
     participant Topics as ClaimTopicsRegistry
     participant IssuerFactory as ClaimIssuerIdFactory
     participant Trusted as TrustedIssuersRegistry
-    participant IdentityFactory as IdentityIdFactory
-    participant Identity as RWAIdentity
+    participant Identity as Identity
     participant Registry as IdentityRegistry
 
-    Note over Operator: 1. 初始化
-    Operator->>Operator: multiTransaction.initialize
-    Operator->>Operator: targetTopic = 3
+    Note over Operator,Registry: 添加 topic
+    Operator->>Topics: addClaimTopic(targetTopic)
+    Topics-->>Operator: ✓ 添加成功
 
-    Note over Operator,Topics: 2. 添加 topic（如缺失）
-    Operator->>Topics: getClaimTopics()
-    alt topic 缺失
-        Operator->>Topics: addClaimTopic(targetTopic)
-        Topics-->>Operator: ✓ 添加成功
-    else 已存在
-        Operator-->>Topics: 跳过
-    end
-
-    Note over Operator,IssuerFactory: 3. 部署并信任 ClaimIssuer
     Operator->>Operator: 生成新 issuer 管理密钥
     Operator->>IssuerFactory: createIdentity(issuerWallet, salt)
     IssuerFactory-->>Operator: issuerAddress
     Operator->>Trusted: addTrustedIssuer(issuerAddress, [targetTopic])
-    Trusted-->>Operator: ✓ 信任成功
+    
+    Trusted->>Identity: addClaim<br/>(topic=3, issuerAddress, signature, data)
 
-    Note over Operator,IdentityFactory: 4. 为当前账户添加 claim
-    Operator->>IdentityFactory: getIdentity(account)
-    IdentityFactory-->>Operator: identityAddress
-    Operator->>Identity: addClaim(topic=3, issuer=issuerAddress, signature, data)
-    Identity-->>Operator: ✓ Claim 添加成功
-    Operator->>Registry: isVerified(account)
-    Registry-->>Operator: true/false
+    Identity->>Registry: isVerified(account)
+    Registry-->>Operator: 校验结果
 
-    Note over Operator,Topics: 5. 移除 topic
+    Note over Operator,Registry: 移除 topic
     Operator->>Topics: removeClaimTopic(targetTopic)
-    Topics-->>Operator: ✓ 移除成功
-    Operator->>Registry: isVerified(account)
-    Registry-->>Operator: 当前验证结果
-
-    Note over Operator: 6. 完成
-    Operator->>Operator: 更新步骤完成状态
+    Topics->>Identity: removeClaim(targetTopic)（可选）
+    
+    Identity->>Registry: isVerified(account)
+    Registry-->>Operator: 校验结果
 ```
 
 ## 主要角色

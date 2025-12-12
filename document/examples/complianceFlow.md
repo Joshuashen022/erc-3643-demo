@@ -4,42 +4,26 @@
 
 ```mermaid
 sequenceDiagram
-    participant Operator as 操作者/钱包
-    participant Factory as MockModule Factory
+    participant Compliance as 操作者/钱包
     participant Module as MockModule
-    participant Compliance as Compliance 合约
+    participant Compliance as 监管
 
-    Note over Operator: 1. 初始化
-    Operator->>Operator: multiTransaction.initialize
+    Note over Operator,Compliance: 部署 MockModule
+    Compliance->>Module: deployMockModule
+    Module-->>Operator: moduleAddress
 
-    Note over Operator,Factory: 2. 部署 MockModule
-    Operator->>Factory: deployMockModule
-    Factory-->>Operator: moduleAddress
+    Note over Operator,Compliance: 添加模块
+    Operator->>Compliance: addModule(moduleAddress)
+    Compliance-->>Operator: ✓ 添加成功
 
-    Note over Operator,Compliance: 3. 添加模块
-    Operator->>Compliance: isModuleBound(moduleAddress)?
-    alt 未绑定
-        Operator->>Compliance: addModule(moduleAddress)
-        Compliance-->>Operator: 交易哈希
-        Operator->>Compliance: 等待确认
-        Compliance-->>Operator: ✓ 添加成功
-    else 已绑定
-        Operator-->>Compliance: 跳过
-    end
+    Operator->>Compliance: canTransfer(dummyFrom, dummyTo, 1 ETH)
 
-    Note over Operator,Compliance: 4. 移除模块
+    Note over Operator,Compliance: 移除模块
     Operator->>Compliance: removeModule(moduleAddress)
-    Operator->>Compliance: 等待确认
     Compliance-->>Operator: ✓ 移除成功
 
-    Note over Operator,Compliance: 5. 验证
-    Operator->>Compliance: isModuleBound(moduleAddress)
-    Operator->>Compliance: getModules()
     Operator->>Compliance: canTransfer(dummyFrom, dummyTo, 1 ETH)
-    Operator-->>Operator: 记录结果
 
-    Note over Operator: 6. 完成
-    Operator->>Operator: 更新步骤完成状态
 ```
 
 ## 主要角色

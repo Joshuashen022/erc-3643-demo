@@ -7,22 +7,15 @@ sequenceDiagram
     participant Operator as 操作者/钱包
     participant Token as Token
 
-    Note over Operator: 1. 初始化
-    Operator->>Operator: multiTransaction.initialize
-    Operator->>Token: createContractConfig，获取 token 实例
-
-    Note over Operator,Token: 2. 计算转账参数
+    Note over Operator,Token: 计算转账参数
     Operator->>Token: balanceOf(self)
     Token-->>Operator: balance
-    Operator->>Operator: transferAmount = balance / 10
 
-    Note over Operator,Token: 3. Transfer
-    Operator->>Token: transfer(to, transferAmount)
-    Token-->>Operator: 交易哈希
-    Operator->>Token: 等待 2 个确认
+    Note over Operator,Token: Transfer
+    Operator->>Token: transfer(to, balance/10)
     Token-->>Operator: ✓ 转账成功
 
-    Note over Operator,Token: 4. 验证
+    Note over Operator,Token: 验证
     Operator->>Token: balanceOf(self)
     Token-->>Operator: balanceAfter
     Operator->>Operator: 记录结果并完成步骤

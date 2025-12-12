@@ -4,49 +4,50 @@
 
 ```mermaid
 sequenceDiagram
-    participant FactoryOwner as Factory Owner
-    participant NewMgmtKey as 新管理密钥
+    participant FactoryOwner as 用户
+    participant NewMgmtKey as 新用户<br/>(后端管理)
     participant Factory as identityIdFactory
     participant NewIdentity as newIdentity
-    participant ClaimIssuer as claimIssuer
-    participant ClaimIssuerFactory as claimIssuerIdFactory
+    participant ClaimIssuer as claimIssuers<br/>(可能有多个)
     participant Registry as IdentityRegistry
 
-    Note over FactoryOwner,NewMgmtKey: 1. 生成新管理密钥并准备
-    FactoryOwner->>NewMgmtKey: 发送 0.0001 ETH (用于支付 gas)
-    activate NewMgmtKey
+    Note over FactoryOwner,NewMgmtKey: 生成管理密钥并准备
+    FactoryOwner->>NewMgmtKey: 用户提交注册请求
+    NewMgmtKey->>NewMgmtKey: 发送 0.0001 ETH (用于支付 gas)
+    
 
-    Note over FactoryOwner,NewIdentity: 2. 创建新身份
-    FactoryOwner->>Factory: createIdentity(newManagementKey, salt)
-    Factory->>NewIdentity: 创建身份合约
+    Note over NewMgmtKey,NewIdentity: 创建新身份
+
+    NewMgmtKey->>Factory: createIdentity创建身份合约
+    Factory->>NewIdentity: createIdentity创建身份合约
     activate NewIdentity
-    Factory-->>FactoryOwner: WalletLinked 事件 (包含 newIdentity 地址)
-    FactoryOwner->>FactoryOwner: 从事件中提取 newIdentity 地址
-
-    Note over FactoryOwner,ClaimIssuer: 3. 获取 ClaimIssuer 信息
-    FactoryOwner->>ClaimIssuerFactory: getIdentity(claimIssuerWallet.address)
-    ClaimIssuerFactory-->>FactoryOwner: 返回 claimIssuerAddress
-
-    Note over FactoryOwner: 4. 创建并签名 Claim
-    FactoryOwner->>FactoryOwner: 计算 dataHash = keccak256(identity, topic, data)
-    FactoryOwner->>FactoryOwner: 添加消息前缀 "\x19Ethereum Signed Message:\n32"
-    FactoryOwner->>FactoryOwner: 使用 claimIssuerWallet 私钥签名 prefixedHash
-    FactoryOwner->>FactoryOwner: 生成 ECDSA 签名 (r, s, v)
-
-    Note over NewMgmtKey,NewIdentity: 5. 添加 Claim 到新身份
-    NewMgmtKey->>NewIdentity: addClaim(topic=1, scheme=1, issuer, signature, data, uri="")
+    NewIdentity-->>NewMgmtKey: WalletLinked 事件 (包含 newIdentity 地址)
+    
+    Note over NewMgmtKey,ClaimIssuer: ClaimIssuer AddClaim 
+    rect rgba(153, 255, 177, 0.35)
+        loop 对每个 ClaimIssuer 循环签发与添加 Claim
+        
+            NewMgmtKey->>ClaimIssuer: 计算 dataHash = keccak256(identity, topic, data) 并发送
+            ClaimIssuer->>NewMgmtKey: 生成 ECDSA 签名(signature)
+        
+    
+            NewMgmtKey->>NewIdentity: addClaim(topic=1, scheme=1, issuer, signature, data, uri="")
+        end
+    end
     NewIdentity-->>NewMgmtKey: ✓ Claim 已添加
 
-    Note over FactoryOwner,Registry: 6. 注册身份到 Identity Registry
-    FactoryOwner->>Registry: registerIdentity(userAddress, identityAddress, countryCode=840)
-    Registry-->>FactoryOwner: ✓ 身份已注册
-
-    Note over FactoryOwner,Registry: 7. 验证身份注册状态
-    FactoryOwner->>Registry: isVerified(userAddress)
-    Registry-->>FactoryOwner: true (验证成功)
-
+    Note over NewMgmtKey,Registry:  注册身份到 Identity Registry
+    NewMgmtKey->>Registry: registerIdentity(userAddress, identityAddress, countryCode=840)
+    Registry-->>NewMgmtKey: ✓ 身份已注册
+    
     deactivate NewIdentity
-    deactivate NewMgmtKey
+
+    Note over Registry: 验证身份注册状态
+    Registry->>Registry: isVerified(userAddress)
+    Registry->>FactoryOwner: 返回成功
+
+    
+    
 ```
 
 ## 详细步骤说明

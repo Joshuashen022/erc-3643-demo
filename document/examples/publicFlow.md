@@ -1,6 +1,7 @@
 # Public Flow（单次 Transfer 示例）
 
-基于 `examples/src/flows/publicFlow.ts`，描述示例前端如何执行一次简单的 `transfer`。流程设计参考 `transferFrom_flowchart.md` 的结构：先准备环境，再执行核心交易，最后验证结果。
+### 业务场景举例
+用户想把收到的钱转移(transfer)到交易所/OTC兑换法币
 
 ```mermaid
 sequenceDiagram

@@ -1,6 +1,9 @@
 # Compliance Flow（模块增删示例）
 
-基于 `examples/src/flows/complianceFlow.ts`，演示在合规合约上部署、添加、移除模块的完整流程，结构参考 `transferFrom_flowchart.md`：准备 → 操作 → 验证 → 完成。
+### 业务场景举例
+1.添加一个黑名单list，当to 或者from 来自于这个list，禁止转账
+
+2.动态对用户的国籍进行限制，某个国籍的用户允许/禁止领取奖励
 
 ```mermaid
 sequenceDiagram

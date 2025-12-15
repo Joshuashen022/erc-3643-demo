@@ -1,4 +1,6 @@
 # Mint and Burn 流程图
+### 业务场景举例
+需要为某个业务提供初始流动性(mint)，某个业务停止使用销毁所有的流动性(burn)
 
 ```mermaid
 sequenceDiagram

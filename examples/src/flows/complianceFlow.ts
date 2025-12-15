@@ -22,9 +22,10 @@ export interface ComplianceFlowDeps {
 export const COMPLIANCE_FLOW_STEPS: Omit<TransactionStep, "status">[] = [
   { id: 1, title: "部署 MockModule" },
   { id: 2, title: "添加模块" },
-  { id: 3, title: "移除模块" },
-  { id: 4, title: "验证结果" },
-  { id: 5, title: "完成所有操作" },
+  { id: 3, title: "验证结果"},
+  { id: 4, title: "移除模块" },
+  { id: 5, title: "验证结果" },
+  { id: 6, title: "完成所有操作" },
 ];
 
 export function createComplianceFlowHandler({
@@ -139,47 +140,49 @@ export function createComplianceFlowHandler({
         emitProgress();
         multiTransaction.updateStep(2, { status: "completed" , completeInfo: `模块已绑定，跳过添加步骤: ${moduleAddress}`});
       }
+      const canTransferBefore = await contractConfig.compliance.canTransfer(
+        "0x0000000000000000000000000000000000001111",
+        "0x0000000000000000000000000000000000002222",
+        ethers.parseEther("1")
+      );
+      result.messages.push(`添加模块后 canTransfer: ${canTransferBefore}`);
+      emitProgress();
+      multiTransaction.updateStep(3, { 
+        status: "completed", 
+        confirmations: 12, 
+        estimatedTimeLeft: undefined,
+        completeInfo: `添加模块后 canTransfer: ${canTransferBefore}`
+      });
 
       // 步骤 3：移除模块
-      multiTransaction.setCurrentStep(3);
-      multiTransaction.updateStep(3, { status: "in_progress" });
-      result.messages.push("\n=== 步骤 3: 移除模块 ===");
+      multiTransaction.setCurrentStep(4);
+      multiTransaction.updateStep(4, { status: "in_progress" });
+      result.messages.push("\n=== 步骤 4: 移除模块 ===");
       emitProgress();
 
-      try {
-        const removeModuleTx = await contractConfig.compliance.removeModule(moduleAddress, { gasLimit: 1_000_000 });
-        result.messages.push(`移除模块交易哈希: ${removeModuleTx.hash}`);
-        emitProgress();
-
-        const removeCheckInterval = await multiTransaction.trackTransactionConfirmations?.(
-          provider,
-          removeModuleTx.hash,
-          3,
-          12
-        );
-
-        await removeModuleTx.wait(2);
-        if (removeCheckInterval) clearInterval(removeCheckInterval as NodeJS.Timeout);
-        result.messages.push("✓ 模块移除成功");
-        emitProgress();
-        multiTransaction.updateStep(3, { 
+      const removeModuleTx = await contractConfig.compliance.removeModule(moduleAddress, { gasLimit: 1_000_000 });
+      result.messages.push(`移除模块交易哈希: ${removeModuleTx.hash}`);
+      emitProgress();
+      const removeCheckInterval = await multiTransaction.trackTransactionConfirmations?.(
+        provider,
+        removeModuleTx.hash,
+        3,
+        12
+      );
+      await removeModuleTx.wait(2);
+      if (removeCheckInterval) clearInterval(removeCheckInterval as NodeJS.Timeout);
+      result.messages.push("✓ 模块移除成功");
+      emitProgress();
+      multiTransaction.updateStep(4, { 
           status: "completed", 
           confirmations: 12, 
           estimatedTimeLeft: undefined,
           completeInfo: `模块移除成功: ${moduleAddress}`
-        });
-      } catch (error: any) {
-        const msg = error.message || "移除模块失败";
-        result.success = false;
-        result.errors.push(`移除模块失败: ${msg}`);
-        emitProgress();
-        multiTransaction.updateStep(3, { status: "failed", error: msg });
-        return;
-      }
+      });  
 
       // 步骤 4：验证结果
-      multiTransaction.setCurrentStep(4);
-      multiTransaction.updateStep(4, { status: "in_progress" });
+      multiTransaction.setCurrentStep(5);
+      multiTransaction.updateStep(5, { status: "in_progress" });
       result.messages.push("\n=== 步骤 4: 验证结果 ===");
       emitProgress();
 
@@ -191,35 +194,23 @@ export function createComplianceFlowHandler({
       result.messages.push(`当前模块列表: ${modules.join(", ") || "空"}`);
       emitProgress();
 
-      try {
-        const canTransferAfter = await contractConfig.compliance.canTransfer(
-          "0x0000000000000000000000000000000000001111",
-          "0x0000000000000000000000000000000000002222",
-          ethers.parseEther("1")
-        );
-        result.messages.push(`移除后 canTransfer: ${canTransferAfter}`);
-        emitProgress();
-        multiTransaction.updateStep(4, { 
-          status: "completed", 
-          confirmations: 12, 
-          estimatedTimeLeft: undefined,
-          completeInfo: `验证结果: ${canTransferAfter}`
-        });
-  
-      } catch (error: any) {
-        result.messages.push(`检查 canTransfer 失败: ${error.message}`);
-        emitProgress();
-        multiTransaction.updateStep(4, { 
-          status: "failed", 
-          error: error.message,
-          completeInfo: `检查 canTransfer 失败: ${error.message}`
-        });
-        return;
-      }
+      const canTransferAfter = await contractConfig.compliance.canTransfer(
+        "0x0000000000000000000000000000000000001111",
+        "0x0000000000000000000000000000000000002222",
+        ethers.parseEther("1")
+      );
+      result.messages.push(`移除后 canTransfer: ${canTransferAfter}`);
+      emitProgress();
+      multiTransaction.updateStep(5, { 
+        status: "completed", 
+        confirmations: 12, 
+        estimatedTimeLeft: undefined,
+        completeInfo: `验证结果: ${canTransferAfter}`
+      });
 
       // 步骤 5：完成
-      multiTransaction.setCurrentStep(5);
-      multiTransaction.updateStep(5, { 
+      multiTransaction.setCurrentStep(6);
+      multiTransaction.updateStep(6, { 
         status: "completed", 
         confirmations: 12, 
         estimatedTimeLeft: undefined,

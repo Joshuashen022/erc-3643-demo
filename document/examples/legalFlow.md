@@ -1,5 +1,6 @@
 # Legal Flow（Claim Topic 管理示例）
-
+### 业务场景举例
+目前已经有KYC Topic (1)，AML Topic(2)，现在希望增加 **合格投资者资质** Topic (3)
 
 ```mermaid
 sequenceDiagram

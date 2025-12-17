@@ -19,13 +19,13 @@ sequenceDiagram
     Operator->>Compliance: addModule(moduleAddress)
     Compliance-->>Operator: ✓ 添加成功
 
-    Operator->>Compliance: canTransfer(dummyFrom, dummyTo, 1 ETH)
+    Operator->>Compliance: 验证 canTransfer()
 
     Note over Operator,Compliance: 移除模块
     Operator->>Compliance: removeModule(moduleAddress)
     Compliance-->>Operator: ✓ 移除成功
 
-    Operator->>Compliance: canTransfer(dummyFrom, dummyTo, 1 ETH)
+    Operator->>Compliance: 验证  canTransfer()
 
 ```
 

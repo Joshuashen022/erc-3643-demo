@@ -26,8 +26,8 @@ graph TB
     subgraph Core["核心合约层"]
         direction TB
         TokenOwner["Token"]
-        IR["IdentityRegistry"]
-        Compliance["ModularCompliance"]
+        IR["IdentityRegistry<br/>(isVerified)"]
+        Compliance["ModularCompliance<br/>(canTransfer)"]
     end
 
     %% 注册表层

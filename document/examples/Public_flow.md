@@ -14,6 +14,8 @@ sequenceDiagram
 
     Note over Operator,Token: Transfer
     Operator->>Token: transfer(to, balance/10)
+    Token->>Token: isVerified(to)
+    Token->>Token: canTransfer(to)
     Token-->>Operator: ✓ 转账成功
 
     Note over Operator,Token: 验证

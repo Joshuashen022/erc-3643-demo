@@ -4,7 +4,7 @@ import { createContractConfig } from "../utils/contracts";
 import { RegisterNewIdentityResult, signClaim } from "../utils/operations";
 import { MultiTransactionController } from "../hooks/useMultiTransaction";
 import { TransactionStep } from "../types/multiTransaction";
-import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
+import { rwaIdentityABI } from "../utils/contracts";
 
 export interface RegisterNewIdentityHandlerDeps {
   provider?: ethers.JsonRpcProvider;

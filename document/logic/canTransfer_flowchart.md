@@ -1,5 +1,7 @@
 # canTransfer 函数流程图
 
+**ModularCompliance**
+
 ```mermaid
 flowchart TD
     Start(["开始: canTransfer"]) --> GetLength["获取模块数量<br/>"]

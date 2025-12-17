@@ -1,128 +1,129 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.17;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
 import "@openzeppelin/contracts/governance/Governor.sol";
+import "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
+import "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
+import "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
+import "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
+import "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
 
-contract Government is Governor {
-    constructor() Governor("Government") {}
-
-    /**
-     * @dev Delay, in number of blocks, between the proposal is created and the vote starts.
-     */
-    function votingDelay() public pure override returns (uint256) {
-        return 1; // 1 block
-    }
-
-    /**
-     * @dev Delay, in number of blocks, between the vote start and vote ends.
-     */
-    function votingPeriod() public pure override returns (uint256) {
-        return 45818; // ~1 week (assuming 12s per block)
-    }
-
-    /**
-     * @dev Minimum number of cast votes required for a proposal to be successful.
-     */
-    function quorum(
-        uint256 /* blockNumber */
+/**
+ * @title Government
+ * @dev A production-grade Governor based on OpenZeppelin governance stack
+ *
+ * Architecture:
+ * - ERC20Votes / ERC721Votes: voting power source
+ * - GovernorSettings: voting delay / period / proposal threshold
+ * - GovernorCountingSimple: For / Against / Abstain
+ * - GovernorVotesQuorumFraction: quorum as % of total supply
+ * - GovernorTimelockControl: permissionless execution with delay
+ */
+contract Government is
+    Governor,
+    GovernorSettings,
+    GovernorCountingSimple,
+    GovernorVotes, 
+    GovernorVotesQuorumFraction,
+    GovernorTimelockControl
+{
+    constructor(
+        IVotes token,
+        TimelockController timelock
     )
+        Governor("Government")
+        GovernorSettings(
+            1,        // votingDelay: 1 block
+            45818,    // votingPeriod: ~1 week
+            0         // proposalThreshold
+        )
+        GovernorVotes(token)
+        GovernorVotesQuorumFraction(4) // 4% quorum
+        GovernorTimelockControl(timelock)
+    {}
+
+    /*//////////////////////////////////////////////////////////////
+                                Overrides
+    //////////////////////////////////////////////////////////////*/
+    function votingDelay()
         public
-        pure
-        override
+        view
+        override(IGovernor, GovernorSettings)
         returns (uint256)
     {
-        return 0; // No quorum requirement since _quorumReached always returns true
+        return super.votingDelay();
     }
 
-    /**
-     * @dev Amount of votes already cast passes the threshold limit.
-     */
-    function _quorumReached(
-        uint256 /* proposalId */
-    )
-        internal
-        pure
-        override
-        returns (bool)
-    {
-        return true;
-    }
-
-    /**
-     * @dev Is the proposal successful or not.
-     */
-    function _voteSucceeded(
-        uint256 /* proposalId */
-    )
-        internal
-        pure
-        override
-        returns (bool)
-    {
-        return true;
-    }
-
-    /**
-     * @dev Get the voting weight of `account` at a specific `blockNumber`, for a vote as described by `params`.
-     */
-    function _getVotes(
-        address,
-        /* account */
-        uint256,
-        /* blockNumber */
-        bytes memory /* params */
-    )
-        internal
-        pure
-        override
+    function votingPeriod()
+        public
+        view
+        override(IGovernor, GovernorSettings)
         returns (uint256)
     {
-        return 1;
+        return super.votingPeriod();
     }
 
-    /**
-     * @dev Register a vote for `proposalId` by `account` with a given `support`, voting `weight` and voting `params`.
-     *
-     * Note: Support is generic and can represent various things depending on the voting system used.
-     */
-    function _countVote(
-        uint256,
-        /* proposalId */
-        address,
-        /* account */
-        uint8,
-        /* support */
-        uint256,
-        /* weight */
-        bytes memory /* params */
-    )
-        internal
-        pure
-        override
-    {
-        // No vote counting needed
-    }
-
-    /**
-     * @dev See {IGovernor-COUNTING_MODE}.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function COUNTING_MODE() public pure override returns (string memory) {
-        return "support=bravo&quorum=0";
-    }
-
-    /**
-     * @dev See {IGovernor-hasVoted}.
-     */
-    function hasVoted(
-        uint256,
-        /* proposalId */
-        address /* account */
-    )
+    function quorum(uint256 blockNumber)
         public
-        pure
-        override
+        view
+        override(IGovernor, GovernorVotesQuorumFraction)
+        returns (uint256)
+    {
+        return super.quorum(blockNumber);
+    }
+
+    function state(uint256 proposalId)
+        public
+        view
+        override(Governor, GovernorTimelockControl)
+        returns (ProposalState)
+    {
+        return super.state(proposalId);
+    }
+
+    function proposalThreshold()
+        public
+        view
+        override(Governor, GovernorSettings)
+        returns (uint256)
+    {
+        return super.proposalThreshold();
+    }
+
+    function _execute(
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) internal override(Governor, GovernorTimelockControl) {
+        super._execute(proposalId, targets, values, calldatas, descriptionHash);
+    }
+
+    function _cancel(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) internal override(Governor, GovernorTimelockControl) returns (uint256) {
+        return super._cancel(targets, values, calldatas, descriptionHash);
+    }
+
+    function _executor()
+        internal
+        view
+        override(Governor, GovernorTimelockControl)
+        returns (address)
+    {
+        return super._executor();
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(Governor, GovernorTimelockControl)
         returns (bool)
     {
-        return false; // Votes are not tracked since proposals always succeed
+        return super.supportsInterface(interfaceId);
     }
 }

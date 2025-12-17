@@ -1,5 +1,7 @@
 # isVerified 函数流程图
 
+**IdentityRegistry**
+
 ```mermaid
 flowchart TD
     Start(["开始: isVerified"]) --> CheckIdentity{"identity 是否存在?"}

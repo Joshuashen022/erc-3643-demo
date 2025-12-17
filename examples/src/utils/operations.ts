@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import { ContractConfig } from "./contracts.js";
 import { sendTransaction } from "./transactions.js";
 import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
-import mockModuleArtifact from "../../../out/MockModule.sol/MockModule.json";
+import { mockModuleArtifact } from "./contracts";
 
 /**
  * 确保地址已注册

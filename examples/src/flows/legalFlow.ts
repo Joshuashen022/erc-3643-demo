@@ -2,7 +2,7 @@ import { Dispatch, SetStateAction } from "react";
 import { ethers } from "ethers";
 import { createContractConfig } from "../utils/contracts";
 import { signClaim } from "../utils/operations";
-import rwaIdentityABI from "../../../out/Identity.sol/RWAIdentity.json";
+import { rwaIdentityABI } from "../utils/contracts";
 import { MultiTransactionController } from "../hooks/useMultiTransaction";
 import { TransactionStep } from "../types/multiTransaction";
 

@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
 import configData from "../../../config.json";
-import deploymentResults31337 from "../../../deployments/deployment_results_31337_1.json";
 import deploymentResults84532 from "../../../deployments/deployment_results_84532_1764747970.json";
 import tokenABIRaw from "../../../abi/RWAToken.json";
 import identityRegistryABIRaw from "../../../abi/RWAIdentityRegistry.json";
@@ -16,6 +15,7 @@ import trexGatewayABIRaw from "../../../abi/TREXGateway.json";
 import claimIssuerABIRaw from "../../../abi/RWAClaimIssuer.json";
 import rwaIdentityABIRaw from "../../../abi/RWAIdentity.json";
 import identityRegistryStorageABIRaw from "../../../abi/RWAIdentityRegistryStorage.json";
+import mockModuleArtifactRaw from "../../../out/MockModule.sol/MockModule.json";
 
 export const tokenABI = tokenABIRaw;
 export const identityRegistryABI = identityRegistryABIRaw;
@@ -31,6 +31,7 @@ export const trexGatewayABI = trexGatewayABIRaw;
 export const claimIssuerABI = claimIssuerABIRaw;
 export const rwaIdentityABI = rwaIdentityABIRaw;
 export const identityRegistryStorageABI = identityRegistryStorageABIRaw;
+export const mockModuleArtifact = mockModuleArtifactRaw;
 
 /**
  * Deployment Results 结构体定义
@@ -130,10 +131,7 @@ export interface Config {
  * 直接导入 JSON 文件，不使用路径拼接
  */
 export function getDeploymentResults(chainId: number): DeploymentResults {
-  // 根据 chainId 直接返回对应的导入数据
-  if (chainId === 31337) {
-    return deploymentResults31337 as unknown as DeploymentResults;
-  } else if (chainId === 84532) {
+ if (chainId === 84532) {
     return deploymentResults84532 as unknown as DeploymentResults;
   } else {
     throw new Error(`未找到 chainId ${chainId} 的部署结果文件`);
@@ -143,7 +141,7 @@ export function getDeploymentResults(chainId: number): DeploymentResults {
 /**
  * 从编译输出中读取 ABI
  * 注意：此函数已移除文件系统依赖，需要直接导入 ABI JSON 文件
- * 建议：直接导入需要的 ABI 文件，例如：import tokenABI from "../../../out/RWAToken.sol/RWAToken.json"
+ * 建议：直接导入需要的 ABI 文件，例如：import { tokenABI } from "../utils/contracts";
  */
 export function getContractABI(contractName: string): any[] {
   console.warn(`getContractABI 已移除文件系统支持，请直接导入 ABI JSON 文件: ${contractName}`);

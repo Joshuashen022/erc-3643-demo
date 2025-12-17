@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { getProvider, connectWallet, checkNetwork, switchToTargetNetwork } from "./utils/contracts";
+import { getProvider, checkNetwork, switchToTargetNetwork } from "./utils/contracts";
 import { RPC_URL, UserRole, CHAIN_ID } from "./utils/config";
 import { ValidationResult } from "./utils/validateDeployment";
 import { handleValidateDeployment } from "./flows/validateDeployment";
@@ -197,20 +197,59 @@ function App() {
     }
   }, [account]);
 
+  // 获取 MetaMask Provider
+  const getMetaMaskProvider = () => {
+    if (typeof window === "undefined") return null;
+    const { ethereum } = window as any;
+
+    if (!ethereum) return null;
+
+    // 多钱包场景
+    if (ethereum.providers?.length) {
+      return ethereum.providers.find((p: any) => p.isMetaMask) || null;
+    }
+
+    // 单钱包
+    return ethereum.isMetaMask ? ethereum : null;
+  };
+
   const handleConnectWallet = async () => {
     if (!provider) return;
     
     setLoading(true);
     try {
-      const connectedWallet = await connectWallet(provider);
-      if (connectedWallet) {
-        setSigner(connectedWallet);
-        const address = await connectedWallet.getAddress();
-        setAccount(address);
-        // 连接后更新网络状态
-        await updateNetworkStatus();
-      } else {
-        alert("请安装 MetaMask 或使用其他 Web3 钱包");
+      // 首先检查并获取 MetaMask provider
+      const metaMaskProvider = getMetaMaskProvider();
+      if (!metaMaskProvider) {
+        alert("未检测到 MetaMask 钱包。\n\n请安装 MetaMask 浏览器扩展程序。");
+        setLoading(false);
+        return;
+      }
+
+      // 使用 MetaMask provider 连接钱包
+      try {
+        // 请求连接账户
+        await metaMaskProvider.request({ method: "eth_requestAccounts" });
+        
+        // 创建 BrowserProvider
+        const browserProvider = new ethers.BrowserProvider(metaMaskProvider);
+        
+        // 获取 Signer
+        const connectedWallet = await browserProvider.getSigner();
+        
+        if (connectedWallet) {
+          setSigner(connectedWallet);
+          const address = await connectedWallet.getAddress();
+          setAccount(address);
+          // 连接后更新网络状态
+          await updateNetworkStatus();
+        }
+      } catch (connectError: any) {
+        if (connectError.code === 4001) {
+          // 用户拒绝连接，不需要显示错误
+          return;
+        }
+        throw connectError;
       }
     } catch (error: any) {
       console.error("连接钱包失败:", error);

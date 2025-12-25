@@ -347,6 +347,44 @@ export function getProvider(rpcUrl: string): ethers.JsonRpcProvider {
 }
 
 /**
+ * 前端工具函数：获取 MetaMask Provider
+ * 支持多钱包场景，确保只选择 MetaMask
+ */
+export function getMetaMaskProvider(): any {
+  if (typeof window === "undefined") return null;
+  const { ethereum } = window as any;
+
+  if (!ethereum) return null;
+
+  // 多钱包场景
+  if (ethereum.providers?.length) {
+    const metaMaskProvider = ethereum.providers.find((p: any) => p.isMetaMask);
+    if (metaMaskProvider) {
+      return metaMaskProvider;
+    }
+    // 如果 providers 数组中没有找到 MetaMask，尝试直接检查 ethereum
+    if (ethereum.isMetaMask) {
+      return ethereum;
+    }
+    return null;
+  }
+
+  // 单钱包场景 - 检查是否是 MetaMask
+  if (ethereum.isMetaMask) {
+    return ethereum;
+  }
+
+  // 如果 ethereum 没有 isMetaMask 属性，但存在 request 方法，可能是 MetaMask（旧版本）
+  if (typeof ethereum.request === "function") {
+    // 尝试通过检查特定方法来判断是否是 MetaMask
+    // 注意：这只是一个后备方案
+    return ethereum;
+  }
+
+  return null;
+}
+
+/**
  * 前端工具函数：连接钱包（MetaMask）
  * @param provider - 保留参数以保持 API 兼容性，实际使用 BrowserProvider 时不需要
  */
@@ -381,12 +419,13 @@ export async function connectWallet(
  * 前端工具函数：检查网络
  */
 export async function checkNetwork(targetChainId?: number): Promise<{ correct: boolean; currentChainId?: number }> {
-  if (typeof window === "undefined" || !window.ethereum) {
+  const metaMaskProvider = getMetaMaskProvider();
+  if (!metaMaskProvider) {
     return { correct: false };
   }
 
   try {
-    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    const chainId = await metaMaskProvider.request({ method: "eth_chainId" });
     const currentChainId = parseInt(chainId, 16);
     
     if (targetChainId !== undefined) {
@@ -409,12 +448,13 @@ export async function checkNetwork(targetChainId?: number): Promise<{ correct: b
  * 前端工具函数：切换到目标网络
  */
 export async function switchToTargetNetwork(targetChainId: number): Promise<void> {
-  if (typeof window === "undefined" || !window.ethereum) {
-    throw new Error("请安装 MetaMask");
+  const metaMaskProvider = getMetaMaskProvider();
+  if (!metaMaskProvider) {
+    throw new Error("未检测到 MetaMask 钱包，请安装 MetaMask 浏览器扩展程序");
   }
 
   try {
-    await window.ethereum.request({
+    await metaMaskProvider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: `0x${targetChainId.toString(16)}` }],
     });

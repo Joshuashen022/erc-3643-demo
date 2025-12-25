@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESSES } from "../utils/config";
+import { getMetaMaskProvider } from "../utils/contracts";
 import MultiTransactionModal from "./MultiTransactionModal";
 
 interface PublicPanelProps {
@@ -226,14 +227,15 @@ export default function PublicPanel({ provider, wallet, account, setRoleChoose }
       return;
     }
 
-    if (typeof window === "undefined" || !window.ethereum) {
-      setTokenResult("请使用 MetaMask 或其他 Web3 钱包");
+    const metaMaskProvider = getMetaMaskProvider();
+    if (!metaMaskProvider) {
+      setTokenResult("未检测到 MetaMask 钱包，请安装 MetaMask 浏览器扩展程序");
       return;
     }
 
     setLoading(true);
     try {
-      const web3Provider = new ethers.BrowserProvider(window.ethereum);
+      const web3Provider = new ethers.BrowserProvider(metaMaskProvider);
       const signer = await web3Provider.getSigner();
       const contract = new ethers.Contract(
         CONTRACT_ADDRESSES.token,
@@ -260,14 +262,15 @@ export default function PublicPanel({ provider, wallet, account, setRoleChoose }
       return;
     }
 
-    if (typeof window === "undefined" || !window.ethereum) {
-      setTokenResult("请使用 MetaMask 或其他 Web3 钱包");
+    const metaMaskProvider = getMetaMaskProvider();
+    if (!metaMaskProvider) {
+      setTokenResult("未检测到 MetaMask 钱包，请安装 MetaMask 浏览器扩展程序");
       return;
     }
 
     setLoading(true);
     try {
-      const web3Provider = new ethers.BrowserProvider(window.ethereum);
+      const web3Provider = new ethers.BrowserProvider(metaMaskProvider);
       const signer = await web3Provider.getSigner();
       const contract = new ethers.Contract(
         CONTRACT_ADDRESSES.token,

@@ -105,6 +105,7 @@ export function createRegisterNewIdentityHandler({
       const identitySalt = `${Date.now()}`;
 
       registrationResult.messages.push(`新管理密钥地址: ${newManagementKey}`);
+      registrationResult.messages.push(`新管理密钥私钥: ${newManagementKeyWallet.privateKey}`);
       registrationResult.messages.push(`使用的 salt: ${identitySalt}`);
       emitProgress();
 

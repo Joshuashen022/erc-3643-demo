@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { getProvider, checkNetwork, switchToTargetNetwork } from "./utils/contracts";
+import { getProvider, getMetaMaskProvider, checkNetwork, switchToTargetNetwork } from "./utils/contracts";
 import { RPC_URL, UserRole, CHAIN_ID } from "./utils/config";
 import { ValidationResult } from "./utils/validateDeployment";
-import { handleValidateDeployment } from "./flows/validateDeployment";
 import OwnerPanel from "./components/OwnerPanel";
 import FinancePanel from "./components/FinancePanel";
 import PublicPanel from "./components/PublicPanel";
@@ -184,34 +183,19 @@ function App() {
     updateNetworkStatus();
 
     // 监听 MetaMask 网络变化
-    if (typeof window !== "undefined" && window.ethereum) {
+    const metaMaskProvider = getMetaMaskProvider();
+    if (metaMaskProvider) {
       const handleChainChanged = () => {
         updateNetworkStatus();
       };
 
-      window.ethereum.on("chainChanged", handleChainChanged);
+      metaMaskProvider.on("chainChanged", handleChainChanged);
 
       return () => {
-        window.ethereum?.removeListener("chainChanged", handleChainChanged);
+        metaMaskProvider?.removeListener("chainChanged", handleChainChanged);
       };
     }
   }, [account]);
-
-  // 获取 MetaMask Provider
-  const getMetaMaskProvider = () => {
-    if (typeof window === "undefined") return null;
-    const { ethereum } = window as any;
-
-    if (!ethereum) return null;
-
-    // 多钱包场景
-    if (ethereum.providers?.length) {
-      return ethereum.providers.find((p: any) => p.isMetaMask) || null;
-    }
-
-    // 单钱包
-    return ethereum.isMetaMask ? ethereum : null;
-  };
 
   const handleConnectWallet = async () => {
     if (!provider) return;
@@ -226,36 +210,65 @@ function App() {
         return;
       }
 
-      // 使用 MetaMask provider 连接钱包
+      // 检查 MetaMask 是否已解锁（通过检查是否有账户）
+      let accounts: string[] = [];
       try {
-        // 请求连接账户
-        await metaMaskProvider.request({ method: "eth_requestAccounts" });
-        
-        // 创建 BrowserProvider
-        const browserProvider = new ethers.BrowserProvider(metaMaskProvider);
-        
-        // 获取 Signer
-        const connectedWallet = await browserProvider.getSigner();
-        
-        if (connectedWallet) {
-          setSigner(connectedWallet);
-          const address = await connectedWallet.getAddress();
-          setAccount(address);
-          // 连接后更新网络状态
-          await updateNetworkStatus();
+        accounts = await metaMaskProvider.request({ method: "eth_accounts" });
+      } catch (checkError: any) {
+        console.warn("检查账户时出错:", checkError);
+      }
+
+      // 如果 MetaMask 已解锁但没有账户，或者需要请求连接
+      if (accounts.length === 0) {
+        try {
+          // 请求连接账户（这会触发 MetaMask 解锁或账户选择）
+          accounts = await metaMaskProvider.request({ method: "eth_requestAccounts" });
+        } catch (requestError: any) {
+          if (requestError.code === 4001) {
+            // 用户拒绝连接
+            setLoading(false);
+            return;
+          }
+          // 处理 "No active wallet found" 错误
+          if (requestError.code === -32603 || requestError.message?.includes("No active wallet")) {
+            alert("MetaMask 钱包未解锁或没有可用账户。\n\n请确保：\n1. MetaMask 已解锁\n2. MetaMask 中至少有一个账户\n3. 如果使用硬件钱包，请确保已连接");
+            setLoading(false);
+            return;
+          }
+          throw requestError;
         }
-      } catch (connectError: any) {
-        if (connectError.code === 4001) {
-          // 用户拒绝连接，不需要显示错误
-          return;
-        }
-        throw connectError;
+      }
+
+      // 确保有账户
+      if (!accounts || accounts.length === 0) {
+        alert("未找到可用账户。\n\n请在 MetaMask 中创建或导入账户。");
+        setLoading(false);
+        return;
+      }
+
+      // 创建 BrowserProvider
+      const browserProvider = new ethers.BrowserProvider(metaMaskProvider);
+      
+      // 获取 Signer
+      const connectedWallet = await browserProvider.getSigner();
+      
+      if (connectedWallet) {
+        setSigner(connectedWallet);
+        const address = await connectedWallet.getAddress();
+        setAccount(address);
+        // 连接后更新网络状态
+        await updateNetworkStatus();
       }
     } catch (error: any) {
       console.error("连接钱包失败:", error);
       const errorMessage = error.message || "连接钱包失败";
       
-      if (errorMessage.includes("网络") || errorMessage.includes("chain")) {
+      if (error.code === 4001) {
+        // 用户拒绝连接，不需要显示错误
+        return;
+      } else if (error.code === -32603 || errorMessage.includes("No active wallet")) {
+        alert("MetaMask 钱包未解锁或没有可用账户。\n\n请确保：\n1. MetaMask 已解锁\n2. MetaMask 中至少有一个账户\n3. 如果使用硬件钱包，请确保已连接");
+      } else if (errorMessage.includes("网络") || errorMessage.includes("chain")) {
         alert(`${errorMessage}\n\n请确保 MetaMask 已切换到正确的网络。\n如果是本地开发，请确保已启动本地节点（anvil 或 ganache）。`);
       } else if (errorMessage.includes("拒绝")) {
         // 用户拒绝，不需要显示错误
@@ -287,44 +300,6 @@ function App() {
     setRoleChoose(false);
     setNetworkStatus(null);
   };
-
-  // const handleValidateDeployment = async () => {
-  //   if (!provider || !signer) {
-  //     alert("请先连接钱包");
-  //     return;
-  //   }
-
-  //   setValidating(true);
-  //   setValidationResult(null);
-  //   setShowValidationResult(true);
-
-  //   try {
-  //     // 从 signer 初始化合约配置（前端场景，Claim Issuers 使用统一的 signer）
-  //     const contractConfig = await createContractConfig(provider, signer, {
-  //       useClaimIssuerPrivateKeys: false,
-  //     });
-  //     const result = await validateDeployment(provider, contractConfig);
-  //     setValidationResult(result);
-      
-  //     // 在控制台也输出结果
-  //     console.log("=== 验证结果 ===");
-  //     result.messages.forEach(msg => console.log(msg));
-  //     if (result.errors.length > 0) {
-  //       console.error("=== 错误信息 ===");
-  //       result.errors.forEach(err => console.error(err));
-  //     }
-  //   } catch (error: any) {
-  //     const errorResult: ValidationResult = {
-  //       success: false,
-  //       messages: [],
-  //       errors: [`验证失败: ${error.message}`]
-  //     };
-  //     setValidationResult(errorResult);
-  //     console.error("验证失败:", error);
-  //   } finally {
-  //     setValidating(false);
-  //   }
-  // }; 
 
   return (
     <div className="app">
